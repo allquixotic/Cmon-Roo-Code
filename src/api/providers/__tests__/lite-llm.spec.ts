@@ -164,6 +164,73 @@ describe("LiteLLMHandler", () => {
 				cacheReadTokens: 30,
 			})
 		})
+
+		it("should add cache control headers when litellmUsePromptCache is unset", async () => {
+			const optionsWithDefaultCache: ApiHandlerOptions = {
+				...mockOptions,
+			}
+			handler = new LiteLLMHandler(optionsWithDefaultCache)
+
+			const systemPrompt = "You are a helpful assistant"
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: "Hello" },
+				{ role: "assistant", content: "Hi there!" },
+				{ role: "user", content: "How are you?" },
+			]
+
+			const mockStream = {
+				async *[Symbol.asyncIterator]() {
+					yield {
+						choices: [{ delta: { content: "I'm doing well!" } }],
+						usage: {
+							prompt_tokens: 100,
+							completion_tokens: 50,
+							cache_creation_input_tokens: 20,
+							cache_read_input_tokens: 30,
+						},
+					}
+				},
+			}
+
+			mockCreate.mockReturnValue({
+				withResponse: vi.fn().mockResolvedValue({ data: mockStream }),
+			})
+
+			const generator = handler.createMessage(systemPrompt, messages)
+			for await (const _chunk of generator) {
+				// consume stream
+			}
+
+			const createCall = mockCreate.mock.calls[0][0]
+
+			expect(createCall.messages[0]).toMatchObject({
+				role: "system",
+				content: [
+					{
+						type: "text",
+						text: systemPrompt,
+						cache_control: { type: "ephemeral" },
+					},
+				],
+			})
+
+			const userMessageIndices = createCall.messages
+				.map((msg: any, idx: number) => (msg.role === "user" ? idx : -1))
+				.filter((idx: number) => idx !== -1)
+
+			const lastUserIdx = userMessageIndices[userMessageIndices.length - 1]
+
+			expect(createCall.messages[lastUserIdx]).toMatchObject({
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: "How are you?",
+						cache_control: { type: "ephemeral" },
+					},
+				],
+			})
+		})
 	})
 
 	describe("GPT-5 model handling", () => {

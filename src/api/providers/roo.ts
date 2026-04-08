@@ -21,13 +21,13 @@ import { handleOpenAIError } from "./utils/openai-error-handler"
 import { generateImageWithProvider, generateImageWithImagesApi, ImageGenerationResult } from "./utils/image-generation"
 import { t } from "../../i18n"
 
-// Extend OpenAI's CompletionUsage to include Roo specific fields
+// Extend OpenAI's CompletionUsage to include roo-specific fields
 interface RooUsage extends OpenAI.CompletionUsage {
 	cache_creation_input_tokens?: number
 	cost?: number
 }
 
-// Add custom interface for Roo params to support reasoning
+// Add custom interface for roo params to support reasoning
 type RooChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParamsStreaming & {
 	reasoning?: RooReasoningParams
 }
@@ -55,7 +55,7 @@ export class RooHandler extends BaseOpenAiCompatibleProvider<string> {
 		// The provider-proxy server will return 401 if authentication fails.
 		super({
 			...options,
-			providerName: "Roo Code Cloud",
+			providerName: "CRC Router",
 			baseURL, // Already has /v1 suffix
 			apiKey: sessionToken,
 			defaultProviderModelId: rooDefaultModelId,
@@ -87,7 +87,7 @@ export class RooHandler extends BaseOpenAiCompatibleProvider<string> {
 			defaultTemperature: this.defaultTemperature,
 		})
 
-		// Get Roo-specific reasoning parameters
+		// Get roo-specific reasoning parameters
 		const reasoning = getRooReasoning({
 			model: info,
 			reasoningBudget: params.reasoningBudget,
@@ -387,7 +387,7 @@ export class RooHandler extends BaseOpenAiCompatibleProvider<string> {
 	}
 
 	/**
-	 * Generate an image using Roo Code Cloud's image generation API
+	 * Generate an image using CRC Cloud's image generation API
 	 * @param prompt The text prompt for image generation
 	 * @param model The model to use for generation
 	 * @param inputImage Optional base64 encoded input image data URL

@@ -296,6 +296,19 @@ describe("ApiOptions", () => {
 		expect(mockSetApiConfigurationField).toHaveBeenCalledWith("apiModelId", openAiCodexDefaultModelId, false)
 	})
 
+	describe("Bedrock prompt caching warning", () => {
+		it("shows the prompt caching warning when Bedrock caching is explicitly disabled", () => {
+			renderApiOptions({
+				apiConfiguration: {
+					apiProvider: "bedrock",
+					awsUsePromptCache: false,
+				},
+			})
+
+			expect(screen.getByTestId("prompt-caching-disabled-warning")).toBeInTheDocument()
+		})
+	})
+
 	it("shows temperature and rate limit controls by default", () => {
 		renderApiOptions({
 			apiConfiguration: {},
@@ -566,6 +579,27 @@ describe("ApiOptions", () => {
 			})
 
 			expect(screen.queryByTestId("litellm-provider")).not.toBeInTheDocument()
+		})
+
+		it("shows the prompt caching warning when LiteLLM caching is explicitly disabled", () => {
+			renderApiOptions({
+				apiConfiguration: {
+					apiProvider: "litellm",
+					litellmUsePromptCache: false,
+				},
+			})
+
+			expect(screen.getByTestId("prompt-caching-disabled-warning")).toBeInTheDocument()
+		})
+
+		it("does not show the prompt caching warning when LiteLLM caching is unset", () => {
+			renderApiOptions({
+				apiConfiguration: {
+					apiProvider: "litellm",
+				},
+			})
+
+			expect(screen.queryByTestId("prompt-caching-disabled-warning")).not.toBeInTheDocument()
 		})
 	})
 

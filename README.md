@@ -1,30 +1,25 @@
 <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline"><img src="https://img.shields.io/badge/VS_Code_Marketplace-007ACC?style=flat&logo=visualstudiocode&logoColor=white" alt="VS Code Marketplace"></a>
-  <a href="https://x.com/roocode"><img src="https://img.shields.io/badge/roocode-000000?style=flat&logo=x&logoColor=white" alt="X"></a>
-  <a href="https://youtube.com/@roocodeyt?feature=shared"><img src="https://img.shields.io/badge/YouTube-FF0000?style=flat&logo=youtube&logoColor=white" alt="YouTube"></a>
-  <a href="https://discord.gg/roocode"><img src="https://img.shields.io/badge/Join%20Discord-5865F2?style=flat&logo=discord&logoColor=white" alt="Join Discord"></a>
-  <a href="https://www.reddit.com/r/RooCode/"><img src="https://img.shields.io/badge/Join%20r%2FRooCode-FF4500?style=flat&logo=reddit&logoColor=white" alt="Join r/RooCode"></a>
-</p>
-<p align="center">
-  <em>Get help fast → <a href="https://discord.gg/roocode">Join Discord</a> • Prefer async? → <a href="https://www.reddit.com/r/RooCode/">Join r/RooCode</a></em>
 </p>
 
-# Roo Code
+# CRC
 
-> Your AI-Powered Dev Team, Right in Your Editor
+> Cmon Roo Code — your AI-powered dev team, right in your editor.
 
-## What’s Different in This Fork
+CRC is this repository’s downstream sync and rebrand of Roo Code. The name stands for **Cmon Roo Code**: a version of the project that keeps the upstream agentic workflow while preserving the behavior changes and product decisions in this repo.
 
-This branch is a downstream Roo Code fork with a small set of behavior changes implemented directly in the current source tree:
+## CRC Highlights
 
-- **YOLO mode in Settings:** adds a dedicated checkbox that forces automatic approval for read, write, MCP, mode-switch, subtask, and execute asks, and hides the transient approve/reject button bar for those asks. Follow-up questions still wait for a user response instead of auto-selecting an answer. Explicitly denied commands are still denied, and protected writes still require approval.
-- **Multiple live conversations:** adds a conversations list in the chat UI, keeps multiple root tasks alive at the same time, and lets you switch between them without closing or replacing the others.
-- **Settings import controls:** adds a Roo Settings toggle for startup auto-import plus an `Import Now` action that imports from the configured external JSON settings path on demand.
-- **Default editor-pane rendering:** adds a UI preference that makes Roo prefer opening and focusing in an editor tab instead of the sidebar, while still keeping the sidebar workflow available.
+- Generate, refactor, debug, explain, and plan with built-in Code, Architect, Ask, Debug, and custom modes.
+- **YOLO mode in Settings:** adds a dedicated checkbox that forces automatic approval for read, write, MCP, mode-switch, subtask, and execute asks, while still leaving follow-up questions and protected writes under user control.
+- **Multiple live conversations:** keeps multiple root tasks alive at the same time and lets you switch between them without replacing the others.
+- **Settings import controls:** adds a CRC Settings toggle for startup auto-import plus an `Import Now` action that imports from the configured external JSON settings path on demand.
+- **Default editor-pane rendering:** adds a UI preference that makes CRC prefer opening in an editor tab instead of the sidebar, while still keeping the sidebar workflow available.
+- **Prompt caching enabled by default where supported:** new and default profiles automatically use prompt caching on supported providers, and the settings UI shows a prominent cost warning when caching is explicitly disabled.
+- **Telemetry-free fork behavior:** telemetry, analytics, and error-reporting code have been removed from this repo.
+- Keep upstream capabilities such as checkpoints, worktrees, MCP integration, slash-command skills, and broad model/provider support from the latest sync.
 
-The rest of this README describes Roo Code generally; the section above covers the fork-specific behavior changes in this repository.
-
-### Building and Installing This Fork Locally
+## Building and Installing CRC Locally
 
 The `allquixotic/build.js` Bun helper builds the current checkout directly and can install the resulting VSIX into a local VS Code profile using platform-aware defaults.
 
@@ -58,8 +53,9 @@ Built VSIX artifacts are copied to `allquixotic/build/artifacts/`. After `instal
 
 ## What's New in v3.51.0
 
-- Add support for OpenAI GPT-5.4 and GPT-5.3 Chat Latest so you can use the newest OpenAI chat models in Roo Code.
+- Add support for OpenAI GPT-5.4 and GPT-5.3 Chat Latest so you can use the newest OpenAI chat models in CRC.
 - Expose skills as slash commands with fallback execution to make reusable workflows faster to trigger.
+- Default prompt caching to on where supported, and warn clearly when it is turned off on a cache-capable model.
 
 <details>
   <summary>🌐 Available languages</summary>
@@ -83,23 +79,23 @@ Built VSIX artifacts are copied to `allquixotic/build/artifacts/`. After `instal
 - [简体中文](locales/zh-CN/README.md)
 - [繁體中文](locales/zh-TW/README.md)
 - ...
-      </details>
+    </details>
 
 ---
 
-## What Can Roo Code Do For YOU?
+## What Can CRC Do For You?
 
-- Generate Code from natural language descriptions and specs
+- Generate code from natural language descriptions and specs
 - Adapt with Modes: Code, Architect, Ask, Debug, and Custom Modes
-- Refactor & Debug existing code
-- Write & Update documentation
-- Answer Questions about your codebase
+- Refactor and debug existing code
+- Write and update documentation
+- Answer questions about your codebase
 - Automate repetitive tasks
-- Utilize MCP Servers
+- Utilize MCP servers
 
 ## Modes
 
-Roo Code adapts to how you work:
+CRC adapts to how you work:
 
 - Code Mode: everyday coding, edits, and file ops
 - Architect Mode: plan systems, specs, and migrations
@@ -109,28 +105,13 @@ Roo Code adapts to how you work:
 
 Learn more: [Using Modes](https://docs.roocode.com/basic-usage/using-modes) • [Custom Modes](https://docs.roocode.com/advanced-usage/custom-modes)
 
-## Tutorial & Feature Videos
-
-<div align="center">
-
-|                                                                                                                                                                           |                                                                                                                                                                            |                                                                                                                                                                          |
-| :-----------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
-| <a href="https://www.youtube.com/watch?v=Mcq3r1EPZ-4"><img src="https://img.youtube.com/vi/Mcq3r1EPZ-4/maxresdefault.jpg" width="100%"></a><br><b>Installing Roo Code</b> | <a href="https://www.youtube.com/watch?v=ZBML8h5cCgo"><img src="https://img.youtube.com/vi/ZBML8h5cCgo/maxresdefault.jpg" width="100%"></a><br><b>Configuring Profiles</b> | <a href="https://www.youtube.com/watch?v=r1bpod1VWhg"><img src="https://img.youtube.com/vi/r1bpod1VWhg/maxresdefault.jpg" width="100%"></a><br><b>Codebase Indexing</b>  |
-|    <a href="https://www.youtube.com/watch?v=iiAv1eKOaxk"><img src="https://img.youtube.com/vi/iiAv1eKOaxk/maxresdefault.jpg" width="100%"></a><br><b>Custom Modes</b>     |     <a href="https://www.youtube.com/watch?v=Ho30nyY332E"><img src="https://img.youtube.com/vi/Ho30nyY332E/maxresdefault.jpg" width="100%"></a><br><b>Checkpoints</b>      | <a href="https://www.youtube.com/watch?v=HmnNSasv7T8"><img src="https://img.youtube.com/vi/HmnNSasv7T8/maxresdefault.jpg" width="100%"></a><br><b>Context Management</b> |
-
-</div>
-<p align="center">
-<a href="https://docs.roocode.com/tutorial-videos">More quick tutorial and feature videos...</a>
-</p>
-
 ## Resources
 
-- **[Documentation](https://docs.roocode.com):** The official guide to installing, configuring, and mastering Roo Code.
-- **[YouTube Channel](https://youtube.com/@roocodeyt?feature=shared):** Watch tutorials and see features in action.
-- **[Discord Server](https://discord.gg/roocode):** Join the community for real-time help and discussion.
-- **[Reddit Community](https://www.reddit.com/r/RooCode):** Share your experiences and see what others are building.
+- **[Documentation](https://docs.roocode.com):** The official guide to installing, configuring, and mastering CRC.
+- **[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline):** Install the current published extension build.
 - **[GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues):** Report bugs and track development.
 - **[Feature Requests](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop):** Have an idea? Share it with the developers.
+- **[GitHub Discussions](https://github.com/RooCodeInc/Roo-Code/discussions):** Ask questions and compare notes with other users.
 
 ---
 
@@ -139,7 +120,7 @@ Learn more: [Using Modes](https://docs.roocode.com/basic-usage/using-modes) • 
 1. **Clone** the repo:
 
 ```sh
-git clone https://github.com/RooCodeInc/Roo-Code.git
+git clone <your-crc-fork-url>
 ```
 
 2. **Install dependencies**:
@@ -150,20 +131,20 @@ pnpm install
 
 3. **Run the extension**:
 
-There are several ways to run the Roo Code extension:
+There are several ways to run the CRC extension:
 
 ### Development Mode (F5)
 
-For active development, use VSCode's built-in debugging:
+For active development, use VS Code's built-in debugging:
 
-Press `F5` (or go to **Run** → **Start Debugging**) in VSCode. This will open a new VSCode window with the Roo Code extension running.
+Press `F5` (or go to **Run** → **Start Debugging**) in VS Code. This will open a new VS Code window with the CRC extension running.
 
 - Changes to the webview will appear immediately.
 - Changes to the core extension will also hot reload automatically.
 
 ### Automated VSIX Installation
 
-To build and install the extension as a VSIX package directly into VSCode:
+To build and install the extension as a VSIX package directly into VS Code:
 
 ```sh
 pnpm install:vsix [-y] [--editor=<command>]
@@ -171,7 +152,7 @@ pnpm install:vsix [-y] [--editor=<command>]
 
 This command will:
 
-- Ask which editor command to use (code/cursor/code-insiders) - defaults to 'code'
+- Ask which editor command to use (code/cursor/code-insiders) - defaults to `code`
 - Uninstall any existing version of the extension.
 - Build the latest VSIX package.
 - Install the newly built VSIX.
@@ -180,44 +161,44 @@ This command will:
 Options:
 
 - `-y`: Skip all confirmation prompts and use defaults
-- `--editor=<command>`: Specify the editor command (e.g., `--editor=cursor` or `--editor=code-insiders`)
+- `--editor=<command>`: Specify the editor command (for example, `--editor=cursor` or `--editor=code-insiders`)
 
 ### Manual VSIX Installation
 
 If you prefer to install the VSIX package manually:
 
-1.  First, build the VSIX package:
+1. First, build the VSIX package:
     ```sh
     pnpm vsix
     ```
-2.  A `.vsix` file will be generated in the `bin/` directory (e.g., `bin/roo-cline-<version>.vsix`).
-3.  Install it manually using the VSCode CLI:
+2. A `.vsix` file will be generated in the `bin/` directory (for example, `bin/roo-cline-<version>.vsix`).
+3. Install it manually using the VS Code CLI:
     ```sh
     code --install-extension bin/roo-cline-<version>.vsix
     ```
 
 ---
 
-We use [changesets](https://github.com/changesets/changesets) for versioning and publishing. Check our `CHANGELOG.md` for release notes.
+We use [changesets](https://github.com/changesets/changesets) for versioning and publishing. Check `CHANGELOG.md` for release notes.
 
 ---
 
 ## Disclaimer
 
-**Please note** that Roo Code, Inc does **not** make any representations or warranties regarding any code, models, or other tools provided or made available in connection with Roo Code, any associated third-party tools, or any resulting outputs. You assume **all risks** associated with the use of any such tools or outputs; such tools are provided on an **"AS IS"** and **"AS AVAILABLE"** basis. Such risks may include, without limitation, intellectual property infringement, cyber vulnerabilities or attacks, bias, inaccuracies, errors, defects, viruses, downtime, property loss or damage, and/or personal injury. You are solely responsible for your use of any such tools or outputs (including, without limitation, the legality, appropriateness, and results thereof).
+**Please note** that CRC and its contributors do **not** make any representations or warranties regarding any code, models, or other tools provided or made available in connection with CRC, any associated third-party tools, or any resulting outputs. You assume **all risks** associated with the use of any such tools or outputs; such tools are provided on an **"AS IS"** and **"AS AVAILABLE"** basis. Such risks may include, without limitation, intellectual property infringement, cyber vulnerabilities or attacks, bias, inaccuracies, errors, defects, viruses, downtime, property loss or damage, and/or personal injury. You are solely responsible for your use of any such tools or outputs, including the legality, appropriateness, and results thereof.
 
 ---
 
 ## Contributing
 
-We love community contributions! Get started by reading our [CONTRIBUTING.md](CONTRIBUTING.md).
+We love community contributions. Get started by reading [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
 ## License
 
-[Apache 2.0 © 2025 Roo Code, Inc.](./LICENSE)
+[Apache 2.0](./LICENSE)
 
 ---
 
-**Enjoy Roo Code!** Whether you keep it on a short leash or let it roam autonomously, we can’t wait to see what you build. If you have questions or feature ideas, drop by our [Reddit community](https://www.reddit.com/r/RooCode/) or [Discord](https://discord.gg/roocode). Happy coding!
+**Enjoy CRC!** Whether you keep it on a short leash or let it roam autonomously, we can’t wait to see what you build. If you have questions or feature ideas, open an issue or start a discussion on GitHub. Happy coding!

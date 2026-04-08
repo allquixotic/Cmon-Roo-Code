@@ -66,7 +66,7 @@ let settingsUpdatedHandler: (() => void) | undefined
 let userInfoHandler: ((data: { userInfo: CloudUserInfo }) => Promise<void>) | undefined
 
 /**
- * Check if we should auto-open the Roo Code sidebar after switching to a worktree.
+ * Check if we should auto-open the CRC sidebar after switching to a worktree.
  * This is called during extension activation to handle the worktree auto-open flow.
  */
 async function checkWorktreeAutoOpen(
@@ -94,9 +94,9 @@ async function checkWorktreeAutoOpen(
 			// Clear the state first to prevent re-triggering
 			await context.globalState.update("worktreeAutoOpenPath", undefined)
 
-			outputChannel.appendLine(`[Worktree] Auto-opening Roo Code sidebar for worktree: ${worktreeAutoOpenPath}`)
-			// Open the preferred Roo view with a slight delay to ensure UI is ready
-			// Open the Roo Code sidebar with a slight delay to ensure UI is ready
+			outputChannel.appendLine(`[Worktree] Auto-opening CRC sidebar for worktree: ${worktreeAutoOpenPath}`)
+			// Open the preferred CRC view with a slight delay to ensure UI is ready
+			// Open the CRC sidebar with a slight delay to ensure UI is ready
 			setTimeout(async () => {
 				try {
 					const visibleProvider = await ClineProvider.getInstance()
@@ -105,7 +105,7 @@ async function checkWorktreeAutoOpen(
 					}
 				} catch (error) {
 					outputChannel.appendLine(
-						`[Worktree] Error auto-opening Roo view: ${error instanceof Error ? error.message : String(error)}`,
+						`[Worktree] Error auto-opening CRC view: ${error instanceof Error ? error.message : String(error)}`,
 					)
 				}
 			}, 500)
@@ -184,10 +184,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
-	// Initialize the provider *before* the Roo Code Cloud service.
+	// Initialize the provider *before* the CRC Cloud service.
 	const provider = new ClineProvider(context, outputChannel, "sidebar", contextProxy, mdmService)
 
-	// Initialize Roo Code Cloud service.
+	// Initialize CRC Cloud service.
 	const postStateListener = () => ClineProvider.getVisibleInstance()?.postStateToWebviewWithoutClineMessages()
 
 	authStateChangedHandler = async (data: { state: AuthState; previousState: AuthState }) => {

@@ -31,10 +31,9 @@ export default async function Home() {
 					</h1>
 					<div className="mt-2 max-w-3xl text-lg text-muted-foreground mb-10 space-y-3">
 						<p>
-							Use the <strong className="text-nowrap">Roo Code Extension</strong> on your computer for
-							full control, or delegate work to your{" "}
-							<strong className="text-nowrap">Roo Code Cloud Agents</strong> from the web, Slack, GitHub
-							or wherever your team is.
+							Use the <strong className="text-nowrap">CRC Extension</strong> on your computer for full
+							control, or delegate work to your <strong className="text-nowrap">CRC Cloud Agents</strong>{" "}
+							from the web, Slack, GitHub or wherever your team is.
 						</p>
 					</div>
 					<div className="flex flex-col sm:flex-row gap-4 mb-16">

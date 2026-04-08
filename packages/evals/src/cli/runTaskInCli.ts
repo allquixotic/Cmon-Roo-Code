@@ -129,13 +129,13 @@ export const runTaskWithCli = async ({ run, task, publish, logger, jobToken }: R
 			client = new IpcClient(ipcSocketPath)
 			await pWaitFor(() => client!.isReady, { interval: 500, timeout: 2_000 })
 			break
-		} catch (_error) {
+		} catch (error) {
 			client?.disconnect()
 			attempts--
 
 			if (attempts <= 0) {
 				logger.error(`unable to connect to IPC socket -> ${ipcSocketPath}`)
-				throw new Error("Unable to connect to CLI IPC socket.")
+				throw new Error("Unable to connect to CLI IPC socket.", { cause: error })
 			}
 
 			// Wait a bit before retrying.

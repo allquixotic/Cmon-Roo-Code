@@ -17,10 +17,6 @@ vi.mock("../../prompts/responses", () => ({
 	},
 }))
 
-const { mockCaptureTaskCompleted } = vi.hoisted(() => ({
-	mockCaptureTaskCompleted: vi.fn(),
-}))
-
 // Mock vscode module
 vi.mock("vscode", () => ({
 	workspace: {
@@ -52,9 +48,7 @@ describe("attemptCompletionTool", () => {
 		(section?: string, scope?: vscode.ConfigurationScope | null) => vscode.WorkspaceConfiguration
 	>
 
-	const createWorkspaceConfiguration = (
-		preventCompletionWithOpenTodos: boolean,
-	): vscode.WorkspaceConfiguration =>
+	const createWorkspaceConfiguration = (preventCompletionWithOpenTodos: boolean): vscode.WorkspaceConfiguration =>
 		({
 			get: vi.fn((key: string, defaultValue: any) => {
 				if (key === "preventCompletionWithOpenTodos") {
@@ -65,7 +59,6 @@ describe("attemptCompletionTool", () => {
 		}) as unknown as vscode.WorkspaceConfiguration
 
 	beforeEach(() => {
-		mockCaptureTaskCompleted.mockReset()
 		mockPushToolResult = vi.fn<PushToolResult>()
 		mockAskApproval = vi.fn<AskApproval>()
 		mockAskApproval.mockResolvedValue(true)
@@ -75,7 +68,8 @@ describe("attemptCompletionTool", () => {
 		mockToolDescription.mockReturnValue("")
 		mockAskFinishSubTaskApproval = vi.fn<() => Promise<boolean>>()
 		mockAskFinishSubTaskApproval.mockResolvedValue(true)
-		mockGetConfiguration = vi.fn<(section?: string, scope?: vscode.ConfigurationScope | null) => vscode.WorkspaceConfiguration>()
+		mockGetConfiguration =
+			vi.fn<(section?: string, scope?: vscode.ConfigurationScope | null) => vscode.WorkspaceConfiguration>()
 		mockGetConfiguration.mockImplementation(() => createWorkspaceConfiguration(false))
 
 		// Setup vscode mock
@@ -475,7 +469,7 @@ describe("attemptCompletionTool", () => {
 				await attemptCompletionTool.handle(mockTask as Task, block, callbacks)
 
 				expect(mockHandleError).not.toHaveBeenCalled()
-				expect(mockCaptureTaskCompleted).toHaveBeenCalledWith("task_1")
+				expect(mockTask.emitFinalTokenUsageUpdate).toHaveBeenCalled()
 				expect(mockTask.emit).toHaveBeenCalledWith(
 					RooCodeEventName.TaskCompleted,
 					"task_1",
@@ -510,7 +504,7 @@ describe("attemptCompletionTool", () => {
 				await attemptCompletionTool.handle(mockTask as Task, block, callbacks)
 
 				expect(mockHandleError).not.toHaveBeenCalled()
-				expect(mockCaptureTaskCompleted).not.toHaveBeenCalled()
+				expect(mockTask.emitFinalTokenUsageUpdate).not.toHaveBeenCalled()
 				expect(mockTask.emit).not.toHaveBeenCalledWith(
 					RooCodeEventName.TaskCompleted,
 					expect.anything(),

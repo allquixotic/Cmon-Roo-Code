@@ -168,7 +168,7 @@ export const LiteLLM = ({
 					return (
 						<div className="mt-4">
 							<VSCodeCheckbox
-								checked={apiConfiguration.litellmUsePromptCache || false}
+								checked={apiConfiguration.litellmUsePromptCache ?? true}
 								onChange={(e: any) => {
 									setApiConfigurationField("litellmUsePromptCache", e.target.checked)
 								}}>

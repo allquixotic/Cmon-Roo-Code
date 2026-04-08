@@ -111,8 +111,9 @@ export const About = ({
 							<Trans
 								i18nKey="settings:about.community"
 								components={{
-									redditLink: <VSCodeLink href="https://reddit.com/r/RooCode" />,
-									discordLink: <VSCodeLink href="https://discord.gg/roocode" />,
+									communityLink: (
+										<VSCodeLink href="https://github.com/RooCodeInc/Roo-Code/discussions" />
+									),
 								}}
 							/>
 						</span>

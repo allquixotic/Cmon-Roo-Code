@@ -14,11 +14,15 @@ describe("TerminalRegistry", () => {
 	let mockCreateTerminal: any
 
 	beforeEach(() => {
+		vi.restoreAllMocks()
+		Terminal.setCommandDelay(0)
+		Terminal.setTerminalZshOhMy(false)
+		Terminal.setTerminalZshP10k(false)
 		mockCreateTerminal = vi.spyOn(vscode.window, "createTerminal").mockImplementation(
 			(...args: any[]) =>
 				({
 					exitStatus: undefined,
-					name: "Roo Code",
+					name: "CRC",
 					processId: Promise.resolve(123),
 					creationOptions: {},
 					state: {
@@ -42,7 +46,7 @@ describe("TerminalRegistry", () => {
 
 			expect(mockCreateTerminal).toHaveBeenCalledWith({
 				cwd: "/test/path",
-				name: "Roo Code",
+				name: "CRC",
 				iconPath: expect.any(Object),
 				env: {
 					PAGER,
@@ -63,7 +67,7 @@ describe("TerminalRegistry", () => {
 
 				expect(mockCreateTerminal).toHaveBeenCalledWith({
 					cwd: "/test/path",
-					name: "Roo Code",
+					name: "CRC",
 					iconPath: expect.any(Object),
 					env: {
 						PAGER,
@@ -86,7 +90,7 @@ describe("TerminalRegistry", () => {
 
 				expect(mockCreateTerminal).toHaveBeenCalledWith({
 					cwd: "/test/path",
-					name: "Roo Code",
+					name: "CRC",
 					iconPath: expect.any(Object),
 					env: {
 						PAGER,
@@ -108,7 +112,7 @@ describe("TerminalRegistry", () => {
 
 				expect(mockCreateTerminal).toHaveBeenCalledWith({
 					cwd: "/test/path",
-					name: "Roo Code",
+					name: "CRC",
 					iconPath: expect.any(Object),
 					env: {
 						PAGER,

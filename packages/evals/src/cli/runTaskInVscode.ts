@@ -65,13 +65,13 @@ export const runTaskInVscode = async ({ run, task, publish, logger, jobToken }: 
 			client = new IpcClient(ipcSocketPath)
 			await pWaitFor(() => client!.isReady, { interval: 250, timeout: 1_000 })
 			break
-		} catch (_error) {
+		} catch (error) {
 			client?.disconnect()
 			attempts--
 
 			if (attempts <= 0) {
 				logger.error(`unable to connect to IPC socket -> ${ipcSocketPath}`)
-				throw new Error("Unable to connect.")
+				throw new Error("Unable to connect.", { cause: error })
 			}
 		}
 	}

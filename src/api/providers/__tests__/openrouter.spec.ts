@@ -7,7 +7,7 @@ import OpenAI from "openai"
 
 import { OpenRouterHandler } from "../openrouter"
 import { ApiHandlerOptions } from "../../../shared/api"
-import { Package } from "../../../shared/package"
+import { DEFAULT_HEADERS } from "../constants"
 
 vitest.mock("openai")
 vitest.mock("delay", () => ({ default: vitest.fn(() => Promise.resolve()) }))
@@ -89,11 +89,7 @@ describe("OpenRouterHandler", () => {
 		expect(OpenAI).toHaveBeenCalledWith({
 			baseURL: "https://openrouter.ai/api/v1",
 			apiKey: mockOptions.openRouterApiKey,
-			defaultHeaders: {
-				"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
-				"X-Title": "Roo Code",
-				"User-Agent": `RooCode/${Package.version}`,
-			},
+			defaultHeaders: DEFAULT_HEADERS,
 		})
 	})
 
@@ -302,7 +298,6 @@ describe("OpenRouterHandler", () => {
 			)
 		})
 
-
 		it("yields tool_call_end events when finish_reason is tool_calls", async () => {
 			// Import NativeToolCallParser to set up state
 			const { NativeToolCallParser } = await import("../../../core/assistant-message/NativeToolCallParser")
@@ -402,6 +397,5 @@ describe("OpenRouterHandler", () => {
 				{ headers: { "x-anthropic-beta": "fine-grained-tool-streaming-2025-05-14" } },
 			)
 		})
-
 	})
 })

@@ -109,7 +109,7 @@ import { ConsecutiveMistakeLimitControl } from "./ConsecutiveMistakeLimitControl
 import { BedrockCustomArn } from "./providers/BedrockCustomArn"
 import { RooBalanceDisplay } from "./providers/RooBalanceDisplay"
 import { buildDocLink } from "@src/utils/docLinks"
-import { BookOpenText } from "lucide-react"
+import { BookOpenText, TriangleAlert } from "lucide-react"
 
 export interface ApiOptionsProps {
 	uriScheme: string | undefined
@@ -385,6 +385,27 @@ const ApiOptions = ({
 		return getModelValidationError(apiConfiguration, routerModels, organizationAllowList)
 	}, [apiConfiguration, routerModels, organizationAllowList])
 
+	const showPromptCachingDisabledWarning = useMemo(() => {
+		if (!selectedModelInfo?.supportsPromptCache) {
+			return false
+		}
+
+		if (selectedProvider === "bedrock") {
+			return apiConfiguration.awsUsePromptCache === false
+		}
+
+		if (selectedProvider === "litellm") {
+			return apiConfiguration.litellmUsePromptCache === false
+		}
+
+		return false
+	}, [
+		apiConfiguration.awsUsePromptCache,
+		apiConfiguration.litellmUsePromptCache,
+		selectedModelInfo?.supportsPromptCache,
+		selectedProvider,
+	])
+
 	const docs = useMemo(() => {
 		const provider = PROVIDERS.find(({ value }) => value === selectedProvider)
 		const name = provider?.label
@@ -491,6 +512,24 @@ const ApiOptions = ({
 			</div>
 
 			{errorMessage && <ApiErrorMessage errorMessage={errorMessage} />}
+
+			{showPromptCachingDisabledWarning && (
+				<div
+					className="rounded-md border border-vscode-inputValidation-errorBorder bg-vscode-inputValidation-errorBackground/60 px-3 py-2"
+					data-testid="prompt-caching-disabled-warning">
+					<div className="flex items-start gap-2">
+						<TriangleAlert className="mt-0.5 size-4 shrink-0 text-vscode-errorForeground" />
+						<div className="space-y-1">
+							<div className="font-medium text-vscode-errorForeground">
+								{t("settings:promptCaching.warningTitle")}
+							</div>
+							<p className="m-0 text-sm text-vscode-descriptionForeground">
+								{t("settings:promptCaching.warningDescription")}
+							</p>
+						</div>
+					</div>
+				</div>
+			)}
 
 			{isRetiredSelectedProvider ? (
 				<div

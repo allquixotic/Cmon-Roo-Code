@@ -7,6 +7,7 @@ import OpenAI from "openai"
 import { openAiModelInfoSaneDefaults } from "@roo-code/types"
 import { Package } from "../../../shared/package"
 import axios from "axios"
+import { DEFAULT_HEADERS } from "../constants"
 
 const mockCreate = vitest.fn()
 
@@ -110,11 +111,7 @@ describe("OpenAiHandler", () => {
 			expect(vi.mocked(OpenAI)).toHaveBeenCalledWith({
 				baseURL: expect.any(String),
 				apiKey: expect.any(String),
-				defaultHeaders: {
-					"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
-					"X-Title": "Roo Code",
-					"User-Agent": `RooCode/${Package.version}`,
-				},
+				defaultHeaders: DEFAULT_HEADERS,
 				timeout: expect.any(Number),
 			})
 		})

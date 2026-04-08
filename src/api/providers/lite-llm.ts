@@ -124,7 +124,7 @@ export class LiteLLMHandler extends RouterProvider implements SingleCompletionHa
 		let systemMessage: OpenAI.Chat.ChatCompletionMessageParam
 		let enhancedMessages: OpenAI.Chat.ChatCompletionMessageParam[]
 
-		if (this.options.litellmUsePromptCache && info.supportsPromptCache) {
+		if ((this.options.litellmUsePromptCache ?? true) && info.supportsPromptCache) {
 			// Create system message with cache control in the proper format
 			systemMessage = {
 				role: "system",
