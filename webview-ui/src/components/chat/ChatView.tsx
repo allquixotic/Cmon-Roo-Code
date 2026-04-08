@@ -19,6 +19,7 @@ import { findLast } from "@roo/array"
 import { SuggestionItem } from "@roo-code/types"
 import { combineApiRequests } from "@roo/combineApiRequests"
 import { combineCommandSequences } from "@roo/combineCommandSequences"
+import { checkExistKey } from "@roo/checkExistApiConfig"
 import { getApiMetrics } from "@roo/getApiMetrics"
 import { getAllModes } from "@roo/modes"
 import { ProfileValidator } from "@roo/ProfileValidator"
@@ -33,10 +34,8 @@ import RooTips from "@src/components/welcome/RooTips"
 import { StandardTooltip, Button } from "@src/components/ui"
 import { CloudUpsellDialog } from "@src/components/cloud/CloudUpsellDialog"
 
-import TelemetryBanner from "../common/TelemetryBanner"
-import VersionIndicator from "../common/VersionIndicator"
 import HistoryPreview from "../history/HistoryPreview"
-import Announcement from "./Announcement"
+import ActiveConversationList from "./ActiveConversationList"
 import ChatRow from "./ChatRow"
 import WarningRow from "./WarningRow"
 import { ChatTextArea } from "./ChatTextArea"
@@ -53,8 +52,6 @@ import { Cloud } from "lucide-react"
 
 export interface ChatViewProps {
 	isHidden: boolean
-	showAnnouncement: boolean
-	hideAnnouncement: () => void
 }
 
 export interface ChatViewRef {
@@ -65,10 +62,7 @@ export const MAX_IMAGES_PER_MESSAGE = 20 // This is the Anthropic limit.
 
 const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0
 
-const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewProps> = (
-	{ isHidden, showAnnouncement, hideAnnouncement },
-	ref,
-) => {
+const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewProps> = ({ isHidden }, ref) => {
 	const [audioBaseUri] = useState(() => {
 		return (window as unknown as { AUDIO_BASE_URI?: string }).AUDIO_BASE_URI || ""
 	})
@@ -78,8 +72,10 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 	const {
 		clineMessages: messages,
+		currentTaskId,
 		currentTaskItem,
 		currentTaskTodos,
+		activeConversations = [],
 		taskHistory,
 		apiConfiguration,
 		organizationAllowList,
@@ -87,13 +83,15 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		setMode,
 		alwaysAllowModeSwitch,
 		customModes,
-		telemetrySetting,
 		soundEnabled,
 		soundVolume,
 		cloudIsAuthenticated,
 		messageQueue = [],
 		showWorktreesInHomeScreen,
+		currentAskDecision,
 	} = useExtensionState()
+
+	const hasActiveConversations = activeConversations.length > 0
 
 	// Show a WarningRow when the user sends a message with a retired provider.
 	const [showRetiredProviderWarning, setShowRetiredProviderWarning] = useState(false)
@@ -153,7 +151,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const [_didClickCancel, setDidClickCancel] = useState(false)
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
-	const prevExpandedRowsRef = useRef<Record<number, boolean>>()
+	const prevExpandedRowsRef = useRef<Record<number, boolean> | undefined>(undefined)
 	const scrollContainerRef = useRef<HTMLDivElement>(null)
 	const lastTtsRef = useRef<string>("")
 	const [wasStreaming, setWasStreaming] = useState<boolean>(false)
@@ -161,7 +159,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		{ type: "WAIT_TIMEOUT" | "INIT_TIMEOUT"; timeout: number } | undefined
 	>(undefined)
 	const [isCondensing, setIsCondensing] = useState<boolean>(false)
-	const [showAnnouncementModal, setShowAnnouncementModal] = useState(false)
 	const everVisibleMessagesTsRef = useRef<LRUCache<number, boolean>>(
 		new LRUCache({
 			max: 100,
@@ -205,6 +202,15 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const isFollowUpAutoApprovalPaused = useMemo(() => {
 		return !!(inputValue && inputValue.trim().length > 0 && clineAsk === "followup")
 	}, [inputValue, clineAsk])
+	const shouldHideAutoDecisionButtons = useMemo(() => {
+		if (currentAskDecision === undefined || currentAskDecision === "ask") {
+			return false
+		}
+
+		return clineAsk === "tool" || clineAsk === "command" || clineAsk === "use_mcp_server"
+	}, [clineAsk, currentAskDecision])
+	const displayedPrimaryButtonText = shouldHideAutoDecisionButtons ? undefined : primaryButtonText
+	const displayedSecondaryButtonText = shouldHideAutoDecisionButtons ? undefined : secondaryButtonText
 
 	// Cancel auto-approval timeout when user starts typing
 	useEffect(() => {
@@ -219,6 +225,9 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		() => !!apiConfiguration && !ProfileValidator.isProfileAllowed(apiConfiguration, organizationAllowList),
 		[apiConfiguration, organizationAllowList],
 	)
+	const hasUsableCurrentProfile = useMemo(() => checkExistKey(apiConfiguration), [apiConfiguration])
+	const submissionDisabled = isProfileDisabled || !hasUsableCurrentProfile
+	const submissionDisabledReason = !hasUsableCurrentProfile ? "Add a profile first!" : undefined
 
 	// UI layout depends on the last 2 messages (since it relies on the content
 	// of these messages, we are deep comparing) i.e. the button state after
@@ -601,6 +610,9 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			text = text.trim()
 
 			if (text || images.length > 0) {
+				if (submissionDisabled) {
+					return
+				}
 				// Intercept when the active provider is retired — show a
 				// WarningRow instead of sending anything to the backend.
 				if (apiConfiguration?.apiProvider && isRetiredProvider(apiConfiguration.apiProvider)) {
@@ -679,6 +691,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			isStreaming,
 			messageQueue.length,
 			apiConfiguration?.apiProvider,
+			submissionDisabled,
 		], // messagesRef and clineAskRef are stable
 	)
 
@@ -1426,7 +1439,12 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 									tool = { tool: "updateTodoList" }
 								}
 							}
-							return tool.tool === "updateTodoList" && enableButtons && !!primaryButtonText
+							return (
+								tool.tool === "updateTodoList" &&
+								enableButtons &&
+								!!primaryButtonText &&
+								!shouldHideAutoDecisionButtons
+							)
 						})()
 					}
 					hasCheckpoint={hasCheckpoint}
@@ -1447,6 +1465,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			isFollowUpAutoApprovalPaused,
 			enableButtons,
 			primaryButtonText,
+			shouldHideAutoDecisionButtons,
 		],
 	)
 
@@ -1505,9 +1524,9 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				return
 			}
 
-			if (enableButtons && primaryButtonText) {
+			if (enableButtons && !shouldHideAutoDecisionButtons && primaryButtonText) {
 				handlePrimaryButtonClick(inputValue, selectedImages)
-			} else if (!sendingDisabled && !isProfileDisabled && hasInput) {
+			} else if (!sendingDisabled && !submissionDisabled && hasInput) {
 				handleSendMessage(inputValue, selectedImages)
 			}
 		},
@@ -1521,26 +1540,17 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		setSendingDisabled(true)
 		vscode.postMessage({ type: "condenseTaskContextRequest", text: taskId })
 	}
-
-	const areButtonsVisible = showScrollToBottom || primaryButtonText || secondaryButtonText
+	const areButtonsVisible = showScrollToBottom || displayedPrimaryButtonText || displayedSecondaryButtonText
 
 	return (
 		<div
 			data-testid="chat-view"
 			className={isHidden ? "hidden" : "fixed top-0 left-0 right-0 bottom-0 flex flex-col overflow-hidden"}>
-			{telemetrySetting === "unset" && <TelemetryBanner />}
-			{(showAnnouncement || showAnnouncementModal) && (
-				<Announcement
-					hideAnnouncement={() => {
-						if (showAnnouncementModal) {
-							setShowAnnouncementModal(false)
-						}
-						if (showAnnouncement) {
-							hideAnnouncement()
-						}
-					}}
-				/>
-			)}
+			<div className="flex min-h-0 flex-1 overflow-hidden">
+				{hasActiveConversations && (
+					<ActiveConversationList conversations={activeConversations} currentTaskId={currentTaskId} />
+				)}
+				<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 			{task ? (
 				<>
 					<TaskHeader
@@ -1586,10 +1596,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			) : (
 				<div className="flex flex-col h-full justify-center p-6 min-h-0 overflow-y-auto gap-4 relative">
 					<div className="flex flex-col items-start gap-2 justify-center h-full min-[400px]:px-6">
-						<VersionIndicator
-							onClick={() => setShowAnnouncementModal(true)}
-							className="absolute top-2 right-3 z-10"
-						/>
 						<div className="flex flex-col gap-4 w-full">
 							<RooHero />
 							{/* Show RooTips when authenticated or when user is new */}
@@ -1651,25 +1657,25 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 								</StandardTooltip>
 							) : (
 								<>
-									{primaryButtonText && (
+									{displayedPrimaryButtonText && (
 										<StandardTooltip
 											content={
-												primaryButtonText === t("chat:retry.title")
+												displayedPrimaryButtonText === t("chat:retry.title")
 													? t("chat:retry.tooltip")
-													: primaryButtonText === t("chat:save.title")
+													: displayedPrimaryButtonText === t("chat:save.title")
 														? t("chat:save.tooltip")
-														: primaryButtonText === t("chat:approve.title")
+														: displayedPrimaryButtonText === t("chat:approve.title")
 															? t("chat:approve.tooltip")
-															: primaryButtonText === t("chat:runCommand.title")
+															: displayedPrimaryButtonText === t("chat:runCommand.title")
 																? t("chat:runCommand.tooltip")
-																: primaryButtonText === t("chat:startNewTask.title")
+																: displayedPrimaryButtonText === t("chat:startNewTask.title")
 																	? t("chat:startNewTask.tooltip")
-																	: primaryButtonText === t("chat:resumeTask.title")
+																	: displayedPrimaryButtonText === t("chat:resumeTask.title")
 																		? t("chat:resumeTask.tooltip")
-																		: primaryButtonText ===
+																		: displayedPrimaryButtonText ===
 																			  t("chat:proceedAnyways.title")
 																			? t("chat:proceedAnyways.tooltip")
-																			: primaryButtonText ===
+																			: displayedPrimaryButtonText ===
 																				  t("chat:proceedWhileRunning.title")
 																				? t("chat:proceedWhileRunning.tooltip")
 																				: undefined
@@ -1677,22 +1683,24 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 											<Button
 												variant="primary"
 												disabled={!enableButtons}
-												className={secondaryButtonText ? "flex-1 mr-[6px]" : "flex-[2] mr-0"}
+												className={
+													displayedSecondaryButtonText ? "flex-1 mr-[6px]" : "flex-[2] mr-0"
+												}
 												onClick={() => handlePrimaryButtonClick(inputValue, selectedImages)}>
-												{primaryButtonText}
+												{displayedPrimaryButtonText}
 											</Button>
 										</StandardTooltip>
 									)}
-									{secondaryButtonText && (
+									{displayedSecondaryButtonText && (
 										<StandardTooltip
 											content={
-												secondaryButtonText === t("chat:startNewTask.title")
+												displayedSecondaryButtonText === t("chat:startNewTask.title")
 													? t("chat:startNewTask.tooltip")
-													: secondaryButtonText === t("chat:reject.title")
+													: displayedSecondaryButtonText === t("chat:reject.title")
 														? t("chat:reject.tooltip")
-														: secondaryButtonText === t("chat:terminate.title")
+														: displayedSecondaryButtonText === t("chat:terminate.title")
 															? t("chat:terminate.tooltip")
-															: secondaryButtonText === t("chat:killCommand.title")
+															: displayedSecondaryButtonText === t("chat:killCommand.title")
 																? t("chat:killCommand.tooltip")
 																: undefined
 											}>
@@ -1701,7 +1709,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 												disabled={!enableButtons}
 												className="flex-1 ml-[6px]"
 												onClick={() => handleSecondaryButtonClick(inputValue, selectedImages)}>
-												{secondaryButtonText}
+												{displayedSecondaryButtonText}
 											</Button>
 										</StandardTooltip>
 									)}
@@ -1742,7 +1750,9 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				ref={textAreaRef}
 				inputValue={inputValue}
 				setInputValue={setInputValue}
-				sendingDisabled={sendingDisabled || isProfileDisabled}
+				sendingDisabled={sendingDisabled}
+				submissionDisabled={submissionDisabled}
+				submissionDisabledReason={submissionDisabledReason}
 				selectApiConfigDisabled={sendingDisabled && clineAsk !== "api_req_failed"}
 				placeholderText={placeholderText}
 				selectedImages={selectedImages}
@@ -1771,6 +1781,8 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 			<div id="roo-portal" />
 			<CloudUpsellDialog open={isUpsellOpen} onOpenChange={closeUpsell} onConnect={handleConnect} />
+				</div>
+			</div>
 		</div>
 	)
 }

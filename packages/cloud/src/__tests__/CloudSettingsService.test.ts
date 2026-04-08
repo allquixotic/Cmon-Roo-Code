@@ -27,7 +27,7 @@ describe("CloudSettingsService", () => {
 		stop: ReturnType<typeof vi.fn>
 	}
 	let cloudSettingsService: CloudSettingsService
-	let mockLog: ReturnType<typeof vi.fn>
+	let mockLog: ReturnType<typeof vi.fn> & ((...args: unknown[]) => void)
 
 	const mockSettings: OrganizationSettings = {
 		version: 1,
@@ -72,7 +72,7 @@ describe("CloudSettingsService", () => {
 			stop: vi.fn(),
 		}
 
-		mockLog = vi.fn()
+		mockLog = vi.fn() as ReturnType<typeof vi.fn> & ((...args: unknown[]) => void)
 
 		// Mock RefreshTimer constructor
 		vi.mocked(RefreshTimer).mockImplementation(() => mockRefreshTimer as unknown as RefreshTimer)

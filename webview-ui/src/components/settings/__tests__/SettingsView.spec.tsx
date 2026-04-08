@@ -72,200 +72,218 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 	),
 }))
 
-vi.mock("../../../components/common/Tab", () => ({
-	...vi.importActual("../../../components/common/Tab"),
-	Tab: ({ children }: any) => <div data-testid="tab-container">{children}</div>,
-	TabHeader: ({ children }: any) => <div data-testid="tab-header">{children}</div>,
-	TabContent: ({ children, "data-testid": dataTestId }: any) => (
-		<div data-testid={dataTestId || "tab-content"}>{children}</div>
-	),
-	TabList: ({ children, value, onValueChange, "data-testid": dataTestId }: any) => {
-		// Store onValueChange in a global variable so TabTrigger can access it
-		;(window as any).__onValueChange = onValueChange
-		return (
-			<div data-testid={dataTestId} data-value={value}>
+vi.mock("../../../components/common/Tab", async () => {
+	const actual = await vi.importActual<typeof import("../../../components/common/Tab")>(
+		"../../../components/common/Tab",
+	)
+	return {
+		...actual,
+		Tab: ({ children }: any) => <div data-testid="tab-container">{children}</div>,
+		TabHeader: ({ children }: any) => <div data-testid="tab-header">{children}</div>,
+		TabContent: ({ children, "data-testid": dataTestId }: any) => (
+			<div data-testid={dataTestId || "tab-content"}>{children}</div>
+		),
+		TabList: ({ children, value, onValueChange, "data-testid": dataTestId }: any) => {
+			// Store onValueChange in a global variable so TabTrigger can access it
+			;(window as any).__onValueChange = onValueChange
+			return (
+				<div data-testid={dataTestId} data-value={value}>
+					{children}
+				</div>
+			)
+		},
+		TabTrigger: ({ children, value, "data-testid": dataTestId, onClick, isSelected }: any) => {
+			// This function simulates clicking on a tab and making its content visible
+			const handleClick = () => {
+				if (onClick) onClick()
+				// Access onValueChange from the global variable
+				const onValueChange = (window as any).__onValueChange
+				if (onValueChange) onValueChange(value)
+				// Make all tab contents invisible
+				document.querySelectorAll("[data-tab-content]").forEach((el) => {
+					;(el as HTMLElement).style.display = "none"
+				})
+				// Make this tab's content visible
+				const tabContent = document.querySelector(`[data-tab-content="${value}"]`)
+				if (tabContent) {
+					;(tabContent as HTMLElement).style.display = "block"
+				}
+			}
+
+			return (
+				<button data-testid={dataTestId} data-value={value} data-selected={isSelected} onClick={handleClick}>
+					{children}
+				</button>
+			)
+		},
+	}
+})
+
+vi.mock("@/components/ui", async () => {
+	const actual = await vi.importActual<typeof import("@/components/ui")>("@/components/ui")
+	return {
+		...actual,
+		ToggleSwitch: ({ checked, onChange, "aria-label": ariaLabel, "data-testid": dataTestId }: any) => (
+			<button
+				role="switch"
+				aria-checked={checked}
+				aria-label={ariaLabel}
+				data-testid={dataTestId}
+				onClick={onChange}>
+				Toggle
+			</button>
+		),
+		Checkbox: ({ checked, onCheckedChange, id, className, ...props }: any) => (
+			<input
+				type="checkbox"
+				checked={checked}
+				onChange={(e) => onCheckedChange?.(e.target.checked)}
+				id={id}
+				className={className}
+				{...props}
+			/>
+		),
+		Textarea: ({ value, onChange, placeholder, id, className, ...props }: any) => (
+			<textarea
+				value={value}
+				onChange={onChange}
+				placeholder={placeholder}
+				id={id}
+				className={className}
+				{...props}
+			/>
+		),
+		Popover: ({ children }: any) => <div data-testid="popover">{children}</div>,
+		PopoverTrigger: ({ children }: any) => <div data-testid="popover-trigger">{children}</div>,
+		PopoverContent: ({ children }: any) => <div data-testid="popover-content">{children}</div>,
+		Command: ({ children }: any) => <div data-testid="command">{children}</div>,
+		CommandInput: ({ value, onValueChange }: any) => (
+			<input data-testid="command-input" value={value} onChange={(e) => onValueChange(e.target.value)} />
+		),
+		CommandGroup: ({ children }: any) => <div data-testid="command-group">{children}</div>,
+		CommandItem: ({ children, onSelect }: any) => (
+			<div data-testid="command-item" onClick={onSelect}>
 				{children}
 			</div>
-		)
-	},
-	TabTrigger: ({ children, value, "data-testid": dataTestId, onClick, isSelected }: any) => {
-		// This function simulates clicking on a tab and making its content visible
-		const handleClick = () => {
-			if (onClick) onClick()
-			// Access onValueChange from the global variable
-			const onValueChange = (window as any).__onValueChange
-			if (onValueChange) onValueChange(value)
-			// Make all tab contents invisible
-			document.querySelectorAll("[data-tab-content]").forEach((el) => {
-				;(el as HTMLElement).style.display = "none"
-			})
-			// Make this tab's content visible
-			const tabContent = document.querySelector(`[data-tab-content="${value}"]`)
-			if (tabContent) {
-				;(tabContent as HTMLElement).style.display = "block"
-			}
-		}
-
-		return (
-			<button data-testid={dataTestId} data-value={value} data-selected={isSelected} onClick={handleClick}>
+		),
+		CommandList: ({ children }: any) => <div data-testid="command-list">{children}</div>,
+		CommandEmpty: ({ children }: any) => <div data-testid="command-empty">{children}</div>,
+		Slider: ({ value, onValueChange, "data-testid": dataTestId }: any) => (
+			<input
+				type="range"
+				value={value?.[0] ?? 0}
+				onChange={(e) => onValueChange?.([parseFloat(e.target.value)])}
+				data-testid={dataTestId}
+			/>
+		),
+		Button: ({ children, onClick, variant, className, "data-testid": dataTestId, disabled }: any) => (
+			<button
+				onClick={onClick}
+				data-variant={variant}
+				className={className}
+				data-testid={dataTestId}
+				disabled={disabled}>
 				{children}
 			</button>
-		)
-	},
-}))
-
-vi.mock("@/components/ui", () => ({
-	...vi.importActual("@/components/ui"),
-	ToggleSwitch: ({ checked, onChange, "aria-label": ariaLabel, "data-testid": dataTestId }: any) => (
-		<button role="switch" aria-checked={checked} aria-label={ariaLabel} data-testid={dataTestId} onClick={onChange}>
-			Toggle
-		</button>
-	),
-	Checkbox: ({ checked, onCheckedChange, id, className, ...props }: any) => (
-		<input
-			type="checkbox"
-			checked={checked}
-			onChange={(e) => onCheckedChange?.(e.target.checked)}
-			id={id}
-			className={className}
-			{...props}
-		/>
-	),
-	Textarea: ({ value, onChange, placeholder, id, className, ...props }: any) => (
-		<textarea
-			value={value}
-			onChange={onChange}
-			placeholder={placeholder}
-			id={id}
-			className={className}
-			{...props}
-		/>
-	),
-	Popover: ({ children }: any) => <div data-testid="popover">{children}</div>,
-	PopoverTrigger: ({ children }: any) => <div data-testid="popover-trigger">{children}</div>,
-	PopoverContent: ({ children }: any) => <div data-testid="popover-content">{children}</div>,
-	Command: ({ children }: any) => <div data-testid="command">{children}</div>,
-	CommandInput: ({ value, onValueChange }: any) => (
-		<input data-testid="command-input" value={value} onChange={(e) => onValueChange(e.target.value)} />
-	),
-	CommandGroup: ({ children }: any) => <div data-testid="command-group">{children}</div>,
-	CommandItem: ({ children, onSelect }: any) => (
-		<div data-testid="command-item" onClick={onSelect}>
-			{children}
-		</div>
-	),
-	CommandList: ({ children }: any) => <div data-testid="command-list">{children}</div>,
-	CommandEmpty: ({ children }: any) => <div data-testid="command-empty">{children}</div>,
-	Slider: ({ value, onValueChange, "data-testid": dataTestId }: any) => (
-		<input
-			type="range"
-			value={value?.[0] ?? 0}
-			onChange={(e) => onValueChange?.([parseFloat(e.target.value)])}
-			data-testid={dataTestId}
-		/>
-	),
-	Button: ({ children, onClick, variant, className, "data-testid": dataTestId }: any) => (
-		<button onClick={onClick} data-variant={variant} className={className} data-testid={dataTestId}>
-			{children}
-		</button>
-	),
-	StandardTooltip: ({ children, content }: any) => <div title={content}>{children}</div>,
-	Input: ({ value, onChange, placeholder, "data-testid": dataTestId }: any) => (
-		<input type="text" value={value} onChange={onChange} placeholder={placeholder} data-testid={dataTestId} />
-	),
-	Select: ({ children, value, onValueChange }: any) => (
-		<div data-testid="select" data-value={value}>
-			<button onClick={() => onValueChange && onValueChange("test-change")}>{value}</button>
-			{children}
-		</div>
-	),
-	SelectContent: ({ children }: any) => <div data-testid="select-content">{children}</div>,
-	SelectGroup: ({ children }: any) => <div data-testid="select-group">{children}</div>,
-	SelectItem: ({ children, value }: any) => (
-		<div data-testid={`select-item-${value}`} data-value={value}>
-			{children}
-		</div>
-	),
-	SelectTrigger: ({ children }: any) => <div data-testid="select-trigger">{children}</div>,
-	SelectValue: ({ placeholder }: any) => <div data-testid="select-value">{placeholder}</div>,
-	SearchableSelect: ({ value, onValueChange, options, placeholder }: any) => (
-		<select value={value} onChange={(e) => onValueChange(e.target.value)} data-testid="searchable-select">
-			{placeholder && <option value="">{placeholder}</option>}
-			{options?.map((opt: any) => (
-				<option key={opt.value} value={opt.value}>
-					{opt.label}
-				</option>
-			))}
-		</select>
-	),
-	AlertDialog: ({ children, open }: any) => (
-		<div data-testid="alert-dialog" data-open={open}>
-			{children}
-		</div>
-	),
-	AlertDialogContent: ({ children }: any) => <div data-testid="alert-dialog-content">{children}</div>,
-	AlertDialogHeader: ({ children }: any) => <div data-testid="alert-dialog-header">{children}</div>,
-	AlertDialogTitle: ({ children }: any) => <div data-testid="alert-dialog-title">{children}</div>,
-	AlertDialogDescription: ({ children }: any) => <div data-testid="alert-dialog-description">{children}</div>,
-	AlertDialogFooter: ({ children }: any) => <div data-testid="alert-dialog-footer">{children}</div>,
-	AlertDialogAction: ({ children, onClick }: any) => (
-		<button data-testid="alert-dialog-action" onClick={onClick}>
-			{children}
-		</button>
-	),
-	AlertDialogCancel: ({ children, onClick }: any) => (
-		<button data-testid="alert-dialog-cancel" onClick={onClick}>
-			{children}
-		</button>
-	),
-	// Add Collapsible components
-	Collapsible: ({ children, open }: any) => (
-		<div className="collapsible-mock" data-open={open}>
-			{children}
-		</div>
-	),
-	CollapsibleTrigger: ({ children, className, onClick }: any) => (
-		<div className={`collapsible-trigger-mock ${className || ""}`} onClick={onClick}>
-			{children}
-		</div>
-	),
-	CollapsibleContent: ({ children, className }: any) => (
-		<div className={`collapsible-content-mock ${className || ""}`}>{children}</div>
-	),
-	Dialog: ({ children, ...props }: any) => (
-		<div data-testid="dialog" {...props}>
-			{children}
-		</div>
-	),
-	DialogContent: ({ children, ...props }: any) => (
-		<div data-testid="dialog-content" {...props}>
-			{children}
-		</div>
-	),
-	DialogHeader: ({ children, ...props }: any) => (
-		<div data-testid="dialog-header" {...props}>
-			{children}
-		</div>
-	),
-	DialogTitle: ({ children, ...props }: any) => (
-		<div data-testid="dialog-title" {...props}>
-			{children}
-		</div>
-	),
-	DialogDescription: ({ children, ...props }: any) => (
-		<div data-testid="dialog-description" {...props}>
-			{children}
-		</div>
-	),
-	DialogFooter: ({ children, ...props }: any) => (
-		<div data-testid="dialog-footer" {...props}>
-			{children}
-		</div>
-	),
-}))
+		),
+		StandardTooltip: ({ children, content }: any) => <div title={content}>{children}</div>,
+		Input: ({ value, onChange, placeholder, "data-testid": dataTestId }: any) => (
+			<input type="text" value={value} onChange={onChange} placeholder={placeholder} data-testid={dataTestId} />
+		),
+		Select: ({ children, value, onValueChange }: any) => (
+			<div data-testid="select" data-value={value}>
+				<button onClick={() => onValueChange && onValueChange("test-change")}>{value}</button>
+				{children}
+			</div>
+		),
+		SelectContent: ({ children }: any) => <div data-testid="select-content">{children}</div>,
+		SelectGroup: ({ children }: any) => <div data-testid="select-group">{children}</div>,
+		SelectItem: ({ children, value }: any) => (
+			<div data-testid={`select-item-${value}`} data-value={value}>
+				{children}
+			</div>
+		),
+		SelectTrigger: ({ children }: any) => <div data-testid="select-trigger">{children}</div>,
+		SelectValue: ({ placeholder }: any) => <div data-testid="select-value">{placeholder}</div>,
+		SearchableSelect: ({ value, onValueChange, options, placeholder }: any) => (
+			<select value={value} onChange={(e) => onValueChange(e.target.value)} data-testid="searchable-select">
+				{placeholder && <option value="">{placeholder}</option>}
+				{options?.map((opt: any) => (
+					<option key={opt.value} value={opt.value}>
+						{opt.label}
+					</option>
+				))}
+			</select>
+		),
+		AlertDialog: ({ children, open }: any) => (
+			<div data-testid="alert-dialog" data-open={open}>
+				{children}
+			</div>
+		),
+		AlertDialogContent: ({ children }: any) => <div data-testid="alert-dialog-content">{children}</div>,
+		AlertDialogHeader: ({ children }: any) => <div data-testid="alert-dialog-header">{children}</div>,
+		AlertDialogTitle: ({ children }: any) => <div data-testid="alert-dialog-title">{children}</div>,
+		AlertDialogDescription: ({ children }: any) => <div data-testid="alert-dialog-description">{children}</div>,
+		AlertDialogFooter: ({ children }: any) => <div data-testid="alert-dialog-footer">{children}</div>,
+		AlertDialogAction: ({ children, onClick }: any) => (
+			<button data-testid="alert-dialog-action" onClick={onClick}>
+				{children}
+			</button>
+		),
+		AlertDialogCancel: ({ children, onClick }: any) => (
+			<button data-testid="alert-dialog-cancel" onClick={onClick}>
+				{children}
+			</button>
+		),
+		// Add Collapsible components
+		Collapsible: ({ children, open }: any) => (
+			<div className="collapsible-mock" data-open={open}>
+				{children}
+			</div>
+		),
+		CollapsibleTrigger: ({ children, className, onClick }: any) => (
+			<div className={`collapsible-trigger-mock ${className || ""}`} onClick={onClick}>
+				{children}
+			</div>
+		),
+		CollapsibleContent: ({ children, className }: any) => (
+			<div className={`collapsible-content-mock ${className || ""}`}>{children}</div>
+		),
+		Dialog: ({ children, ...props }: any) => (
+			<div data-testid="dialog" {...props}>
+				{children}
+			</div>
+		),
+		DialogContent: ({ children, ...props }: any) => (
+			<div data-testid="dialog-content" {...props}>
+				{children}
+			</div>
+		),
+		DialogHeader: ({ children, ...props }: any) => (
+			<div data-testid="dialog-header" {...props}>
+				{children}
+			</div>
+		),
+		DialogTitle: ({ children, ...props }: any) => (
+			<div data-testid="dialog-title" {...props}>
+				{children}
+			</div>
+		),
+		DialogDescription: ({ children, ...props }: any) => (
+			<div data-testid="dialog-description" {...props}>
+				{children}
+			</div>
+		),
+		DialogFooter: ({ children, ...props }: any) => (
+			<div data-testid="dialog-footer" {...props}>
+				{children}
+			</div>
+		),
+	}
+})
 
 // Mock window.postMessage to trigger state hydration
-const mockPostMessage = (state: any) => {
+const mockPostMessage = (state: any = {}) => {
 	window.postMessage(
 		{
 			type: "state",
@@ -273,7 +291,6 @@ const mockPostMessage = (state: any) => {
 				version: "1.0.0",
 				clineMessages: [],
 				taskHistory: [],
-				shouldShowAnnouncement: false,
 				allowedCommands: [],
 				alwaysAllowExecute: false,
 				ttsEnabled: false,
@@ -287,7 +304,7 @@ const mockPostMessage = (state: any) => {
 	)
 }
 
-const renderSettingsView = () => {
+const renderSettingsView = (initialState: any = {}) => {
 	const onDone = vi.fn()
 	const queryClient = new QueryClient()
 
@@ -300,7 +317,7 @@ const renderSettingsView = () => {
 	)
 
 	// Hydrate initial state.
-	mockPostMessage({})
+	mockPostMessage(initialState)
 
 	// Helper function to activate a tab and ensure its content is visible
 	const activateTab = (tabId: string) => {
@@ -320,6 +337,18 @@ const renderSettingsView = () => {
 
 	return { onDone, activateTab, getSettingsContent }
 }
+
+const getUpdateSettingsMessages = () =>
+	vi
+		.mocked(vscode.postMessage)
+		.mock.calls.map(([message]) => message)
+		.filter((message: any) => message?.type === "updateSettings")
+
+const getUpsertApiConfigurationMessages = () =>
+	vi
+		.mocked(vscode.postMessage)
+		.mock.calls.map(([message]) => message)
+		.filter((message: any) => message?.type === "upsertApiConfiguration")
 
 describe("SettingsView - Sound Settings", () => {
 	beforeEach(() => {
@@ -511,6 +540,47 @@ describe("SettingsView - Sound Settings", () => {
 	})
 })
 
+describe("SettingsView - Non-provider settings save", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("saves yolo mode when the api configuration is invalid but unchanged", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			apiConfiguration: {
+				apiProvider: "openai",
+				openAiBaseUrl: "",
+				openAiApiKey: "",
+				openAiModelId: "",
+			},
+		})
+
+		activateTab("autoApprove")
+
+		const content = getSettingsContent()
+		const saveButton = screen.getByTestId("save-button")
+		expect(saveButton).toBeDisabled()
+
+		const yoloCheckbox = within(content).getByTestId("yolo-mode-checkbox")
+		fireEvent.click(yoloCheckbox)
+
+		expect(yoloCheckbox).toBeChecked()
+		expect(saveButton).not.toBeDisabled()
+
+		fireEvent.click(saveButton)
+
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					yoloMode: true,
+				}),
+			}),
+		)
+		expect(getUpsertApiConfigurationMessages()).toHaveLength(0)
+	})
+})
+
 describe("SettingsView - API Configuration", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -565,14 +635,8 @@ describe("SettingsView - Allowed Commands", () => {
 
 		// Verify command was added
 		expect(within(content).getByText("npm test")).toBeInTheDocument()
-
-		// Verify VSCode message was sent
-		expect(vscode.postMessage).toHaveBeenCalledWith({
-			type: "updateSettings",
-			updatedSettings: {
-				allowedCommands: ["npm test"],
-			},
-		})
+		// Verify the edit stays local until Save is clicked
+		expect(getUpdateSettingsMessages()).toHaveLength(0)
 	})
 
 	it("removes command from the list", () => {
@@ -599,14 +663,20 @@ describe("SettingsView - Allowed Commands", () => {
 
 		// Verify command was removed
 		expect(within(content).queryByText("npm test")).not.toBeInTheDocument()
+		// Save the cached change
+		const saveButton = screen.getByTestId("save-button")
+		fireEvent.click(saveButton)
 
-		// Verify VSCode message was sent
-		expect(vscode.postMessage).toHaveBeenLastCalledWith({
-			type: "updateSettings",
-			updatedSettings: {
-				allowedCommands: [],
-			},
-		})
+		// Verify VSCode received the persisted settings update
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					alwaysAllowExecute: true,
+					allowedCommands: [],
+				}),
+			}),
+		)
 	})
 
 	describe("SettingsView - Tab Navigation", () => {

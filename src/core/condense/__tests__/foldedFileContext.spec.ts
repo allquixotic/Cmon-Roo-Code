@@ -3,7 +3,6 @@
 import * as path from "path"
 import { Anthropic } from "@anthropic-ai/sdk"
 import type { ModelInfo } from "@roo-code/types"
-import { TelemetryService } from "@roo-code/telemetry"
 import { BaseProvider } from "../../../api/providers/base-provider"
 
 // Mock the tree-sitter module
@@ -214,9 +213,6 @@ describe("foldedFileContext", () => {
 
 	describe("summarizeConversation with foldedFileContext", () => {
 		beforeEach(() => {
-			if (!TelemetryService.hasInstance()) {
-				TelemetryService.createInstance([])
-			}
 		})
 
 		// Mock API handler for testing

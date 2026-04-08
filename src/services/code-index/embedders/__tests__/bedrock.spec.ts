@@ -20,14 +20,6 @@ vitest.mock("@aws-sdk/credential-providers", () => ({
 	fromIni: vitest.fn().mockReturnValue(Promise.resolve({})),
 }))
 
-// Mock TelemetryService
-vitest.mock("@roo-code/telemetry", () => ({
-	TelemetryService: {
-		instance: {
-			captureEvent: vitest.fn(),
-		},
-	},
-}))
 
 // Mock i18n
 vitest.mock("../../../../i18n", () => ({
@@ -72,9 +64,11 @@ describe("BedrockEmbedder", () => {
 
 		// Set up the mock implementation
 		const MockedBedrockRuntimeClient = BedrockRuntimeClient as any
-		MockedBedrockRuntimeClient.mockImplementation(() => ({
-			send: mockSend,
-		}))
+		MockedBedrockRuntimeClient.mockImplementation(function () {
+			return {
+				send: mockSend,
+			}
+		})
 
 		embedder = new BedrockEmbedder("us-east-1", "test-profile", "amazon.titan-embed-text-v2:0")
 	})

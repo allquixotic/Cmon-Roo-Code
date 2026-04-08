@@ -41,4 +41,19 @@ describe("UISettings", () => {
 		rerender(<UISettings {...defaultProps} reasoningBlockCollapsed={true} />)
 		expect(checkbox.checked).toBe(true)
 	})
+
+	it("updates the cached default render context when a render context button is clicked", () => {
+		const setCachedStateField = vi.fn()
+		const { getByTestId } = render(
+			<UISettings
+				{...defaultProps}
+				defaultRenderContext="sidebar"
+				setCachedStateField={setCachedStateField}
+			/>,
+		)
+
+		fireEvent.click(getByTestId("render-context-editor-button"))
+
+		expect(setCachedStateField).toHaveBeenCalledWith("defaultRenderContext", "editor")
+	})
 })

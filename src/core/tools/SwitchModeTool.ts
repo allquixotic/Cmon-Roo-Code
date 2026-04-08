@@ -14,6 +14,14 @@ interface SwitchModeParams {
 export class SwitchModeTool extends BaseTool<"switch_mode"> {
 	readonly name = "switch_mode" as const
 
+	private async resolveTaskMode(task: Task): Promise<string> {
+		if (typeof (task as any).getTaskMode === "function") {
+			return task.getTaskMode().catch(() => defaultModeSlug)
+		}
+
+		return (task as any).taskMode ?? defaultModeSlug
+	}
+
 	async execute(params: SwitchModeParams, task: Task, callbacks: ToolCallbacks): Promise<void> {
 		const { mode_slug, reason } = params
 		const { askApproval, handleError, pushToolResult } = callbacks
@@ -39,7 +47,7 @@ export class SwitchModeTool extends BaseTool<"switch_mode"> {
 			}
 
 			// Check if already in requested mode
-			const currentMode = (await task.providerRef.deref()?.getState())?.mode ?? defaultModeSlug
+			const currentMode = await this.resolveTaskMode(task)
 
 			if (currentMode === mode_slug) {
 				task.recordToolError("switch_mode")
@@ -56,7 +64,11 @@ export class SwitchModeTool extends BaseTool<"switch_mode"> {
 			}
 
 			// Switch the mode using shared handler
-			await task.providerRef.deref()?.handleModeSwitch(mode_slug)
+			if (typeof (task as any).switchTaskMode === "function") {
+				await task.switchTaskMode(mode_slug)
+			} else {
+				await task.providerRef.deref()?.handleModeSwitch(mode_slug as any)
+			}
 
 			pushToolResult(
 				`Successfully switched from ${getModeBySlug(currentMode)?.name ?? currentMode} mode to ${

@@ -1,5 +1,4 @@
 import * as vscode from "vscode"
-import { ZodError } from "zod"
 
 import {
 	PROVIDER_SETTINGS_KEYS,
@@ -18,7 +17,6 @@ import {
 	isProviderName,
 	isRetiredProvider,
 } from "@roo-code/types"
-import { TelemetryService } from "@roo-code/telemetry"
 
 import { logger } from "../../utils/logging"
 import { supportPrompt } from "../../shared/support-prompt"
@@ -405,10 +403,7 @@ export class ContextProxy {
 
 		try {
 			return globalSettingsSchema.parse(values)
-		} catch (error) {
-			if (error instanceof ZodError) {
-				TelemetryService.instance.captureSchemaValidationError({ schemaName: "GlobalSettings", error })
-			}
+		} catch {
 
 			return GLOBAL_SETTINGS_KEYS.reduce((acc, key) => ({ ...acc, [key]: values[key] }), {} as GlobalSettings)
 		}
@@ -424,15 +419,12 @@ export class ContextProxy {
 		// Sanitize invalid/removed apiProvider values before parsing
 		// This handles cases where a user had a provider selected that was later removed
 		// from the extension (e.g., "glama"). We sanitize here to avoid repeated
-		// schema validation errors that can cause infinite loops in telemetry.
+		// schema validation failures during state hydration.
 		const sanitizedValues = this.sanitizeProviderValues(values)
 
 		try {
 			return providerSettingsSchema.parse(sanitizedValues)
-		} catch (error) {
-			if (error instanceof ZodError) {
-				TelemetryService.instance.captureSchemaValidationError({ schemaName: "ProviderSettings", error })
-			}
+		} catch {
 
 			return PROVIDER_SETTINGS_KEYS.reduce(
 				(acc, key) => ({ ...acc, [key]: sanitizedValues[key] }),
@@ -537,10 +529,7 @@ export class ContextProxy {
 			globalSettings.customModes = globalSettings.customModes?.filter((mode) => mode.source === "global")
 
 			return Object.fromEntries(Object.entries(globalSettings).filter(([_, value]) => value !== undefined))
-		} catch (error) {
-			if (error instanceof ZodError) {
-				TelemetryService.instance.captureSchemaValidationError({ schemaName: "GlobalSettings", error })
-			}
+		} catch {
 
 			return undefined
 		}

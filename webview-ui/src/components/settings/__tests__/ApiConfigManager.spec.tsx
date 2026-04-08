@@ -18,93 +18,96 @@ vitest.mock("@vscode/webview-ui-toolkit/react", () => ({
 	),
 }))
 
-vitest.mock("@/components/ui", () => ({
-	...vitest.importActual("@/components/ui"),
-	Dialog: ({ children, open }: any) => (
-		<div role="dialog" aria-modal="true" style={{ display: open ? "block" : "none" }} data-testid="dialog">
-			{children}
-		</div>
-	),
-	DialogContent: ({ children }: any) => <div data-testid="dialog-content">{children}</div>,
-	DialogTitle: ({ children }: any) => <div data-testid="dialog-title">{children}</div>,
-	Button: ({ children, onClick, disabled, "data-testid": dataTestId }: any) => (
-		<button onClick={onClick} disabled={disabled} data-testid={dataTestId}>
-			{children}
-		</button>
-	),
-	Input: ({ value, onInput, placeholder, onKeyDown, "data-testid": dataTestId }: any) => (
-		<input
-			value={value}
-			onChange={(e) => onInput(e)}
-			placeholder={placeholder}
-			onKeyDown={onKeyDown}
-			data-testid={dataTestId}
-		/>
-	),
-	StandardTooltip: ({ children, content }: any) => <div title={content}>{children}</div>,
-	// New components for searchable dropdown
-	Popover: ({ children, open }: any) => (
-		<div className="popover" style={{ position: "relative" }}>
-			{children}
-			{open && <div className="popover-content" style={{ position: "absolute", top: "100%", left: 0 }}></div>}
-		</div>
-	),
-	PopoverTrigger: ({ children }: any) => <div className="popover-trigger">{children}</div>,
-	PopoverContent: ({ children }: any) => <div className="popover-content">{children}</div>,
-	Command: ({ children }: any) => <div className="command">{children}</div>,
-	CommandInput: ({ value, onValueChange, placeholder, className, "data-testid": dataTestId }: any) => (
-		<input
-			value={value}
-			onChange={(e) => onValueChange(e.target.value)}
-			placeholder={placeholder}
-			className={className}
-			data-testid={dataTestId}
-		/>
-	),
-	CommandList: ({ children }: any) => <div className="command-list">{children}</div>,
-	CommandEmpty: ({ children }: any) => (children ? <div className="command-empty">{children}</div> : null),
-	CommandGroup: ({ children }: any) => <div className="command-group">{children}</div>,
-	CommandItem: ({ children, value, onSelect }: any) => (
-		<div className="command-item" onClick={() => onSelect(value)} data-value={value}>
-			{children}
-		</div>
-	),
-	// Keep old components for backward compatibility
-	Select: ({ value, onValueChange }: any) => (
-		<select
-			value={value}
-			onChange={(e) => {
-				if (onValueChange) onValueChange(e.target.value)
-			}}
-			data-testid="select-component">
-			<option value="Default Config">Default Config</option>
-			<option value="Another Config">Another Config</option>
-		</select>
-	),
-	SelectTrigger: ({ children }: any) => <div className="select-trigger-mock">{children}</div>,
-	SelectValue: ({ children }: any) => <div className="select-value-mock">{children}</div>,
-	SelectContent: ({ children }: any) => <div className="select-content-mock">{children}</div>,
-	SelectItem: ({ children, value }: any) => (
-		<option value={value} className="select-item-mock">
-			{children}
-		</option>
-	),
-	SearchableSelect: ({ value, onValueChange, options, placeholder, "data-testid": dataTestId }: any) => (
-		<select
-			value={value}
-			onChange={(e) => {
-				if (onValueChange) onValueChange(e.target.value)
-			}}
-			data-testid={dataTestId || "select-component"}>
-			<option value="">{placeholder || "settings:common.select"}</option>
-			{options?.map((option: any) => (
-				<option key={option.value} value={option.value}>
-					{option.label}
-				</option>
-			))}
-		</select>
-	),
-}))
+vitest.mock("@/components/ui", async () => {
+	const actual = await vitest.importActual<typeof import("@/components/ui")>("@/components/ui")
+	return {
+		...actual,
+		Dialog: ({ children, open }: any) => (
+			<div role="dialog" aria-modal="true" style={{ display: open ? "block" : "none" }} data-testid="dialog">
+				{children}
+			</div>
+		),
+		DialogContent: ({ children }: any) => <div data-testid="dialog-content">{children}</div>,
+		DialogTitle: ({ children }: any) => <div data-testid="dialog-title">{children}</div>,
+		Button: ({ children, onClick, disabled, "data-testid": dataTestId }: any) => (
+			<button onClick={onClick} disabled={disabled} data-testid={dataTestId}>
+				{children}
+			</button>
+		),
+		Input: ({ value, onInput, placeholder, onKeyDown, "data-testid": dataTestId }: any) => (
+			<input
+				value={value}
+				onChange={(e) => onInput(e)}
+				placeholder={placeholder}
+				onKeyDown={onKeyDown}
+				data-testid={dataTestId}
+			/>
+		),
+		StandardTooltip: ({ children, content }: any) => <div title={content}>{children}</div>,
+		// New components for searchable dropdown
+		Popover: ({ children, open }: any) => (
+			<div className="popover" style={{ position: "relative" }}>
+				{children}
+				{open && <div className="popover-content" style={{ position: "absolute", top: "100%", left: 0 }}></div>}
+			</div>
+		),
+		PopoverTrigger: ({ children }: any) => <div className="popover-trigger">{children}</div>,
+		PopoverContent: ({ children }: any) => <div className="popover-content">{children}</div>,
+		Command: ({ children }: any) => <div className="command">{children}</div>,
+		CommandInput: ({ value, onValueChange, placeholder, className, "data-testid": dataTestId }: any) => (
+			<input
+				value={value}
+				onChange={(e) => onValueChange(e.target.value)}
+				placeholder={placeholder}
+				className={className}
+				data-testid={dataTestId}
+			/>
+		),
+		CommandList: ({ children }: any) => <div className="command-list">{children}</div>,
+		CommandEmpty: ({ children }: any) => (children ? <div className="command-empty">{children}</div> : null),
+		CommandGroup: ({ children }: any) => <div className="command-group">{children}</div>,
+		CommandItem: ({ children, value, onSelect }: any) => (
+			<div className="command-item" onClick={() => onSelect(value)} data-value={value}>
+				{children}
+			</div>
+		),
+		// Keep old components for backward compatibility
+		Select: ({ value, onValueChange }: any) => (
+			<select
+				value={value}
+				onChange={(e) => {
+					if (onValueChange) onValueChange(e.target.value)
+				}}
+				data-testid="select-component">
+				<option value="Default Config">Default Config</option>
+				<option value="Another Config">Another Config</option>
+			</select>
+		),
+		SelectTrigger: ({ children }: any) => <div className="select-trigger-mock">{children}</div>,
+		SelectValue: ({ children }: any) => <div className="select-value-mock">{children}</div>,
+		SelectContent: ({ children }: any) => <div className="select-content-mock">{children}</div>,
+		SelectItem: ({ children, value }: any) => (
+			<option value={value} className="select-item-mock">
+				{children}
+			</option>
+		),
+		SearchableSelect: ({ value, onValueChange, options, placeholder, "data-testid": dataTestId }: any) => (
+			<select
+				value={value}
+				onChange={(e) => {
+					if (onValueChange) onValueChange(e.target.value)
+				}}
+				data-testid={dataTestId || "select-component"}>
+				<option value="">{placeholder || "settings:common.select"}</option>
+				{options?.map((option: any) => (
+					<option key={option.value} value={option.value}>
+						{option.label}
+					</option>
+				))}
+			</select>
+		),
+	}
+})
 
 describe("ApiConfigManager", () => {
 	const mockOnSelectConfig = vitest.fn()

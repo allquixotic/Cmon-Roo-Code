@@ -148,10 +148,11 @@ describe("generateImageTool", () => {
 			})
 
 			vi.mocked(OpenRouterHandler).mockImplementation(
-				() =>
-					({
+				function () {
+					return {
 						generateImage: mockGenerateImage,
-					}) as any,
+					} as any
+				},
 			)
 
 			await generateImageTool.handle(mockCline as Task, completeBlock as ToolUse<"generate_image">, {
@@ -192,10 +193,11 @@ describe("generateImageTool", () => {
 			})
 
 			vi.mocked(OpenRouterHandler).mockImplementation(
-				() =>
-					({
+				function () {
+					return {
 						generateImage: mockGenerateImage,
-					}) as any,
+					} as any
+				},
 			)
 
 			await generateImageTool.handle(mockCline as Task, completeBlock as ToolUse<"generate_image">, {

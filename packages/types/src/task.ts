@@ -1,17 +1,17 @@
+import type { EventEmitter } from "events"
 import { z } from "zod"
 
 import { RooCodeEventName } from "./events.js"
 import type { RooCodeSettings } from "./global-settings.js"
 import type { ClineMessage, QueuedMessage, TokenUsage } from "./message.js"
 import type { ToolUsage, ToolName } from "./tool.js"
-import type { StaticAppProperties, GitProperties, TelemetryProperties } from "./telemetry.js"
 import type { TodoItem } from "./todo.js"
 
 /**
  * TaskProviderLike
  */
 
-export interface TaskProviderLike {
+export interface TaskProviderLike extends EventEmitter<TaskProviderEvents> {
 	// Tasks
 	getCurrentTask(): TaskLike | undefined
 	getRecentTasks(): string[]
@@ -35,23 +35,8 @@ export interface TaskProviderLike {
 	getProviderProfiles(): Promise<{ name: string; provider?: string }[]>
 	getProviderProfile(): Promise<string>
 	setProviderProfile(providerProfile: string): Promise<void>
-
-	// Telemetry
-	readonly appProperties: StaticAppProperties
-	readonly gitProperties: GitProperties | undefined
-	getTelemetryProperties(): Promise<TelemetryProperties>
 	readonly cwd: string
 
-	// Event Emitter
-	on<K extends keyof TaskProviderEvents>(
-		event: K,
-		listener: (...args: TaskProviderEvents[K]) => void | Promise<void>,
-	): this
-
-	off<K extends keyof TaskProviderEvents>(
-		event: K,
-		listener: (...args: TaskProviderEvents[K]) => void | Promise<void>,
-	): this
 
 	// @TODO: Find a better way to do this.
 	postStateToWebview(): Promise<void>
@@ -94,6 +79,8 @@ export interface CreateTaskOptions {
 	consecutiveMistakeLimit?: number
 	experiments?: Record<string, boolean>
 	initialTodos?: TodoItem[]
+	/** Whether the task should become the visible task in the UI (default: true). */
+	focus?: boolean
 	/** Initial status for the task's history item (e.g., "active" for child tasks) */
 	initialStatus?: "active" | "delegated" | "completed"
 	/** Whether to start the task loop immediately (default: true).
@@ -116,7 +103,7 @@ export const taskMetadataSchema = z.object({
 
 export type TaskMetadata = z.infer<typeof taskMetadataSchema>
 
-export interface TaskLike {
+export interface TaskLike extends EventEmitter<TaskEvents> {
 	readonly taskId: string
 	readonly rootTaskId?: string
 	readonly parentTaskId?: string
@@ -126,9 +113,6 @@ export interface TaskLike {
 	readonly taskAsk: ClineMessage | undefined
 	readonly queuedMessages: QueuedMessage[]
 	readonly tokenUsage: TokenUsage | undefined
-
-	on<K extends keyof TaskEvents>(event: K, listener: (...args: TaskEvents[K]) => void | Promise<void>): this
-	off<K extends keyof TaskEvents>(event: K, listener: (...args: TaskEvents[K]) => void | Promise<void>): this
 
 	approveAsk(options?: { text?: string; images?: string[] }): void
 	denyAsk(options?: { text?: string; images?: string[] }): void

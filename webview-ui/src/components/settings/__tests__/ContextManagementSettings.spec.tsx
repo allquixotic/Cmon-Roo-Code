@@ -17,47 +17,50 @@ vi.mock("@/hooks/useAppTranslation", () => ({
 }))
 
 // Mock the UI components
-vi.mock("@/components/ui", () => ({
-	...vi.importActual("@/components/ui"),
-	Slider: ({ value, onValueChange, "data-testid": dataTestId, disabled, min, max }: any) => (
-		<input
-			type="range"
-			value={value?.[0] ?? 0}
-			min={min}
-			max={max}
-			onChange={(e) => onValueChange([parseFloat(e.target.value)])}
-			onKeyDown={(e) => {
-				const currentValue = value?.[0] ?? 0
-				if (e.key === "ArrowRight") {
-					onValueChange([currentValue + 1])
-				} else if (e.key === "ArrowLeft") {
-					onValueChange([currentValue - 1])
-				}
-			}}
-			data-testid={dataTestId}
-			disabled={disabled}
-			role="slider"
-		/>
-	),
-	Input: ({ value, onChange, "data-testid": dataTestId, ...props }: any) => (
-		<input value={value} onChange={onChange} data-testid={dataTestId} {...props} />
-	),
-	Button: ({ children, onClick, ...props }: any) => (
-		<button onClick={onClick} {...props}>
-			{children}
-		</button>
-	),
-	Select: ({ children, ...props }: any) => (
-		<div role="combobox" {...props}>
-			{children}
-		</div>
-	),
-	SelectTrigger: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-	SelectValue: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-	SelectContent: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-	SelectItem: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-	StandardTooltip: ({ children, content }: any) => <div title={content}>{children}</div>,
-}))
+vi.mock("@/components/ui", async () => {
+	const actual = await vi.importActual<typeof import("@/components/ui")>("@/components/ui")
+	return {
+		...actual,
+		Slider: ({ value, onValueChange, "data-testid": dataTestId, disabled, min, max }: any) => (
+			<input
+				type="range"
+				value={value?.[0] ?? 0}
+				min={min}
+				max={max}
+				onChange={(e) => onValueChange([parseFloat(e.target.value)])}
+				onKeyDown={(e) => {
+					const currentValue = value?.[0] ?? 0
+					if (e.key === "ArrowRight") {
+						onValueChange([currentValue + 1])
+					} else if (e.key === "ArrowLeft") {
+						onValueChange([currentValue - 1])
+					}
+				}}
+				data-testid={dataTestId}
+				disabled={disabled}
+				role="slider"
+			/>
+		),
+		Input: ({ value, onChange, "data-testid": dataTestId, ...props }: any) => (
+			<input value={value} onChange={onChange} data-testid={dataTestId} {...props} />
+		),
+		Button: ({ children, onClick, ...props }: any) => (
+			<button onClick={onClick} {...props}>
+				{children}
+			</button>
+		),
+		Select: ({ children, ...props }: any) => (
+			<div role="combobox" {...props}>
+				{children}
+			</div>
+		),
+		SelectTrigger: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+		SelectValue: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+		SelectContent: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+		SelectItem: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+		StandardTooltip: ({ children, content }: any) => <div title={content}>{children}</div>,
+	}
+})
 
 // Mock vscode utilities - this is necessary since we're not in a VSCode environment
 

@@ -1,12 +1,3 @@
-// Mock TelemetryService - must come before other imports
-const mockCaptureException = vi.hoisted(() => vi.fn())
-vi.mock("@roo-code/telemetry", () => ({
-	TelemetryService: {
-		instance: {
-			captureException: mockCaptureException,
-		},
-	},
-}))
 
 // Mock Mistral client - must come before other imports
 const mockCreate = vi.fn()
@@ -69,7 +60,6 @@ describe("MistralHandler", () => {
 		handler = new MistralHandler(mockOptions)
 		mockCreate.mockClear()
 		mockComplete.mockClear()
-		mockCaptureException.mockClear()
 	})
 
 	describe("constructor", () => {

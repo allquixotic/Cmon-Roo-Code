@@ -114,7 +114,6 @@ const CodeBlockContainer = styled.div`
 `
 
 export const StyledPre = styled.div<{
-	preStyle?: React.CSSProperties
 	wordwrap?: "true" | "false" | undefined
 	windowshade?: "true" | "false"
 	collapsedHeight?: number
@@ -125,7 +124,6 @@ export const StyledPre = styled.div<{
 	overflow-y: auto;
 	padding: 8px 3px;
 	border-radius: 6px;
-	${({ preStyle }) => preStyle && { ...preStyle }}
 
 	pre {
 		background-color: ${CODE_BLOCK_BG_COLOR};
@@ -681,7 +679,7 @@ const MemoizedStyledPre = memo(
 		highlightedCode,
 		updateCodeBlockButtonPosition,
 	}: {
-		preRef: React.RefObject<HTMLDivElement>
+		preRef: React.RefObject<HTMLDivElement | null>
 		preStyle?: React.CSSProperties
 		wordWrap: boolean
 		windowShade: boolean
@@ -690,8 +688,8 @@ const MemoizedStyledPre = memo(
 		updateCodeBlockButtonPosition: (forceHide?: boolean) => void
 	}) => (
 		<StyledPre
-			ref={preRef}
-			preStyle={preStyle}
+			ref={preRef as React.Ref<HTMLDivElement>}
+			style={preStyle}
 			wordwrap={wordWrap ? "true" : "false"}
 			windowshade={windowShade ? "true" : "false"}
 			collapsedHeight={collapsedHeight}

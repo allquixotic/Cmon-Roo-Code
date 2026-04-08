@@ -3,7 +3,6 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { SEO } from "@/lib/seo"
 import { ogImageUrl } from "@/lib/og"
-import { CookieConsentWrapper } from "@/components/CookieConsentWrapper"
 
 import { Providers } from "@/components/providers"
 
@@ -103,7 +102,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 				</div>
 				<Providers>
 					<Shell>{children}</Shell>
-					<CookieConsentWrapper />
 				</Providers>
 			</body>
 		</html>

@@ -29,6 +29,7 @@ import {
 	type ClineMessage,
 	type ClineSay,
 	type ClineAsk,
+	type ExtensionMessage,
 	type ToolProgressStatus,
 	type HistoryItem,
 	type CreateTaskOptions,
@@ -36,7 +37,6 @@ import {
 	type ClineApiReqCancelReason,
 	type ClineApiReqInfo,
 	RooCodeEventName,
-	TelemetryEventName,
 	TaskStatus,
 	TodoItem,
 	getApiProtocol,
@@ -50,11 +50,9 @@ import {
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 	MAX_CHECKPOINT_TIMEOUT_SECONDS,
 	MIN_CHECKPOINT_TIMEOUT_SECONDS,
-	ConsecutiveMistakeError,
 	MAX_MCP_TOOLS_THRESHOLD,
 	countEnabledMcpTools,
 } from "@roo-code/types"
-import { TelemetryService } from "@roo-code/telemetry"
 import { CloudService } from "@roo-code/cloud"
 
 // api
@@ -506,14 +504,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			this._taskApiConfigName = historyItem.apiConfigName
 			this.taskModeReady = Promise.resolve()
 			this.taskApiConfigReady = Promise.resolve()
-			TelemetryService.instance.captureTaskRestarted(this.taskId)
 		} else {
 			// For new tasks, don't set the mode/apiConfigName yet - wait for async initialization.
 			this._taskMode = undefined
 			this._taskApiConfigName = undefined
 			this.taskModeReady = this.initializeTaskMode(provider)
 			this.taskApiConfigReady = this.initializeTaskApiConfigName(provider)
-			TelemetryService.instance.captureTaskCreated(this.taskId)
 		}
 
 		this.assistantMessageParser = undefined
@@ -523,7 +519,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.messageQueueStateChangedHandler = () => {
 			this.emit(RooCodeEventName.TaskUserMessage, this.taskId)
 			this.emit(RooCodeEventName.QueuedMessagesUpdated, this.taskId, this.messageQueueService.messages)
-			this.providerRef.deref()?.postStateToWebviewWithoutTaskHistory()
+			this.postTaskStateToWebview().catch(() => undefined)
 		}
 
 		this.messageQueueService.on("stateChanged", this.messageQueueStateChangedHandler)
@@ -666,9 +662,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		this.providerProfileChangeListener = async () => {
 			try {
+				if (!provider.isTaskVisible(this.taskId)) {
+					return
+				}
 				const newState = await provider.getState()
 				if (newState?.apiConfiguration) {
 					this.updateApiConfiguration(newState.apiConfiguration)
+					this.setTaskApiConfigName(newState.currentApiConfigName)
 				}
 			} catch (error) {
 				console.error(
@@ -679,6 +679,36 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		provider.on(RooCodeEventName.ProviderProfileChanged, this.providerProfileChangeListener)
+	}
+
+	private async getTaskScopedState(): Promise<Awaited<ReturnType<ClineProvider["getState"]>> | undefined> {
+		const provider = this.providerRef.deref()
+		if (!provider) {
+			return undefined
+		}
+
+		const state = await provider.getState()
+
+		return {
+			...state,
+			mode: await this.getTaskMode().catch(() => state.mode ?? defaultModeSlug),
+			apiConfiguration: this.apiConfiguration,
+			currentApiConfigName: await this.getTaskApiConfigName().catch(() => state.currentApiConfigName),
+		}
+	}
+
+	private async postTaskStateToWebview(): Promise<void> {
+		const provider = this.providerRef.deref()
+		if (typeof provider?.postTaskStateToWebview === "function") {
+			await provider.postTaskStateToWebview(this.taskId)
+		}
+	}
+
+	private async postTaskMessageToWebview(message: ExtensionMessage): Promise<void> {
+		const provider = this.providerRef.deref()
+		if (typeof provider?.postTaskMessageToWebview === "function") {
+			await provider.postTaskMessageToWebview(this.taskId, message)
+		}
 	}
 
 	/**
@@ -771,6 +801,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		return this._taskMode
 	}
 
+	public setTaskMode(mode: string): void {
+		this._taskMode = mode
+	}
+
 	/**
 	 * Wait for the task API config name to be initialized before proceeding.
 	 * This method ensures that any operations depending on the task's provider profile
@@ -836,6 +870,55 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	 */
 	public setTaskApiConfigName(apiConfigName: string | undefined): void {
 		this._taskApiConfigName = apiConfigName
+	}
+
+	public async switchTaskMode(mode: string): Promise<void> {
+		const provider = this.providerRef.deref()
+		if (!provider) {
+			return
+		}
+
+		this.setTaskMode(mode)
+
+		const taskHistoryItem = provider.taskHistoryStore.get(this.taskId)
+		if (taskHistoryItem) {
+			await provider.updateTaskHistory({ ...taskHistoryItem, mode }, { broadcast: false })
+		}
+
+		if (provider.isTaskVisible(this.taskId)) {
+			await provider.handleModeSwitch(mode as any)
+		} else {
+			await this.postTaskStateToWebview()
+		}
+	}
+
+	public async switchTaskProviderProfile(name: string): Promise<void> {
+		const provider = this.providerRef.deref()
+		if (!provider) {
+			return
+		}
+
+		if (provider.isTaskVisible(this.taskId)) {
+			await provider.activateProviderProfile({ name })
+			return
+		}
+
+		const { id: _profileId, name: _profileName, ...providerSettings } =
+			await provider.providerSettingsManager.getProfile({ name })
+
+		if (!providerSettings.apiProvider) {
+			return
+		}
+
+		this.updateApiConfiguration(providerSettings)
+		this.setTaskApiConfigName(name)
+
+		const taskHistoryItem = provider.taskHistoryStore.get(this.taskId)
+		if (taskHistoryItem) {
+			await provider.updateTaskHistory({ ...taskHistoryItem, apiConfigName: name }, { broadcast: false })
+		}
+
+		await this.postTaskStateToWebview()
 	}
 
 	static create(options: TaskOptions): [Task, Promise<void>] {
@@ -1155,21 +1238,16 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	private async addToClineMessages(message: ClineMessage) {
 		this.clineMessages.push(message)
-		const provider = this.providerRef.deref()
 		// Avoid resending large, mostly-static fields (notably taskHistory) on every chat message update.
 		// taskHistory is maintained in-memory in the webview and updated via taskHistoryItemUpdated.
-		await provider?.postStateToWebviewWithoutTaskHistory()
+		await this.postTaskStateToWebview()
 		this.emit(RooCodeEventName.Message, { action: "created", message })
 		await this.saveClineMessages()
 
 		const shouldCaptureMessage = message.partial !== true && CloudService.isEnabled()
 
 		if (shouldCaptureMessage) {
-			CloudService.instance.captureEvent({
-				event: TelemetryEventName.TASK_MESSAGE,
-				properties: { taskId: this.taskId, message },
-			})
-			// Track that this message has been synced to cloud
+			CloudService.instance.syncTaskMessage(this.taskId, message)
 			this.cloudSyncedMessageTimestamps.add(message.ts)
 		}
 	}
@@ -1190,8 +1268,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	private async updateClineMessage(message: ClineMessage) {
-		const provider = this.providerRef.deref()
-		await provider?.postMessageToWebview({ type: "messageUpdated", clineMessage: message })
+		await this.postTaskMessageToWebview({ type: "messageUpdated", clineMessage: message })
 		this.emit(RooCodeEventName.Message, { action: "updated", message })
 
 		// Check if we should sync to cloud and haven't already synced this message
@@ -1199,11 +1276,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const hasNotBeenSynced = !this.cloudSyncedMessageTimestamps.has(message.ts)
 
 		if (shouldCaptureMessage && hasNotBeenSynced) {
-			CloudService.instance.captureEvent({
-				event: TelemetryEventName.TASK_MESSAGE,
-				properties: { taskId: this.taskId, message },
-			})
-			// Track that this message has been synced to cloud
+			CloudService.instance.syncTaskMessage(this.taskId, message)
 			this.cloudSyncedMessageTimestamps.add(message.ts)
 		}
 	}
@@ -1361,8 +1434,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		let timeouts: NodeJS.Timeout[] = []
 
 		// Automatically approve if the ask according to the user's settings.
-		const provider = this.providerRef.deref()
-		const state = provider ? await provider.getState() : undefined
+		const state = await this.getTaskScopedState()
 		const approval = await checkAutoApproval({ state, ask: type, text, isProtected })
 
 		if (approval.decision === "approve") {
@@ -1399,7 +1471,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						if (message) {
 							this.interactiveAsk = message
 							this.emit(RooCodeEventName.TaskInteractive, this.taskId)
-							provider?.postMessageToWebview({ type: "interactionRequired" })
+							this.postTaskMessageToWebview({ type: "interactionRequired" }).catch(() => undefined)
 						}
 					}, statusMutationTimeout),
 				)
@@ -1600,18 +1672,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			if (provider) {
 				if (mode) {
-					await provider.setMode(mode)
+					await this.switchTaskMode(mode)
 				}
 
 				if (providerProfile) {
-					await provider.setProviderProfile(providerProfile)
-
-					// Update this task's API configuration to match the new profile
-					// This ensures the parser state is synchronized with the selected model
-					const newState = await provider.getState()
-					if (newState?.apiConfiguration) {
-						this.updateApiConfiguration(newState.apiConfiguration)
-					}
+					await this.switchTaskProviderProfile(providerProfile)
 				}
 
 				this.emit(RooCodeEventName.TaskUserMessage, this.taskId)
@@ -1653,7 +1718,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const systemPrompt = await this.getSystemPrompt()
 
 		// Get condensing configuration
-		const state = await this.providerRef.deref()?.getState()
+		const state = await this.getTaskScopedState()
 		const customCondensingPrompt = state?.customSupportPrompts?.CONDENSE
 		const { mode, apiConfiguration } = state ?? {}
 
@@ -1892,7 +1957,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				return { enabledToolCount: 0, enabledServerCount: 0 }
 			}
 
-			const { mcpEnabled } = (await provider.getState()) ?? {}
+			const { mcpEnabled } = (await this.getTaskScopedState()) ?? {}
 			if (!(mcpEnabled ?? true)) {
 				return { enabledToolCount: 0, enabledServerCount: 0 }
 			}
@@ -1948,7 +2013,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// The todo list is already set in the constructor if initialTodos were provided
 			// No need to add any messages - the todoList property is already set
 
-			await this.providerRef.deref()?.postStateToWebviewWithoutTaskHistory()
+			await this.postTaskStateToWebview()
 
 			await this.say("text", task, images)
 
@@ -2526,21 +2591,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			}
 
 			if (this.consecutiveMistakeLimit > 0 && this.consecutiveMistakeCount >= this.consecutiveMistakeLimit) {
-				// Track consecutive mistake errors in telemetry via event and PostHog exception tracking.
-				// The reason is "no_tools_used" because this limit is reached via initiateTaskLoop
-				// which increments consecutiveMistakeCount when the model doesn't use any tools.
-				TelemetryService.instance.captureConsecutiveMistakeError(this.taskId)
-				TelemetryService.instance.captureException(
-					new ConsecutiveMistakeError(
-						`Task reached consecutive mistake limit (${this.consecutiveMistakeLimit})`,
-						this.taskId,
-						this.consecutiveMistakeCount,
-						this.consecutiveMistakeLimit,
-						"no_tools_used",
-						this.apiConfiguration.apiProvider,
-						getModelId(this.apiConfiguration),
-					),
-				)
 
 				const { response, text, images } = await this.ask(
 					"mistake_limit_reached",
@@ -2593,7 +2643,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			)
 
 			const provider = this.providerRef.deref()
-			const state = provider ? await provider.getState() : undefined
+			const state = await this.getTaskScopedState()
 
 			const showRooIgnoredFiles = state?.showRooIgnoredFiles ?? false
 			const includeDiagnosticMessages = state?.includeDiagnosticMessages ?? true
@@ -2614,13 +2664,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			// Switch mode if specified in a slash command's frontmatter
 			if (slashCommandMode) {
-				const provider = this.providerRef.deref()
-				if (provider) {
-					const state = await provider.getState()
-					const targetMode = getModeBySlug(slashCommandMode, state?.customModes)
-					if (targetMode) {
-						await provider.handleModeSwitch(slashCommandMode)
-					}
+				const targetMode = getModeBySlug(slashCommandMode, state?.customModes)
+				if (targetMode) {
+					await this.switchTaskMode(slashCommandMode)
 				}
 			}
 
@@ -2657,7 +2703,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				((currentItem.retryAttempt ?? 0) === 0 && !isEmptyUserContent) || currentItem.userMessageWasRemoved
 			if (shouldAddUserMessage) {
 				await this.addToApiConversationHistory({ role: "user", content: finalUserContent })
-				TelemetryService.instance.captureConversationMessage(this.taskId, "user")
 			}
 
 			// Since we sent off a placeholder api_req_started message to update the
@@ -2671,7 +2716,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			} satisfies ClineApiReqInfo)
 
 			await this.saveClineMessages()
-			await this.providerRef.deref()?.postStateToWebviewWithoutTaskHistory()
+			await this.postTaskStateToWebview()
 
 			try {
 				let cacheWriteTokens = 0
@@ -3088,7 +3133,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						let bgCacheReadTokens = currentTokens.cacheRead
 						let bgTotalCost = currentTokens.total
 
-						// Helper function to capture telemetry and update messages
+						// Helper function to persist usage updates and refresh related messages
 						const captureUsageData = async (
 							tokens: {
 								input: number
@@ -3122,39 +3167,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 									await this.updateClineMessage(apiReqMessage)
 								}
 
-								// Capture telemetry with provider-aware cost calculation
-								const modelId = getModelId(this.apiConfiguration)
-								const apiProvider = this.apiConfiguration.apiProvider
-								const apiProtocol = getApiProtocol(
-									apiProvider && !isRetiredProvider(apiProvider) ? apiProvider : undefined,
-									modelId,
-								)
-
-								// Use the appropriate cost function based on the API protocol
-								const costResult =
-									apiProtocol === "anthropic"
-										? calculateApiCostAnthropic(
-												streamModelInfo,
-												tokens.input,
-												tokens.output,
-												tokens.cacheWrite,
-												tokens.cacheRead,
-											)
-										: calculateApiCostOpenAI(
-												streamModelInfo,
-												tokens.input,
-												tokens.output,
-												tokens.cacheWrite,
-												tokens.cacheRead,
-											)
-
-								TelemetryService.instance.captureLlmCompletion(this.taskId, {
-									inputTokens: costResult.totalInputTokens,
-									outputTokens: costResult.totalOutputTokens,
-									cacheWriteTokens: tokens.cacheWrite,
-									cacheReadTokens: tokens.cacheRead,
-									cost: tokens.total ?? costResult.totalCost,
-								})
 							}
 						}
 
@@ -3269,7 +3281,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							)
 
 							// Apply exponential backoff similar to first-chunk errors when auto-resubmit is enabled
-							const stateForBackoff = await this.providerRef.deref()?.getState()
+							const stateForBackoff = await this.getTaskScopedState()
 							if (stateForBackoff?.autoApprovalEnabled) {
 								await this.backoffAndAnnounce(currentItem.retryAttempt ?? 0, error)
 
@@ -3401,7 +3413,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				}
 
 				await this.saveClineMessages()
-				await this.providerRef.deref()?.postStateToWebviewWithoutTaskHistory()
+				await this.postTaskStateToWebview()
 
 				// No legacy text-stream tool parser state to reset.
 
@@ -3551,8 +3563,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						reasoningMessage || undefined,
 					)
 					this.assistantMessageSavedToHistory = true
-
-					TelemetryService.instance.captureConversationMessage(this.taskId, "assistant")
 				}
 
 				// Present any partial blocks that were just completed.
@@ -3645,7 +3655,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					// apiConversationHistory at line 1876. Since the assistant failed to respond,
 					// we need to remove that message before retrying to avoid having two consecutive
 					// user messages (which would cause tool_result validation errors).
-					let state = await this.providerRef.deref()?.getState()
+					let state = await this.getTaskScopedState()
 					if (this.apiConversationHistory.length > 0) {
 						const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
 						if (lastMessage.role === "user") {
@@ -3742,7 +3752,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	private async getSystemPrompt(): Promise<string> {
-		const { mcpEnabled } = (await this.providerRef.deref()?.getState()) ?? {}
+		const state = await this.getTaskScopedState()
+		const { mcpEnabled } = state ?? {}
 		let mcpHub: McpHub | undefined
 		if (mcpEnabled ?? true) {
 			const provider = this.providerRef.deref()
@@ -3766,7 +3777,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		const rooIgnoreInstructions = this.rooIgnoreController?.getInstructions()
 
-		const state = await this.providerRef.deref()?.getState()
 
 		const {
 			mode,
@@ -3826,7 +3836,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	private async handleContextWindowExceededError(): Promise<void> {
-		const state = await this.providerRef.deref()?.getState()
+		const state = await this.getTaskScopedState()
 		const { profileThresholds = {}, mode, apiConfiguration } = state ?? {}
 
 		const { contextTokens } = this.getTokenUsage()
@@ -3850,7 +3860,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				`Forcing truncation to ${FORCED_CONTEXT_REDUCTION_PERCENT}% of current context.`,
 		)
 		// Send condenseTaskContextStarted to show in-progress indicator
-		await this.providerRef.deref()?.postMessageToWebview({ type: "condenseTaskContextStarted", text: this.taskId })
+		await this.postTaskMessageToWebview({ type: "condenseTaskContextStarted", text: this.taskId })
 
 		// Build tools for condensing metadata (same tools used for normal API calls)
 		const provider = this.providerRef.deref()
@@ -3944,9 +3954,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		} finally {
 			// Notify webview that context management is complete (removes in-progress spinner)
 			// IMPORTANT: Must always be sent to dismiss the spinner, even on error
-			await this.providerRef
-				.deref()
-				?.postMessageToWebview({ type: "condenseTaskContextResponse", text: this.taskId })
+			await this.postTaskMessageToWebview({ type: "condenseTaskContextResponse", text: this.taskId })
 		}
 	}
 
@@ -3957,7 +3965,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	 * the `api_req_rate_limit_wait` say type (not an error).
 	 */
 	private async maybeWaitForProviderRateLimit(retryAttempt: number): Promise<void> {
-		const state = await this.providerRef.deref()?.getState()
+		const state = await this.getTaskScopedState()
 		const rateLimitSeconds =
 			state?.apiConfiguration?.rateLimitSeconds ?? this.apiConfiguration?.rateLimitSeconds ?? 0
 
@@ -3988,7 +3996,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		retryAttempt: number = 0,
 		options: { skipProviderRateLimit?: boolean } = {},
 	): ApiStream {
-		const state = await this.providerRef.deref()?.getState()
+		const state = await this.getTaskScopedState()
 
 		const {
 			apiConfiguration,
@@ -4059,9 +4067,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// This notification must be sent here (not earlier) because the early check uses stale token count
 			// (before user message is added to history), which could incorrectly skip showing the indicator
 			if (contextManagementWillRun && autoCondenseContext) {
-				await this.providerRef
-					.deref()
-					?.postMessageToWebview({ type: "condenseTaskContextStarted", text: this.taskId })
+				await this.postTaskMessageToWebview({ type: "condenseTaskContextStarted", text: this.taskId })
 			}
 
 			// Build tools for condensing metadata (same tools used for normal API calls)
@@ -4181,9 +4187,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				// This removes the in-progress spinner and allows the completed result to show
 				// IMPORTANT: Must always be sent to dismiss the spinner, even on error
 				if (contextManagementWillRun && autoCondenseContext) {
-					await this.providerRef
-						.deref()
-						?.postMessageToWebview({ type: "condenseTaskContextResponse", text: this.taskId })
+					await this.postTaskMessageToWebview({ type: "condenseTaskContextResponse", text: this.taskId })
 				}
 			}
 		}
@@ -4378,7 +4382,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	// Shared exponential backoff for retries (first-chunk and mid-stream)
 	private async backoffAndAnnounce(retryAttempt: number, error: any): Promise<void> {
 		try {
-			const state = await this.providerRef.deref()?.getState()
+			const state = await this.getTaskScopedState()
 			const baseDelay = state?.requestDelaySeconds || 5
 
 			let exponentialDelay = Math.min(

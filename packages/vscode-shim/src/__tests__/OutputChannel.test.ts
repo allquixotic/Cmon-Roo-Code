@@ -1,8 +1,9 @@
 import { OutputChannel } from "../classes/OutputChannel.js"
-import { setLogger } from "../utils/logger.js"
+import { setLogger, type Logger } from "../utils/logger.js"
 
 describe("OutputChannel", () => {
-	let mockLogger: {
+	let mockLogger: Logger
+	let mockLoggerFns: {
 		debug: ReturnType<typeof vi.fn>
 		info: ReturnType<typeof vi.fn>
 		warn: ReturnType<typeof vi.fn>
@@ -10,12 +11,13 @@ describe("OutputChannel", () => {
 	}
 
 	beforeEach(() => {
-		mockLogger = {
+		mockLoggerFns = {
 			debug: vi.fn(),
 			info: vi.fn(),
 			warn: vi.fn(),
 			error: vi.fn(),
 		}
+		mockLogger = mockLoggerFns as unknown as Logger
 		setLogger(mockLogger)
 	})
 
@@ -41,7 +43,7 @@ describe("OutputChannel", () => {
 
 			channel.append("test message")
 
-			expect(mockLogger.info).toHaveBeenCalledWith(
+			expect(mockLoggerFns.info).toHaveBeenCalledWith(
 				"[TestChannel] test message",
 				"VSCode.OutputChannel",
 				undefined,
@@ -53,7 +55,7 @@ describe("OutputChannel", () => {
 
 			channel.append("")
 
-			expect(mockLogger.info).toHaveBeenCalledWith("[TestChannel] ", "VSCode.OutputChannel", undefined)
+			expect(mockLoggerFns.info).toHaveBeenCalledWith("[TestChannel] ", "VSCode.OutputChannel", undefined)
 		})
 	})
 
@@ -63,7 +65,7 @@ describe("OutputChannel", () => {
 
 			channel.appendLine("line message")
 
-			expect(mockLogger.info).toHaveBeenCalledWith(
+			expect(mockLoggerFns.info).toHaveBeenCalledWith(
 				"[TestChannel] line message",
 				"VSCode.OutputChannel",
 				undefined,
@@ -75,7 +77,7 @@ describe("OutputChannel", () => {
 
 			channel.appendLine("line1\nline2")
 
-			expect(mockLogger.info).toHaveBeenCalledWith(
+			expect(mockLoggerFns.info).toHaveBeenCalledWith(
 				"[TestChannel] line1\nline2",
 				"VSCode.OutputChannel",
 				undefined,

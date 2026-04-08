@@ -13,7 +13,7 @@ const MIN_ZOOM = 0.5
 const MAX_ZOOM = 20
 
 export interface MermaidButtonProps {
-	containerRef: React.RefObject<HTMLDivElement>
+	containerRef: React.RefObject<HTMLDivElement | null>
 	code: string
 	isLoading: boolean
 	svgToPng: (svgEl: SVGElement) => Promise<string>

@@ -4,6 +4,11 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 
 type TabProps = HTMLAttributes<HTMLDivElement>
+type TabTriggerElementProps = {
+	value: string
+	isSelected?: boolean
+	onSelect?: () => void
+}
 
 export const Tab = ({ className, children, ...props }: TabProps) => (
 	<div className={cn("fixed inset-0 flex flex-col", className)} {...props}>
@@ -57,8 +62,8 @@ export const TabList = forwardRef<
 	return (
 		<div ref={ref} role="tablist" className={cn("flex", className)} {...props}>
 			{React.Children.map(children, (child) => {
-				if (React.isValidElement(child)) {
-					return React.cloneElement(child as React.ReactElement<any>, {
+				if (React.isValidElement<TabTriggerElementProps>(child)) {
+					return React.cloneElement(child, {
 						isSelected: child.props.value === value,
 						onSelect: () => onValueChange(child.props.value),
 					})

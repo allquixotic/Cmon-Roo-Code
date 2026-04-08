@@ -3,7 +3,7 @@ import { SEO } from "@/lib/seo"
 import { ogImageUrl } from "@/lib/og"
 
 const TITLE = "Our Cookie Policy"
-const DESCRIPTION = "Learn about how Roo Code uses cookies to enhance your experience and provide our services."
+const DESCRIPTION = "Learn about the limited cookies Roo Code uses to keep the website and sign-in flows working."
 const OG_DESCRIPTION = ""
 const PATH = "/legal/cookies"
 
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
 		description: DESCRIPTION,
 		images: [ogImageUrl(TITLE, OG_DESCRIPTION)],
 	},
-	keywords: [...SEO.keywords, "cookies", "privacy", "tracking", "analytics"],
+	keywords: [...SEO.keywords, "cookies", "privacy", "website"],
 }
 
 export default function CookiePolicy() {
@@ -43,25 +43,24 @@ export default function CookiePolicy() {
 		<>
 			<div className="container mx-auto px-4 py-12 sm:px-6 lg:px-8">
 				<div className="prose prose-lg mx-auto max-w-4xl dark:prose-invert">
-					<p className="text-muted-foreground">Updated: September 18, 2025</p>
+					<p className="text-muted-foreground">Updated: April 8, 2026</p>
 
 					<h1 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">Cookie Policy</h1>
 
 					<p className="lead">
-						This Cookie Policy explains how Roo Code uses cookies and similar technologies to recognize you
-						when you visit our website.
+						This Cookie Policy explains how Roo Code uses cookies and similar technologies on our website.
 					</p>
 
 					<h2 className="mt-12 text-2xl font-bold">What are cookies?</h2>
 					<p>
 						Cookies are small data files that are placed on your computer or mobile device when you visit a
-						website. Cookies help make websites work more efficiently and provide reporting information.
+						website. Cookies help websites work more efficiently and remember choices such as sign-in state.
 					</p>
 
 					<h2 className="mt-12 text-2xl font-bold">Cookies we use</h2>
 					<p>
-						We use a minimal number of cookies to provide essential functionality and improve your
-						experience.
+						We use a minimal number of cookies to provide essential functionality. We do not use analytics
+						or advertising cookies on roocode.com.
 					</p>
 
 					<div className="overflow-x-auto">
@@ -89,30 +88,6 @@ export default function CookiePolicy() {
 										__client_uat*, __clerk_*
 									</td>
 								</tr>
-								<tr className="bg-muted/25">
-									<td className="border border-border px-4 py-3 font-medium">PostHog</td>
-									<td className="border border-border px-4 py-3">
-										Product analytics and feature usage tracking
-									</td>
-									<td className="border border-border px-4 py-3">
-										Analytics (only with your consent)
-									</td>
-									<td className="border border-border px-4 py-3">1 year</td>
-									<td className="border border-border px-4 py-3 font-mono text-sm">ph_*</td>
-								</tr>
-								<tr>
-									<td className="border border-border px-4 py-3 font-medium">HubSpot</td>
-									<td className="border border-border px-4 py-3">
-										Marketing automation and visitor tracking
-									</td>
-									<td className="border border-border px-4 py-3">
-										Analytics (only with your consent)
-									</td>
-									<td className="border border-border px-4 py-3">13 months</td>
-									<td className="border border-border px-4 py-3 font-mono text-sm">
-										hubspotutk, __hstc, __hssrc, __hssc
-									</td>
-								</tr>
 							</tbody>
 						</table>
 					</div>
@@ -126,24 +101,6 @@ export default function CookiePolicy() {
 							Clerk Privacy Policy
 						</a>
 					</p>
-					<p>
-						<a
-							href="https://posthog.com/privacy"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="text-primary hover:underline">
-							PostHog Privacy Policy
-						</a>
-					</p>
-					<p>
-						<a
-							href="https://legal.hubspot.com/privacy-policy"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="text-primary hover:underline">
-							HubSpot Privacy Policy
-						</a>
-					</p>
 
 					<h2 className="mt-12 text-2xl font-bold">Essential cookies</h2>
 					<p>
@@ -152,36 +109,10 @@ export default function CookiePolicy() {
 						without losing core website functionality. The lawful basis for processing these cookies is our
 						legitimate interest in providing secure access to our services.
 					</p>
-
-					<h2 className="mt-12 text-2xl font-bold">Analytics cookies</h2>
+					<h2 className="mt-12 text-2xl font-bold">No analytics or advertising cookies</h2>
 					<p>
-						We use PostHog and HubSpot analytics cookies to understand how visitors interact with our
-						website. This helps us improve our services, user experience, and marketing efforts. Analytics
-						cookies are placed only if you give consent through our cookie banner. The lawful basis for
-						processing these cookies is your consent, which you can withdraw at any time.
-					</p>
-
-					<h2 className="mt-12 text-2xl font-bold">Third-party services</h2>
-					<p>
-						Our blog at{" "}
-						<a
-							href="https://blog.roocode.com"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="text-primary hover:underline">
-							blog.roocode.com
-						</a>{" "}
-						is hosted on Substack. When you visit it, Substack may set cookies for analytics,
-						personalization, and advertising/marketing. These cookies are managed directly by Substack and
-						are outside our control. You can read more in{" "}
-						<a
-							href="https://substack.com/privacy"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="text-primary hover:underline">
-							Substack&apos;s Cookie Policy
-						</a>
-						.
+						Roo Code does not use website analytics, advertising, or visitor-tracking cookies on
+						roocode.com. If that changes in the future, we will update this policy before enabling them.
 					</p>
 
 					<h2 className="mt-12 text-2xl font-bold">How to control cookies</h2>

@@ -47,7 +47,7 @@ export default function Privacy() {
 					<h1 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
 						Roo Code Cloud Privacy Policy
 					</h1>
-					<p className="text-muted-foreground">Last Updated: September 19, 2025</p>
+					<p className="text-muted-foreground">Last Updated: April 8, 2026</p>
 
 					<p className="lead">
 						This Privacy Policy explains how Roo Code, Inc. (&quot;Roo Code,&quot; &quot;we,&quot;
@@ -101,6 +101,10 @@ export default function Privacy() {
 							We collect only the data needed to operate Roo Code Cloud, do <strong>not</strong> sell
 							customer data, and do <strong>not</strong> use your content to train models.
 						</li>
+						<li>
+							We do <strong>not</strong> use product analytics, advertising pixels, or visitor-tracking
+							scripts on the Marketing Site.
+						</li>
 					</ul>
 
 					<h2 className="mt-12 text-2xl font-bold">1. Information We Collect</h2>
@@ -141,29 +145,19 @@ export default function Privacy() {
 									<td className="border border-border px-4 py-2">Extension (when signed in)</td>
 								</tr>
 								<tr className="bg-muted/25">
-									<td className="border border-border px-4 py-2 font-medium">Usage Data</td>
-									<td className="border border-border px-4 py-2">
-										Feature clicks, error logs, performance metrics (captured via PostHog)
-									</td>
-									<td className="border border-border px-4 py-2">Services automatically (PostHog)</td>
-								</tr>
-								<tr>
 									<td className="border border-border px-4 py-2 font-medium">Payment Data</td>
 									<td className="border border-border px-4 py-2">
 										Tokenized card details, billing address, invoices
 									</td>
 									<td className="border border-border px-4 py-2">Payment processor (Stripe)</td>
 								</tr>
-								<tr className="bg-muted/25">
-									<td className="border border-border px-4 py-2 font-medium">Marketing Data</td>
+								<tr>
+									<td className="border border-border px-4 py-2 font-medium">Contact and Website Data</td>
 									<td className="border border-border px-4 py-2">
-										Cookies, IP address, browser type, page views,{" "}
-										<strong>voluntary form submissions</strong> (e.g., newsletter or wait‑list
-										sign‑ups)
+										Information you submit through forms, plus limited request metadata needed to
+										deliver the website and protect it from abuse
 									</td>
-									<td className="border border-border px-4 py-2">
-										Marketing Site automatically / You
-									</td>
+									<td className="border border-border px-4 py-2">You / Services automatically</td>
 								</tr>
 							</tbody>
 						</table>
@@ -176,8 +170,8 @@ export default function Privacy() {
 							prevention)
 						</li>
 						<li>
-							<strong>Provide support & improve features</strong> (debugging, analytics, product
-							decisions)
+							<strong>Provide support & improve features</strong> (debugging, reliability, and product
+							operations)
 						</li>
 						<li>
 							<strong>Process payments & manage subscriptions</strong>
@@ -240,13 +234,6 @@ export default function Privacy() {
 									<td className="border border-border px-4 py-2">Any third-party</td>
 								</tr>
 								<tr className="bg-muted/25">
-									<td className="border border-border px-4 py-2 font-medium">Usage & Telemetry</td>
-									<td className="border border-border px-4 py-2">
-										PostHog (self‑hosted analytics platform)
-									</td>
-									<td className="border border-border px-4 py-2">Ad networks or data brokers</td>
-								</tr>
-								<tr>
 									<td className="border border-border px-4 py-2 font-medium">Payment Data</td>
 									<td className="border border-border px-4 py-2">Stripe (PCI‑DSS Level 1)</td>
 									<td className="border border-border px-4 py-2">
@@ -267,8 +254,8 @@ export default function Privacy() {
 							organization admin deletes them or disables collection.
 						</li>
 						<li>
-							<strong>Operational Logs & Analytics:</strong> Retained only as needed to operate and secure
-							Roo Code Cloud.
+							<strong>Operational Records:</strong> Retained only as needed to operate and secure Roo Code
+							Cloud.
 						</li>
 					</ul>
 

@@ -1,8 +1,9 @@
 // npx vitest core/tools/__tests__/useMcpToolTool.spec.ts
+import type { Mock } from "vitest"
 
 import { useMcpToolTool } from "../UseMcpToolTool"
 import { Task } from "../../task/Task"
-import { ToolUse } from "../../../shared/tools"
+import { type AskApproval, type HandleError, type PushToolResult, ToolUse } from "../../../shared/tools"
 
 // Mock dependencies
 vi.mock("../../prompts/responses", () => ({
@@ -43,16 +44,18 @@ vi.mock("../../../i18n", () => ({
 
 describe("useMcpToolTool", () => {
 	let mockTask: Partial<Task>
-	let mockAskApproval: ReturnType<typeof vi.fn>
-	let mockHandleError: ReturnType<typeof vi.fn>
-	let mockPushToolResult: ReturnType<typeof vi.fn>
+	let mockAskApproval: Mock<AskApproval>
+	let mockHandleError: Mock<HandleError>
+	let mockPushToolResult: Mock<PushToolResult>
 	let mockRemoveClosingTag: ReturnType<typeof vi.fn>
 	let mockProviderRef: any
 
 	beforeEach(() => {
-		mockAskApproval = vi.fn()
-		mockHandleError = vi.fn()
-		mockPushToolResult = vi.fn()
+		mockAskApproval = vi.fn<AskApproval>()
+		mockAskApproval.mockResolvedValue(true)
+		mockHandleError = vi.fn<HandleError>()
+		mockHandleError.mockResolvedValue(undefined)
+		mockPushToolResult = vi.fn<PushToolResult>()
 		mockRemoveClosingTag = vi.fn((tag: string, value?: string) => value || "")
 
 		mockProviderRef = {

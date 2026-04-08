@@ -62,6 +62,16 @@
 		"community": "Want tips or to just hang out with other Roo Code users? Join <redditLink>reddit.com/r/RooCode</redditLink> or <discordLink>discord.gg/roocode</discordLink>",
 		"contactAndCommunity": "Contact & Community",
 		"manageSettings": "Manage Settings",
+		"autoImport": {
+			"title": "Settings Auto-Import",
+			"startupLabel": "Import settings automatically on startup",
+			"startupDescription": "When enabled, Roo will import settings from the configured external JSON file each time it starts.",
+			"pathLabel": "Configured import path",
+			"pathDescription": "This path is configured in VS Code settings and is shown here for reference.",
+			"pathNotConfigured": "No import path configured",
+			"importNow": "Import Now",
+			"importNowDescription": "Import settings from the configured path immediately without waiting for the next startup."
+		},
 		"debugMode": {
 			"label": "Enable debug mode",
 			"description": "Enable debug mode to show additional buttons in the task header for viewing API conversation history and UI messages as prettified JSON in temporary files."
@@ -163,6 +173,14 @@
 		"requireCtrlEnterToSend": {
 			"label": "Require {{primaryMod}}+Enter to send messages",
 			"description": "When enabled, you must press {{primaryMod}}+Enter to send messages instead of just Enter"
+		},
+		"defaultRenderContext": {
+			"label": "Default Roo panel location",
+			"description": "Choose whether Roo opens in the sidebar or in a regular editor tab by default.",
+			"options": {
+				"sidebar": "Sidebar",
+				"editor": "Editor"
+			}
 		}
 	},
 	"prompts": {
@@ -285,6 +303,12 @@
 		"description": "Run these actions without asking for permission. Only enable for actions you fully trust and if you understand the security risks.",
 		"toggleShortcut": "You can configure a keyboard shortcut for this setting <SettingsLink>in your IDE preferences</SettingsLink>.",
 		"enabled": "Auto-Approve Enabled",
+		"enabledOverriddenByYolo": "YOLO mode is enabled, so this toggle is ignored.",
+		"yolo": {
+			"label": "YOLO Mode",
+			"description": "Automatically approve read, write, MCP, mode, subtask, and execute requests, including outside the workspace. Questions still always wait for your answer.",
+			"controlsDisabled": "Granular auto-approve controls are locked while YOLO mode is enabled."
+		},
 		"readOnly": {
 			"label": "Read",
 			"description": "When enabled, Roo will automatically view directory contents and read files without requiring you to click the Approve button.",
@@ -931,10 +955,6 @@
 		"simplifiedExplanation": "You can adjust detailed model settings later."
 	},
 	"footer": {
-		"telemetry": {
-			"label": "Allow anonymous error and usage reporting",
-			"description": "Help improve Roo Code by sending anonymous usage data and error reports. This telemetry does not collect code, prompts or personal information. See our <privacyLink>privacy policy</privacyLink> for more details."
-		},
 		"settings": {
 			"import": "Import",
 			"export": "Export",

@@ -90,7 +90,7 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 
 // Mock buildDocLink
 vi.mock("@/utils/docLinks", () => ({
-	buildDocLink: (path: string, source: string) => `https://docs.roocode.com/${path}?utm_source=${source}`,
+	buildDocLink: (path: string) => `https://docs.roocode.com/${path}`,
 }))
 
 const renderWelcomeViewProvider = (extensionState = {}) => {

@@ -52,12 +52,12 @@
 	"devDependencies": {
 		"@roo-code/config-eslint": "workspace:^",
 		"@roo-code/config-typescript": "workspace:^",
-		"@tailwindcss/postcss": "^4",
+		"@tailwindcss/postcss": "^4.2.2",
 		"@types/archiver": "^7.0.0",
 		"@types/ps-tree": "^1.1.6",
-		"@types/react": "^18.3.23",
-		"@types/react-dom": "^18.3.5",
-		"tailwindcss": "^4",
-		"vitest": "^3.2.3"
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3",
+		"tailwindcss": "^4.2.2",
+		"vitest": "^4.1.2"
 	}
 }

@@ -4,18 +4,21 @@ import { render, screen, fireEvent, waitFor } from "@/utils/test-utils"
 
 import { TemperatureControl } from "../TemperatureControl"
 
-vi.mock("@/components/ui", () => ({
-	...vi.importActual("@/components/ui"),
-	Slider: ({ value, onValueChange, "data-testid": dataTestId }: any) => (
-		<input
-			type="range"
-			value={value[0]}
-			onChange={(e) => onValueChange([parseFloat(e.target.value)])}
-			data-testid={dataTestId}
-			role="slider"
-		/>
-	),
-}))
+vi.mock("@/components/ui", async () => {
+	const actual = await vi.importActual<typeof import("@/components/ui")>("@/components/ui")
+	return {
+		...actual,
+		Slider: ({ value, onValueChange, "data-testid": dataTestId }: any) => (
+			<input
+				type="range"
+				value={value[0]}
+				onChange={(e) => onValueChange([parseFloat(e.target.value)])}
+				data-testid={dataTestId}
+				role="slider"
+			/>
+		),
+	}
+})
 
 vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 	VSCodeCheckbox: ({ children, onChange, checked, ...props }: any) => (

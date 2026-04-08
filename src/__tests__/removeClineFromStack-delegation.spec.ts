@@ -34,10 +34,12 @@ describe("ClineProvider.removeClineFromStack() delegation awareness", () => {
 
 		const provider = {
 			clineStack: [childTask] as any[],
+			visibleTaskId: undefined,
 			taskEventListeners: new Map(),
 			log: vi.fn(),
 			getTaskWithId,
 			updateTaskHistory,
+			postStateToWebviewWithoutClineMessages: vi.fn().mockResolvedValue(undefined),
 		}
 
 		return { provider, childTask, updateTaskHistory, getTaskWithId }
@@ -179,10 +181,12 @@ describe("ClineProvider.removeClineFromStack() delegation awareness", () => {
 	it("handles empty stack gracefully", async () => {
 		const provider = {
 			clineStack: [] as any[],
+			visibleTaskId: undefined,
 			taskEventListeners: new Map(),
 			log: vi.fn(),
 			getTaskWithId: vi.fn(),
 			updateTaskHistory: vi.fn(),
+			postStateToWebviewWithoutClineMessages: vi.fn().mockResolvedValue(undefined),
 		}
 
 		// Should not throw
@@ -259,10 +263,12 @@ describe("ClineProvider.removeClineFromStack() delegation awareness", () => {
 
 		const provider = {
 			clineStack: [taskB] as any[],
+			visibleTaskId: undefined,
 			taskEventListeners: new Map(),
 			log: vi.fn(),
 			getTaskWithId,
 			updateTaskHistory,
+			postStateToWebviewWithoutClineMessages: vi.fn().mockResolvedValue(undefined),
 		}
 
 		// Simulate what delegateParentAndOpenChild does: pop B with skipDelegationRepair

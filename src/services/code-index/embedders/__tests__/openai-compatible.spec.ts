@@ -9,14 +9,6 @@ vitest.mock("openai")
 // Mock global fetch
 global.fetch = vitest.fn()
 
-// Mock TelemetryService
-vitest.mock("@roo-code/telemetry", () => ({
-	TelemetryService: {
-		instance: {
-			captureEvent: vitest.fn(),
-		},
-	},
-}))
 
 // Mock i18n
 vitest.mock("../../../../i18n", () => ({
@@ -74,7 +66,9 @@ describe("OpenAICompatibleEmbedder", () => {
 			},
 		}
 
-		MockedOpenAI.mockImplementation(() => mockOpenAIInstance)
+		MockedOpenAI.mockImplementation(function () {
+			return mockOpenAIInstance
+		})
 
 		// Reset global rate limit state to prevent interference between tests
 		const tempEmbedder = new OpenAICompatibleEmbedder(testBaseUrl, testApiKey, testModelId)
@@ -135,7 +129,7 @@ describe("OpenAICompatibleEmbedder", () => {
 			const invalidApiKey = "sk-test•invalid" // Contains bullet character (U+2022)
 
 			// Mock the OpenAI constructor to throw ByteString error
-			MockedOpenAI.mockImplementationOnce(() => {
+			MockedOpenAI.mockImplementationOnce(function () {
 				throw new Error(
 					"Cannot convert argument to a ByteString because the character at index 7 has a value of 8226 which is greater than 255.",
 				)

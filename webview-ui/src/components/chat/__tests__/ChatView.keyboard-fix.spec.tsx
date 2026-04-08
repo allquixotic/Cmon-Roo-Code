@@ -32,14 +32,6 @@ vi.mock("../AutoApproveMenu", () => ({
 	default: () => null,
 }))
 
-vi.mock("../../common/VersionIndicator", () => ({
-	default: () => null,
-}))
-
-vi.mock("@src/components/modals/Announcement", () => ({
-	default: () => null,
-}))
-
 vi.mock("@src/components/welcome/RooCloudCTA", () => ({
 	default: () => null,
 }))
@@ -49,10 +41,6 @@ vi.mock("@src/components/welcome/RooTips", () => ({
 }))
 
 vi.mock("@src/components/welcome/RooHero", () => ({
-	default: () => null,
-}))
-
-vi.mock("../common/TelemetryBanner", () => ({
 	default: () => null,
 }))
 
@@ -100,11 +88,10 @@ const mockPostMessage = (state: any) => {
 				version: "1.0.0",
 				clineMessages: [],
 				taskHistory: [],
-				shouldShowAnnouncement: false,
+				apiConfiguration: { apiProvider: "roo" },
 				allowedCommands: [],
 				alwaysAllowExecute: false,
 				cloudIsAuthenticated: false,
-				telemetrySetting: "enabled",
 				mode: "code",
 				customModes: [],
 				...state,
@@ -116,8 +103,6 @@ const mockPostMessage = (state: any) => {
 
 const defaultProps: ChatViewProps = {
 	isHidden: false,
-	showAnnouncement: false,
-	hideAnnouncement: () => {},
 }
 
 const queryClient = new QueryClient()

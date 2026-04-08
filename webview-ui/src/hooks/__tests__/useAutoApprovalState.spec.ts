@@ -136,6 +136,29 @@ describe("useAutoApprovalState", () => {
 
 			expect(result.current.effectiveAutoApprovalEnabled).toBe(true)
 		})
+
+		it("should return true when YOLO mode is enabled even if autoApprovalEnabled is false", () => {
+			const toggles = {
+				alwaysAllowReadOnly: false,
+				alwaysAllowWrite: false,
+				alwaysAllowExecute: false,
+			}
+
+			const { result } = renderHook(() => useAutoApprovalState(toggles, false, true))
+
+			expect(result.current.effectiveAutoApprovalEnabled).toBe(true)
+		})
+
+		it("should return false when both autoApprovalEnabled and YOLO mode are disabled", () => {
+			const toggles = {
+				alwaysAllowReadOnly: true,
+				alwaysAllowWrite: true,
+			}
+
+			const { result } = renderHook(() => useAutoApprovalState(toggles, false, false))
+
+			expect(result.current.effectiveAutoApprovalEnabled).toBe(false)
+		})
 	})
 
 	describe("memoization", () => {

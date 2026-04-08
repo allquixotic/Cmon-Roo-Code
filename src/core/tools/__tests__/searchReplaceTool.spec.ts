@@ -1,12 +1,12 @@
 import * as path from "path"
 import fs from "fs/promises"
 
-import type { MockedFunction } from "vitest"
+import type { MockedFunction, Mock } from "vitest"
 
 import { fileExistsAtPath } from "../../../utils/fs"
 import { isPathOutsideWorkspace } from "../../../utils/pathUtils"
 import { getReadablePath } from "../../../utils/path"
-import { ToolUse, ToolResponse } from "../../../shared/tools"
+import { type AskApproval, type HandleError, type PushToolResult, ToolUse, ToolResponse } from "../../../shared/tools"
 import { searchReplaceTool } from "../SearchReplaceTool"
 
 vi.mock("fs/promises", () => ({
@@ -88,9 +88,9 @@ describe("searchReplaceTool", () => {
 	const mockedPathIsAbsolute = path.isAbsolute as MockedFunction<typeof path.isAbsolute>
 
 	const mockCline: any = {}
-	let mockAskApproval: ReturnType<typeof vi.fn>
-	let mockHandleError: ReturnType<typeof vi.fn>
-	let mockPushToolResult: ReturnType<typeof vi.fn>
+	let mockAskApproval: Mock<AskApproval>
+	let mockHandleError: Mock<HandleError>
+	let mockPushToolResult: Mock<PushToolResult>
 	let toolResult: ToolResponse | undefined
 
 	beforeEach(() => {
@@ -148,8 +148,10 @@ describe("searchReplaceTool", () => {
 		mockCline.processQueuedMessages = vi.fn()
 		mockCline.sayAndCreateMissingParamError = vi.fn().mockResolvedValue("Missing param error")
 
-		mockAskApproval = vi.fn().mockResolvedValue(true)
-		mockHandleError = vi.fn().mockResolvedValue(undefined)
+		mockAskApproval = vi.fn<AskApproval>()
+		mockAskApproval.mockResolvedValue(true)
+		mockHandleError = vi.fn<HandleError>()
+		mockHandleError.mockResolvedValue(undefined)
 
 		toolResult = undefined
 	})
@@ -197,7 +199,8 @@ describe("searchReplaceTool", () => {
 			partial: isPartial,
 		}
 
-		mockPushToolResult = vi.fn((result: ToolResponse) => {
+		mockPushToolResult = vi.fn<PushToolResult>()
+		mockPushToolResult.mockImplementation((result: ToolResponse) => {
 			toolResult = result
 		})
 
@@ -359,7 +362,8 @@ describe("searchReplaceTool", () => {
 			}
 
 			let capturedResult: ToolResponse | undefined
-			const localPushToolResult = vi.fn((result: ToolResponse) => {
+			const localPushToolResult = vi.fn<PushToolResult>()
+			localPushToolResult.mockImplementation((result: ToolResponse) => {
 				capturedResult = result
 			})
 

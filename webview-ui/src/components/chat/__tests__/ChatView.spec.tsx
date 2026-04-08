@@ -23,7 +23,6 @@ interface ExtensionState {
 	version: string
 	clineMessages: ClineMessage[]
 	taskHistory: any[]
-	shouldShowAnnouncement: boolean
 	allowedCommands: string[]
 	alwaysAllowExecute: boolean
 	[key: string]: any
@@ -77,26 +76,6 @@ vi.mock("react-virtuoso", () => ({
 	},
 }))
 
-// Mock VersionIndicator - returns null by default to prevent rendering in tests
-vi.mock("../../common/VersionIndicator", () => ({
-	default: vi.fn(() => null),
-}))
-
-// Get the mock function after the module is mocked
-const mockVersionIndicator = vi.mocked((await import("../../common/VersionIndicator")).default)
-
-vi.mock("../Announcement", () => ({
-	default: function MockAnnouncement({ hideAnnouncement }: { hideAnnouncement: () => void }) {
-		// eslint-disable-next-line @typescript-eslint/no-require-imports
-		const React = require("react")
-		return React.createElement(
-			"div",
-			{ "data-testid": "announcement-modal" },
-			React.createElement("div", null, "What's New"),
-			React.createElement("button", { onClick: hideAnnouncement }, "Close"),
-		)
-	},
-}))
 
 // Mock DismissibleUpsell component
 vi.mock("@/components/common/DismissibleUpsell", () => ({
@@ -147,22 +126,11 @@ vi.mock("@src/components/welcome/RooHero", () => ({
 	},
 }))
 
-// Mock TelemetryBanner component
-vi.mock("../common/TelemetryBanner", () => ({
-	default: function MockTelemetryBanner() {
-		return null // Don't render anything to avoid interference
-	},
-}))
 
 // Mock i18n
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
-		t: (key: string, options?: any) => {
-			if (key === "chat:versionIndicator.ariaLabel" && options?.version) {
-				return `Version ${options.version}`
-			}
-			return key
-		},
+		t: (key: string) => key,
 	}),
 	initReactI18next: {
 		type: "3rdParty",
@@ -178,6 +146,8 @@ interface ChatTextAreaProps {
 	inputValue?: string
 	setInputValue?: (value: string) => void
 	sendingDisabled?: boolean
+	submissionDisabled?: boolean
+	submissionDisabledReason?: string
 	placeholderText?: string
 	selectedImages?: string[]
 	shouldDisableImages?: boolean
@@ -200,7 +170,10 @@ vi.mock("../ChatTextArea", () => {
 		}))
 
 		return (
-			<div data-testid="chat-textarea">
+			<div
+				data-testid="chat-textarea"
+				data-submission-disabled={props.submissionDisabled}
+				data-submission-disabled-reason={props.submissionDisabledReason}>
 				<input
 					ref={mockInputRef}
 					type="text"
@@ -279,11 +252,10 @@ const mockPostMessage = (state: Partial<ExtensionState>) => {
 				version: "1.0.0",
 				clineMessages: [],
 				taskHistory: [],
-				shouldShowAnnouncement: false,
+				apiConfiguration: { apiProvider: "roo" },
 				allowedCommands: [],
 				alwaysAllowExecute: false,
 				cloudIsAuthenticated: false,
-				telemetrySetting: "enabled",
 				...state,
 			},
 		},
@@ -293,8 +265,6 @@ const mockPostMessage = (state: Partial<ExtensionState>) => {
 
 const defaultProps: ChatViewProps = {
 	isHidden: false,
-	showAnnouncement: false,
-	hideAnnouncement: () => {},
 }
 
 const queryClient = new QueryClient()
@@ -480,9 +450,6 @@ describe("ChatView - Focus Grabbing Tests", () => {
 		})
 
 		// Wait for the component to fully render and settle before clearing mocks
-		await waitFor(() => {
-			expect(getByTestId("chat-textarea")).toBeInTheDocument()
-		})
 
 		// Wait for the debounced focus effect to fire (50ms debounce + buffer for CI variability)
 		await act(async () => {
@@ -520,153 +487,43 @@ describe("ChatView - Focus Grabbing Tests", () => {
 	})
 })
 
-describe("ChatView - Version Indicator Tests", () => {
-	beforeEach(() => {
-		vi.clearAllMocks()
-		// Reset the mock to return null by default
-		mockVersionIndicator.mockReturnValue(null)
-	})
+describe("ChatView - No Profile State", () => {
+	beforeEach(() => vi.clearAllMocks())
 
-	it("displays version indicator button", () => {
-		// Mock VersionIndicator to return a button
-		mockVersionIndicator.mockReturnValue(
-			React.createElement("button", {
-				"data-testid": "version-indicator",
-				"aria-label": "Version 1.0.0",
-				className: "version-indicator-button",
-			}),
-		)
-
+	it("keeps the home view visible and disables submission when there is no usable profile", async () => {
 		const { getByTestId } = renderChatView()
 
-		// Hydrate state with no active task
 		mockPostMessage({
-			version: "1.0.0",
+			apiConfiguration: {},
 			clineMessages: [],
 		})
 
-		// Should display version indicator
-		expect(getByTestId("version-indicator")).toBeInTheDocument()
-	})
-
-	it("opens announcement modal when version indicator is clicked", async () => {
-		// Mock VersionIndicator to return a button with onClick
-		mockVersionIndicator.mockImplementation(({ onClick }: { onClick?: () => void }) =>
-			React.createElement("button", {
-				"data-testid": "version-indicator",
-				onClick,
-			}),
-		)
-
-		const { getByTestId, queryByTestId } = renderChatView({ showAnnouncement: false })
-
-		// Hydrate state
-		mockPostMessage({
-			version: "1.0.0",
-			clineMessages: [],
-		})
-
-		// Wait for component to render
 		await waitFor(() => {
-			expect(getByTestId("version-indicator")).toBeInTheDocument()
+			expect(getByTestId("roo-hero")).toBeInTheDocument()
 		})
 
-		// Click version indicator
-		const versionIndicator = getByTestId("version-indicator")
-		act(() => {
-			versionIndicator.click()
+		const chatTextArea = getByTestId("chat-textarea")
+		expect(chatTextArea.getAttribute("data-submission-disabled")).toBe("true")
+		expect(chatTextArea.getAttribute("data-submission-disabled-reason")).toBe("Add a profile first!")
+	})
+
+	it("re-enables submission when a usable profile exists", async () => {
+		const { getByTestId } = renderChatView()
+
+		mockPostMessage({
+			apiConfiguration: { apiProvider: "roo" },
+			clineMessages: [],
 		})
 
-		// Wait for announcement modal to appear
 		await waitFor(() => {
-			expect(queryByTestId("announcement-modal")).toBeInTheDocument()
-		})
-	})
-
-	it("version indicator has correct styling classes", () => {
-		// Mock VersionIndicator to return a button with specific classes
-		mockVersionIndicator.mockReturnValue(
-			React.createElement("button", {
-				"data-testid": "version-indicator",
-				className: "version-indicator-button absolute top-2 right-2",
-			}),
-		)
-
-		const { getByTestId } = renderChatView()
-
-		// Hydrate state
-		mockPostMessage({
-			version: "1.0.0",
-			clineMessages: [],
+			expect(getByTestId("chat-textarea")).toBeInTheDocument()
 		})
 
-		const versionIndicator = getByTestId("version-indicator")
-		expect(versionIndicator.className).toContain("version-indicator-button")
-		expect(versionIndicator.className).toContain("absolute")
-		expect(versionIndicator.className).toContain("top-2")
-		expect(versionIndicator.className).toContain("right-2")
-	})
-
-	it("version indicator has proper accessibility attributes", () => {
-		// Mock VersionIndicator to return a button with aria-label
-		mockVersionIndicator.mockReturnValue(
-			React.createElement("button", {
-				"data-testid": "version-indicator",
-				"aria-label": "Version 1.0.0",
-				role: "button",
-			}),
-		)
-
-		const { getByTestId } = renderChatView()
-
-		// Hydrate state
-		mockPostMessage({
-			version: "1.0.0",
-			clineMessages: [],
+		const chatTextArea = getByTestId("chat-textarea")
+		await waitFor(() => {
+			expect(chatTextArea.getAttribute("data-submission-disabled")).toBe("false")
 		})
-
-		const versionIndicator = getByTestId("version-indicator")
-		expect(versionIndicator.getAttribute("aria-label")).toBe("Version 1.0.0")
-		expect(versionIndicator.getAttribute("role")).toBe("button")
-	})
-
-	it("does not display version indicator when there is an active task", () => {
-		// Mock VersionIndicator to return null (simulating hidden state)
-		mockVersionIndicator.mockReturnValue(null)
-
-		const { queryByTestId } = renderChatView()
-
-		// Hydrate state with active task
-		mockPostMessage({
-			version: "1.0.0",
-			clineMessages: [
-				{
-					type: "say",
-					say: "task",
-					ts: Date.now(),
-					text: "Active task",
-				},
-			],
-		})
-
-		// Should not display version indicator during active task
-		expect(queryByTestId("version-indicator")).not.toBeInTheDocument()
-	})
-
-	it("displays version indicator only on welcome screen (no task)", () => {
-		// Mock VersionIndicator to return a button
-		mockVersionIndicator.mockReturnValue(React.createElement("button", { "data-testid": "version-indicator" }))
-
-		const { queryByTestId } = renderChatView()
-
-		// Hydrate state with no active task
-		mockPostMessage({
-			version: "1.0.0",
-			clineMessages: [],
-		})
-
-		// Should display version indicator on welcome screen
-		expect(queryByTestId("version-indicator")).toBeInTheDocument()
+		expect(chatTextArea.getAttribute("data-submission-disabled-reason")).toBeNull()
 	})
 })
 
@@ -911,6 +768,9 @@ describe("ChatView - Message Queueing Tests", () => {
 		await waitFor(() => {
 			expect(getByTestId("chat-textarea")).toBeInTheDocument()
 		})
+		await waitFor(() => {
+			expect(getByTestId("virtuoso-item-list")).toHaveTextContent("api_req_started")
+		})
 
 		// Clear message calls before simulating user input
 		vi.mocked(vscode.postMessage).mockClear()
@@ -921,10 +781,12 @@ describe("ChatView - Message Queueing Tests", () => {
 
 		// Trigger message send by simulating typing and Enter key press
 		await act(async () => {
-			// Use fireEvent to properly trigger React's onChange handler
 			fireEvent.change(input, { target: { value: "follow-up question during spinner" } })
-
-			// Simulate pressing Enter to send
+		})
+		await waitFor(() => {
+			expect(input.value).toBe("follow-up question during spinner")
+		})
+		await act(async () => {
 			fireEvent.keyDown(input, { key: "Enter", code: "Enter" })
 		})
 

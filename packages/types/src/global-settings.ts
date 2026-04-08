@@ -10,7 +10,6 @@ import {
 import { historyItemSchema } from "./history.js"
 import { codebaseIndexModelsSchema, codebaseIndexConfigSchema } from "./codebase-index.js"
 import { experimentsSchema } from "./experiment.js"
-import { telemetrySettingsSchema } from "./telemetry.js"
 import { modeConfigSchema } from "./mode.js"
 import { customModePromptsSchema, customSupportPromptsSchema } from "./mode.js"
 import { toolNamesSchema } from "./tool.js"
@@ -82,8 +81,6 @@ export const globalSettingsSchema = z.object({
 	currentApiConfigName: z.string().optional(),
 	listApiConfigMeta: z.array(providerSettingsEntrySchema).optional(),
 	pinnedApiConfigs: z.record(z.string(), z.boolean()).optional(),
-
-	lastShownAnnouncementId: z.string().optional(),
 	customInstructions: z.string().optional(),
 	taskHistory: z.array(historyItemSchema).optional(),
 	dismissedUpsells: z.array(z.string()).optional(),
@@ -96,6 +93,7 @@ export const globalSettingsSchema = z.object({
 	customCondensingPrompt: z.string().optional(),
 
 	autoApprovalEnabled: z.boolean().optional(),
+	yoloMode: z.boolean().optional(),
 	alwaysAllowReadOnly: z.boolean().optional(),
 	alwaysAllowReadOnlyOutsideWorkspace: z.boolean().optional(),
 	alwaysAllowWrite: z.boolean().optional(),
@@ -135,6 +133,11 @@ export const globalSettingsSchema = z.object({
 	 * @default 0
 	 */
 	maxGitStatusFiles: z.number().optional(),
+	/**
+	 * Whether to automatically import settings from the configured path during startup
+	 * @default false
+	 */
+	autoImportSettingsOnStartup: z.boolean().optional(),
 
 	/**
 	 * Whether to include diagnostic messages (errors, warnings) in tool outputs
@@ -188,8 +191,6 @@ export const globalSettingsSchema = z.object({
 
 	language: languagesSchema.optional(),
 
-	telemetrySetting: telemetrySettingsSchema.optional(),
-
 	mcpEnabled: z.boolean().optional(),
 
 	mode: z.string().optional(),
@@ -208,6 +209,7 @@ export const globalSettingsSchema = z.object({
 	 * @default "send"
 	 */
 	enterBehavior: z.enum(["send", "newline"]).optional(),
+	defaultRenderContext: z.enum(["sidebar", "editor"]).optional(),
 	profileThresholds: z.record(z.string(), z.number()).optional(),
 	hasOpenedModeSelector: z.boolean().optional(),
 	lastModeExportPath: z.string().optional(),
@@ -320,11 +322,10 @@ export const isGlobalStateKey = (key: string): key is Keys<GlobalState> =>
 export const EVALS_SETTINGS: RooCodeSettings = {
 	apiProvider: "openrouter",
 
-	lastShownAnnouncementId: "jul-09-2025-3-23-0",
-
 	pinnedApiConfigs: {},
 
 	autoApprovalEnabled: true,
+	yoloMode: false,
 	alwaysAllowReadOnly: true,
 	alwaysAllowReadOnlyOutsideWorkspace: false,
 	alwaysAllowWrite: true,
@@ -366,16 +367,17 @@ export const EVALS_SETTINGS: RooCodeSettings = {
 	maxWorkspaceFiles: 200,
 	maxGitStatusFiles: 20,
 	showRooIgnoredFiles: true,
+	autoImportSettingsOnStartup: false,
 
 	includeDiagnosticMessages: true,
 	maxDiagnosticMessages: 50,
 
 	language: "en",
-	telemetrySetting: "enabled",
 
 	mcpEnabled: false,
 
 	mode: "code", // "architect",
+	defaultRenderContext: "editor",
 
 	customModes: [],
 }

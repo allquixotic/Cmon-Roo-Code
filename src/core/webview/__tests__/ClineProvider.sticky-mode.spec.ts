@@ -1,7 +1,6 @@
 // npx vitest core/webview/__tests__/ClineProvider.sticky-mode.spec.ts
 
 import * as vscode from "vscode"
-import { TelemetryService } from "@roo-code/telemetry"
 import { ClineProvider } from "../ClineProvider"
 import { ContextProxy } from "../../config/ContextProxy"
 import { Task } from "../../task/Task"
@@ -60,6 +59,12 @@ let taskIdCounter = 0
 vi.mock("../../task/Task", () => ({
 	Task: vi.fn().mockImplementation((options) => ({
 		taskId: options.taskId || `test-task-id-${++taskIdCounter}`,
+		apiConfiguration: options.apiConfiguration,
+		instanceId: `test-instance-${taskIdCounter}`,
+		_taskMode: options.historyItem?.mode ?? "code",
+		taskMode: options.historyItem?.mode ?? "code",
+		_taskApiConfigName: options.historyItem?.apiConfigName,
+		taskApiConfigName: options.historyItem?.apiConfigName,
 		saveClineMessages: vi.fn(),
 		clineMessages: [],
 		apiConversationHistory: [],
@@ -68,10 +73,27 @@ vi.mock("../../task/Task", () => ({
 		abortTask: vi.fn(),
 		handleWebviewAskResponse: vi.fn(),
 		getTaskNumber: vi.fn().mockReturnValue(0),
+		getTaskMode: vi.fn().mockImplementation(function (this: any) {
+			return Promise.resolve(this._taskMode ?? this.taskMode ?? "code")
+		}),
+		setTaskMode: vi.fn().mockImplementation(function (this: any, mode: string) {
+			this._taskMode = mode
+			this.taskMode = mode
+		}),
+		getTaskApiConfigName: vi.fn().mockImplementation(function (this: any) {
+			return Promise.resolve(this._taskApiConfigName ?? this.taskApiConfigName)
+		}),
+		setTaskApiConfigName: vi.fn().mockImplementation(function (this: any, name?: string) {
+			this._taskApiConfigName = name
+			this.taskApiConfigName = name
+		}),
 		setTaskNumber: vi.fn(),
 		setParentTask: vi.fn(),
 		setRootTask: vi.fn(),
 		emit: vi.fn(),
+		taskStatus: options.initialStatus ?? "running",
+		queuedMessages: [],
+		messageQueueService: { messages: [] },
 		parentTask: options.parentTask,
 		updateApiConfiguration: vi.fn(),
 	})),
@@ -179,21 +201,6 @@ vi.mock("../../../utils/storage", async (importOriginal) => {
 	}
 })
 
-vi.mock("@roo-code/telemetry", () => ({
-	TelemetryService: {
-		hasInstance: vi.fn().mockReturnValue(true),
-		createInstance: vi.fn(),
-		get instance() {
-			return {
-				trackEvent: vi.fn(),
-				trackError: vi.fn(),
-				setProvider: vi.fn(),
-				captureModeSwitch: vi.fn(),
-			}
-		},
-	},
-}))
-
 describe("ClineProvider - Sticky Mode", () => {
 	let provider: ClineProvider
 	let mockContext: vscode.ExtensionContext
@@ -203,10 +210,6 @@ describe("ClineProvider - Sticky Mode", () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks()
-
-		if (!TelemetryService.hasInstance()) {
-			TelemetryService.createInstance([])
-		}
 
 		const globalState: Record<string, string | undefined> = {
 			mode: "code",
@@ -451,14 +454,13 @@ describe("ClineProvider - Sticky Mode", () => {
 				mode: "architect", // Saved mode
 			}
 
-			// Mock updateGlobalState to track mode updates
-			const updateGlobalStateSpy = vi.spyOn(provider as any, "updateGlobalState").mockResolvedValue(undefined)
+			vi.mocked(mockContext.globalState.update).mockClear()
 
 			// Initialize task with history item
 			await provider.createTaskWithHistoryItem(historyItem)
-
-			// Verify mode was restored via updateGlobalState
-			expect(updateGlobalStateSpy).toHaveBeenCalledWith("mode", "architect")
+			// Verify mode was restored when the reopened task became visible
+			const modeCalls = vi.mocked(mockContext.globalState.update).mock.calls.filter((call) => call[0] === "mode")
+			expect(modeCalls[modeCalls.length - 1]).toEqual(["mode", "architect"])
 		})
 
 		it("should use current mode if history item has no saved mode", async () => {

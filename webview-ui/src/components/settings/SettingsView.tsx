@@ -34,7 +34,6 @@ import {
 import {
 	type ProviderSettings,
 	type ExperimentId,
-	type TelemetrySetting,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 	ImageGenerationProvider,
 } from "@roo-code/types"
@@ -129,6 +128,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 
 	const [isDiscardDialogShow, setDiscardDialogShow] = useState(false)
 	const [isChangeDetected, setChangeDetected] = useState(false)
+	const [isApiConfigurationDirty, setApiConfigurationDirty] = useState(false)
 	const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
 	const [activeTab, setActiveTab] = useState<SectionName>(
 		targetSection && sectionNames.includes(targetSection as SectionName)
@@ -142,11 +142,13 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 	const contentRef = useRef<HTMLDivElement | null>(null)
 
 	const prevApiConfigName = useRef(currentApiConfigName)
-	const confirmDialogHandler = useRef<() => void>()
+	const confirmDialogHandler = useRef<(() => void) | undefined>(undefined)
 
 	const [cachedState, setCachedState] = useState(() => extensionState)
 
 	const {
+		autoApprovalEnabled,
+		yoloMode,
 		alwaysAllowReadOnly,
 		alwaysAllowReadOnlyOutsideWorkspace,
 		allowedCommands,
@@ -173,7 +175,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		ttsEnabled,
 		ttsSpeed,
 		soundVolume,
-		telemetrySetting,
 		terminalOutputPreviewSize,
 		terminalShellIntegrationTimeout,
 		terminalShellIntegrationDisabled, // Added from upstream
@@ -203,9 +204,19 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		includeCurrentTime,
 		includeCurrentCost,
 		maxGitStatusFiles,
+		autoImportSettingsOnStartup,
+		defaultRenderContext,
 	} = cachedState
 
 	const apiConfiguration = useMemo(() => cachedState.apiConfiguration ?? {}, [cachedState.apiConfiguration])
+	const hasPendingApiConfigurationChanges = useMemo(
+		() =>
+			isApiConfigurationDirty &&
+			JSON.stringify(apiConfiguration) !== JSON.stringify(extensionState.apiConfiguration ?? {}),
+		[apiConfiguration, extensionState.apiConfiguration, isApiConfigurationDirty],
+	)
+	const hasBlockingError = !!errorMessage && hasPendingApiConfigurationChanges
+	const canSave = isChangeDetected && !hasBlockingError
 
 	useEffect(() => {
 		// Update only when currentApiConfigName is changed.
@@ -217,6 +228,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		setCachedState((prevCachedState) => ({ ...prevCachedState, ...extensionState }))
 		prevApiConfigName.current = currentApiConfigName
 		setChangeDetected(false)
+		setApiConfigurationDirty(false)
 	}, [currentApiConfigName, extensionState])
 
 	// Bust the cache when settings are imported.
@@ -224,6 +236,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		if (settingsImportedAt) {
 			setCachedState((prevCachedState) => ({ ...prevCachedState, ...extensionState }))
 			setChangeDetected(false)
+			setApiConfigurationDirty(false)
 		}
 	}, [settingsImportedAt, extensionState])
 
@@ -272,6 +285,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 
 				if (!isInitialSync && !isAutomaticNoOpSync) {
 					setChangeDetected(true)
+					if (isUserAction) {
+						setApiConfigurationDirty(true)
+					}
 				}
 				return { ...prevState, apiConfiguration: { ...prevState.apiConfiguration, [field]: value } }
 			})
@@ -287,17 +303,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 
 			setChangeDetected(true)
 			return { ...prevState, experiments: { ...prevState.experiments, [id]: enabled } }
-		})
-	}, [])
-
-	const setTelemetrySetting = useCallback((setting: TelemetrySetting) => {
-		setCachedState((prevState) => {
-			if (prevState.telemetrySetting === setting) {
-				return prevState
-			}
-
-			setChangeDetected(true)
-			return { ...prevState, telemetrySetting: setting }
 		})
 	}, [])
 
@@ -356,14 +361,14 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		})
 	}, [])
 
-	const isSettingValid = !errorMessage
-
 	const handleSubmit = () => {
-		if (isSettingValid) {
+		if (canSave) {
 			vscode.postMessage({
 				type: "updateSettings",
 				updatedSettings: {
 					language,
+					autoApprovalEnabled: autoApprovalEnabled ?? false,
+					yoloMode: yoloMode ?? false,
 					alwaysAllowReadOnly: alwaysAllowReadOnly ?? undefined,
 					alwaysAllowReadOnlyOutsideWorkspace: alwaysAllowReadOnlyOutsideWorkspace ?? undefined,
 					alwaysAllowWrite: alwaysAllowWrite ?? undefined,
@@ -413,9 +418,11 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 					includeTaskHistoryInEnhance: includeTaskHistoryInEnhance ?? true,
 					reasoningBlockCollapsed: reasoningBlockCollapsed ?? true,
 					enterBehavior: enterBehavior ?? "send",
+					defaultRenderContext: defaultRenderContext ?? "editor",
 					includeCurrentTime: includeCurrentTime ?? true,
 					includeCurrentCost: includeCurrentCost ?? true,
 					maxGitStatusFiles: maxGitStatusFiles ?? 0,
+					autoImportSettingsOnStartup: autoImportSettingsOnStartup ?? false,
 					profileThresholds,
 					imageGenerationProvider,
 					openRouterImageApiKey,
@@ -425,13 +432,15 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				},
 			})
 
-			// These have more complex logic so they aren't (yet) handled
-			// by the `updateSettings` message.
-			vscode.postMessage({ type: "upsertApiConfiguration", text: currentApiConfigName, apiConfiguration })
-			vscode.postMessage({ type: "telemetrySetting", text: telemetrySetting })
+			if (hasPendingApiConfigurationChanges) {
+				// These have more complex logic so they aren't (yet) handled
+				// by the `updateSettings` message.
+				vscode.postMessage({ type: "upsertApiConfiguration", text: currentApiConfigName, apiConfiguration })
+			}
 			vscode.postMessage({ type: "debugSetting", bool: cachedState.debug })
 
 			setChangeDetected(false)
+			setApiConfigurationDirty(false)
 		}
 	}
 
@@ -455,6 +464,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				// Discard changes: Reset state and flag
 				setCachedState(extensionState) // Revert to original state
 				setChangeDetected(false) // Reset change flag
+				setApiConfigurationDirty(false)
 				confirmDialogHandler.current?.() // Execute the pending action (e.g., tab switch)
 			}
 			// If confirm is false (Cancel), do nothing, dialog closes automatically
@@ -651,17 +661,17 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 					)}
 					<StandardTooltip
 						content={
-							!isSettingValid
+							hasBlockingError
 								? errorMessage
 								: isChangeDetected
 									? t("settings:header.saveButtonTooltip")
 									: t("settings:header.nothingChangedTooltip")
 						}>
 						<Button
-							variant={isSettingValid ? "primary" : "secondary"}
-							className={!isSettingValid ? "!border-vscode-errorForeground" : ""}
+							variant={hasBlockingError ? "secondary" : "primary"}
+							className={hasBlockingError ? "!border-vscode-errorForeground" : ""}
 							onClick={handleSubmit}
-							disabled={!isChangeDetected || !isSettingValid}
+							disabled={!canSave}
 							data-testid="save-button">
 							{t("settings:common.save")}
 						</Button>
@@ -686,7 +696,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 						// We pass isSelected manually for styling, but onSelect is handled conditionally
 						const triggerComponent = (
 							<TabTrigger
-								ref={(element) => (tabRefs.current[id] = element)}
+								ref={(element) => {
+									tabRefs.current[id] = element
+								}}
 								value={id}
 								isSelected={isSelected} // Pass manually for styling state
 								className={cn(
@@ -780,6 +792,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 						{/* Auto-Approve Section */}
 						{renderTab === "autoApprove" && (
 							<AutoApproveSettings
+								autoApprovalEnabled={autoApprovalEnabled}
+								yoloMode={yoloMode}
 								alwaysAllowReadOnly={alwaysAllowReadOnly}
 								alwaysAllowReadOnlyOutsideWorkspace={alwaysAllowReadOnlyOutsideWorkspace}
 								alwaysAllowWrite={alwaysAllowWrite}
@@ -892,6 +906,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 							<UISettings
 								reasoningBlockCollapsed={reasoningBlockCollapsed ?? true}
 								enterBehavior={enterBehavior ?? "send"}
+								defaultRenderContext={defaultRenderContext ?? "editor"}
 								setCachedStateField={setCachedStateField}
 							/>
 						)}
@@ -922,8 +937,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 						{/* About Section */}
 						{renderTab === "about" && (
 							<About
-								telemetrySetting={telemetrySetting}
-								setTelemetrySetting={setTelemetrySetting}
+								autoImportSettingsOnStartup={autoImportSettingsOnStartup ?? false}
+								setCachedStateField={setCachedStateField}
 								debug={cachedState.debug}
 								setDebug={setDebug}
 							/>

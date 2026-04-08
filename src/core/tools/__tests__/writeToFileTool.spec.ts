@@ -1,13 +1,13 @@
 import * as path from "path"
 
-import type { MockedFunction } from "vitest"
+import type { MockedFunction, Mock } from "vitest"
 
 import { fileExistsAtPath, createDirectoriesForFile } from "../../../utils/fs"
 import { isPathOutsideWorkspace } from "../../../utils/pathUtils"
 import { getReadablePath } from "../../../utils/path"
 import { unescapeHtmlEntities } from "../../../utils/text-normalization"
 import { everyLineHasLineNumbers, stripLineNumbers } from "../../../integrations/misc/extract-text"
-import { ToolUse, ToolResponse } from "../../../shared/tools"
+import { type AskApproval, type HandleError, type PushToolResult, ToolUse, ToolResponse } from "../../../shared/tools"
 import { writeToFileTool } from "../WriteToFileTool"
 
 vi.mock("path", async () => {
@@ -103,9 +103,9 @@ describe("writeToFileTool", () => {
 	const mockedPathResolve = path.resolve as MockedFunction<typeof path.resolve>
 
 	const mockCline: any = {}
-	let mockAskApproval: ReturnType<typeof vi.fn>
-	let mockHandleError: ReturnType<typeof vi.fn>
-	let mockPushToolResult: ReturnType<typeof vi.fn>
+	let mockAskApproval: Mock<AskApproval>
+	let mockHandleError: Mock<HandleError>
+	let mockPushToolResult: Mock<PushToolResult>
 	let toolResult: ToolResponse | undefined
 
 	beforeEach(() => {
@@ -181,8 +181,10 @@ describe("writeToFileTool", () => {
 		mockCline.recordToolError = vi.fn()
 		mockCline.sayAndCreateMissingParamError = vi.fn().mockResolvedValue("Missing param error")
 
-		mockAskApproval = vi.fn().mockResolvedValue(true)
-		mockHandleError = vi.fn().mockResolvedValue(undefined)
+		mockAskApproval = vi.fn<AskApproval>()
+		mockAskApproval.mockResolvedValue(true)
+		mockHandleError = vi.fn<HandleError>()
+		mockHandleError.mockResolvedValue(undefined)
 
 		toolResult = undefined
 	})
@@ -222,7 +224,8 @@ describe("writeToFileTool", () => {
 			partial: isPartial,
 		}
 
-		mockPushToolResult = vi.fn((result: ToolResponse) => {
+		mockPushToolResult = vi.fn<PushToolResult>()
+		mockPushToolResult.mockImplementation((result: ToolResponse) => {
 			toolResult = result
 		})
 

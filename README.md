@@ -13,6 +13,49 @@
 
 > Your AI-Powered Dev Team, Right in Your Editor
 
+## What’s Different in This Fork
+
+This branch is a downstream Roo Code fork with a small set of behavior changes implemented directly in the current source tree:
+
+- **YOLO mode in Settings:** adds a dedicated checkbox that forces automatic approval for read, write, MCP, mode-switch, subtask, and execute asks, and hides the transient approve/reject button bar for those asks. Follow-up questions still wait for a user response instead of auto-selecting an answer. Explicitly denied commands are still denied, and protected writes still require approval.
+- **Multiple live conversations:** adds a conversations list in the chat UI, keeps multiple root tasks alive at the same time, and lets you switch between them without closing or replacing the others.
+- **Settings import controls:** adds a Roo Settings toggle for startup auto-import plus an `Import Now` action that imports from the configured external JSON settings path on demand.
+- **Default editor-pane rendering:** adds a UI preference that makes Roo prefer opening and focusing in an editor tab instead of the sidebar, while still keeping the sidebar workflow available.
+
+The rest of this README describes Roo Code generally; the section above covers the fork-specific behavior changes in this repository.
+
+### Building and Installing This Fork Locally
+
+The `allquixotic/build.js` Bun helper builds the current checkout directly and can install the resulting VSIX into a local VS Code profile using platform-aware defaults.
+
+- Full branch build only:
+
+```sh
+bun allquixotic/build.js build
+```
+
+- Full branch build and local install:
+
+```sh
+bun allquixotic/build.js build-install
+```
+
+- Reinstall the latest built artifact without rebuilding:
+
+```sh
+bun allquixotic/build.js install
+```
+
+By default the installer targets the standard VS Code user profile for the current platform, probes the corresponding user-data directory, and installs into the matching extensions directory. You can override the defaults when needed:
+
+```sh
+bun allquixotic/build.js install --editor=code-insiders
+bun allquixotic/build.js install --user-data-dir=/path/to/Code --extensions-dir=/path/to/extensions
+bun allquixotic/build.js install --portable-data-dir=/path/to/code-portable-data
+```
+
+Built VSIX artifacts are copied to `allquixotic/build/artifacts/`. After `install` or `build-install`, restart VS Code to load the updated extension.
+
 ## What's New in v3.51.0
 
 - Add support for OpenAI GPT-5.4 and GPT-5.3 Chat Latest so you can use the newest OpenAI chat models in Roo Code.

@@ -1,7 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react"
-import { TelemetryEventName } from "@roo-code/types"
 import { vscode } from "@/utils/vscode"
-import { telemetryClient } from "@/utils/TelemetryClient"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 
 interface UseCloudUpsellOptions {
@@ -25,7 +23,6 @@ export const useCloudUpsell = (options: UseCloudUpsellOptions = {}) => {
 			// User just authenticated
 			if (initiatedAuthRef.current) {
 				// Auth was initiated from this hook
-				telemetryClient.capture(TelemetryEventName.ACCOUNT_CONNECT_SUCCESS)
 				setIsOpen(false) // Close the upsell dialog
 
 				if (autoOpenOnAuth && shouldOpenOnAuth) {

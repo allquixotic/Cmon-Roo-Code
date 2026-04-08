@@ -7,15 +7,6 @@ import { getModelDimension, getDefaultModelId } from "../../../../shared/embeddi
 // Mock the OpenAI SDK
 vi.mock("openai")
 
-// Mock TelemetryService
-vi.mock("@roo-code/telemetry", () => ({
-	TelemetryService: {
-		instance: {
-			captureEvent: vi.fn(),
-		},
-	},
-	TelemetryEventName: {},
-}))
 
 // Mock i18n
 vi.mock("../../../../i18n", () => ({
@@ -54,7 +45,9 @@ describe("OpenRouterEmbedder", () => {
 			},
 		}
 
-		MockedOpenAI.mockImplementation(() => mockOpenAIInstance)
+		MockedOpenAI.mockImplementation(function () {
+			return mockOpenAIInstance
+		})
 	})
 
 	afterEach(() => {

@@ -29,9 +29,9 @@
 	"devDependencies": {
 		"@roo-code/config-eslint": "workspace:^",
 		"@roo-code/config-typescript": "workspace:^",
-		"@types/node": "^24.1.0",
-		"globals": "^16.3.0",
-		"tsup": "^8.4.0",
-		"vitest": "^3.2.3"
+		"@types/node": "^25.5.2",
+		"globals": "^17.4.0",
+		"tsup": "^8.5.1",
+		"vitest": "^4.1.2"
 	}
 }

@@ -1,30 +1,60 @@
-import { HTMLAttributes } from "react"
+import { HTMLAttributes, useCallback, useEffect, useState } from "react"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { Trans } from "react-i18next"
 import { Download, Upload, TriangleAlert, Bug, Lightbulb, Shield, MessageCircle, MessagesSquare } from "lucide-react"
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-
-import type { TelemetrySetting } from "@roo-code/types"
+import type { ExtensionMessage } from "@roo-code/types"
 
 import { Package } from "@roo/package"
 
 import { vscode } from "@/utils/vscode"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui"
+import { Button, Input } from "@/components/ui"
 
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 import { SearchableSetting } from "./SearchableSetting"
+import { SetCachedStateField } from "./types"
 
 type AboutProps = HTMLAttributes<HTMLDivElement> & {
-	telemetrySetting: TelemetrySetting
-	setTelemetrySetting: (setting: TelemetrySetting) => void
+	autoImportSettingsOnStartup?: boolean
+	setCachedStateField?: SetCachedStateField<"autoImportSettingsOnStartup">
 	debug?: boolean
 	setDebug?: (debug: boolean) => void
 }
+const AUTO_IMPORT_SETTINGS_PATH_SETTING = `${Package.name}.autoImportSettingsPath`
 
-export const About = ({ telemetrySetting, setTelemetrySetting, debug, setDebug, className, ...props }: AboutProps) => {
+export const About = ({
+	autoImportSettingsOnStartup = false,
+	setCachedStateField,
+	debug,
+	setDebug,
+	className,
+	...props
+}: AboutProps) => {
 	const { t } = useAppTranslation()
+	const [autoImportSettingsPath, setAutoImportSettingsPath] = useState("")
+
+	const handleMessage = useCallback((event: MessageEvent) => {
+		const message: ExtensionMessage = event.data
+
+		if (message.type === "vsCodeSetting" && message.setting === AUTO_IMPORT_SETTINGS_PATH_SETTING) {
+			setAutoImportSettingsPath(typeof message.value === "string" ? message.value : "")
+		}
+	}, [])
+
+	useEffect(() => {
+		window.addEventListener("message", handleMessage)
+		return () => {
+			window.removeEventListener("message", handleMessage)
+		}
+	}, [handleMessage])
+
+	useEffect(() => {
+		vscode.postMessage({ type: "getVSCodeSetting", setting: AUTO_IMPORT_SETTINGS_PATH_SETTING })
+	}, [])
+
+	const hasAutoImportSettingsPath = autoImportSettingsPath.trim().length > 0
 
 	return (
 		<div className={cn("flex flex-col gap-2", className)} {...props}>
@@ -36,27 +66,6 @@ export const About = ({ telemetrySetting, setTelemetrySetting, debug, setDebug, 
 						? `Version: ${Package.version} (${Package.sha.slice(0, 8)})`
 						: `Version: ${Package.version}`}
 				</p>
-				<SearchableSetting
-					settingId="about-telemetry"
-					section="about"
-					label={t("settings:footer.telemetry.label")}>
-					<VSCodeCheckbox
-						checked={telemetrySetting !== "disabled"}
-						onChange={(e: any) => {
-							const checked = e.target.checked === true
-							setTelemetrySetting(checked ? "enabled" : "disabled")
-						}}>
-						{t("settings:footer.telemetry.label")}
-					</VSCodeCheckbox>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						<Trans
-							i18nKey="settings:footer.telemetry.description"
-							components={{
-								privacyLink: <VSCodeLink href="https://roocode.com/privacy" />,
-							}}
-						/>
-					</p>
-				</SearchableSetting>
 			</Section>
 
 			<Section className="space-y-0">
@@ -127,6 +136,66 @@ export const About = ({ telemetrySetting, setTelemetrySetting, debug, setDebug, 
 							</p>
 						</SearchableSetting>
 					)}
+				</div>
+			</Section>
+
+			<Section className="space-y-0">
+				<h3>{t("settings:about.autoImport.title")}</h3>
+				<div className="flex flex-col gap-3">
+					<SearchableSetting
+						settingId="about-auto-import-startup"
+						section="about"
+						label={t("settings:about.autoImport.startupLabel")}>
+						<VSCodeCheckbox
+							checked={autoImportSettingsOnStartup}
+							onChange={(e: any) =>
+								setCachedStateField?.("autoImportSettingsOnStartup", e.target.checked)
+							}
+							data-testid="auto-import-startup-checkbox">
+							{t("settings:about.autoImport.startupLabel")}
+						</VSCodeCheckbox>
+						<p className="text-vscode-descriptionForeground text-sm mt-0">
+							{t("settings:about.autoImport.startupDescription")}
+						</p>
+					</SearchableSetting>
+
+					<SearchableSetting
+						settingId="about-auto-import-path"
+						section="about"
+						label={t("settings:about.autoImport.pathLabel")}>
+						<label className="block font-medium mb-1">{t("settings:about.autoImport.pathLabel")}</label>
+						<Input
+							value={
+								hasAutoImportSettingsPath
+									? autoImportSettingsPath
+									: t("settings:about.autoImport.pathNotConfigured")
+							}
+							readOnly
+							data-testid="auto-import-path-input"
+						/>
+						<p className="text-vscode-descriptionForeground text-sm mt-1">
+							{t("settings:about.autoImport.pathDescription")}
+						</p>
+					</SearchableSetting>
+
+					<SearchableSetting
+						settingId="about-auto-import-now"
+						section="about"
+						label={t("settings:about.autoImport.importNow")}>
+						<Button
+							onClick={() =>
+								hasAutoImportSettingsPath &&
+								vscode.postMessage({ type: "importSettings", text: autoImportSettingsPath })
+							}
+							disabled={!hasAutoImportSettingsPath}
+							data-testid="auto-import-now-button">
+							<Download className="p-0.5" />
+							{t("settings:about.autoImport.importNow")}
+						</Button>
+						<p className="text-vscode-descriptionForeground text-sm mt-1">
+							{t("settings:about.autoImport.importNowDescription")}
+						</p>
+					</SearchableSetting>
 				</div>
 			</Section>
 

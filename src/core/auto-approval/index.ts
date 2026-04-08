@@ -26,6 +26,7 @@ export type AutoApprovalState =
 // Some of these actions have additional settings associated with them.
 export type AutoApprovalStateOptions =
 	| "autoApprovalEnabled"
+	| "yoloMode"
 	| "alwaysAllowReadOnlyOutsideWorkspace" // For `alwaysAllowReadOnly`.
 	| "alwaysAllowWriteOutsideWorkspace" // For `alwaysAllowWrite`.
 	| "alwaysAllowWriteProtected"
@@ -58,12 +59,18 @@ export async function checkAutoApproval({
 	if (isNonBlockingAsk(ask)) {
 		return { decision: "approve" }
 	}
-
-	if (!state || !state.autoApprovalEnabled) {
+	if (!state) {
 		return { decision: "ask" }
 	}
 
 	if (ask === "followup") {
+		if (state.yoloMode === true) {
+			return { decision: "ask" }
+		}
+
+		if (!state.autoApprovalEnabled) {
+			return { decision: "ask" }
+		}
 		if (state.alwaysAllowFollowupQuestions === true) {
 			try {
 				const suggestion = (JSON.parse(text || "{}") as FollowUpData).suggest?.[0]
@@ -89,6 +96,47 @@ export async function checkAutoApproval({
 		}
 	}
 
+	if (state.yoloMode === true) {
+		if (ask === "use_mcp_server") {
+			return { decision: "approve" }
+		}
+
+		if (ask === "command") {
+			if (!text) {
+				return { decision: "ask" }
+			}
+
+			const decision = getCommandDecision(text, ["*"], state.deniedCommands || [])
+
+			return decision === "auto_deny" ? { decision: "deny" } : { decision: "approve" }
+		}
+
+		if (ask === "tool") {
+			let tool: ClineSayTool | undefined
+
+			try {
+				tool = JSON.parse(text || "{}")
+			} catch (error) {
+				console.error("Failed to parse tool:", error)
+			}
+
+			if (!tool) {
+				return { decision: "ask" }
+			}
+
+			if (isWriteToolAction(tool)) {
+				return !isProtected || state.alwaysAllowWriteProtected === true
+					? { decision: "approve" }
+					: { decision: "ask" }
+			}
+
+			return { decision: "approve" }
+		}
+	}
+
+	if (!state.autoApprovalEnabled) {
+		return { decision: "ask" }
+	}
 	if (ask === "use_mcp_server") {
 		if (!text) {
 			return { decision: "ask" }

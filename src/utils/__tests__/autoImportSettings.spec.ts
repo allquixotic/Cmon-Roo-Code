@@ -105,6 +105,7 @@ describe("autoImportSettings", () => {
 
 		// Mock context proxy
 		mockContextProxy = {
+			getValue: vi.fn().mockReturnValue(true),
 			setValues: vi.fn().mockResolvedValue(undefined),
 			setValue: vi.fn().mockResolvedValue(undefined),
 			setProviderSettings: vi.fn().mockResolvedValue(undefined),
@@ -149,6 +150,37 @@ describe("autoImportSettings", () => {
 		expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
 			"[AutoImport] No auto-import settings path specified, skipping auto-import",
 		)
+		expect(mockProviderSettingsManager.import).not.toHaveBeenCalled()
+	})
+
+	it("should skip auto-import when startup auto-import is unset", async () => {
+		mockContextProxy.getValue.mockReturnValue(undefined)
+		await autoImportSettings(mockOutputChannel, {
+			providerSettingsManager: mockProviderSettingsManager,
+			contextProxy: mockContextProxy,
+			customModesManager: mockCustomModesManager,
+		})
+
+		expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
+			"[AutoImport] Startup auto-import disabled, skipping auto-import",
+		)
+		expect(vscode.workspace.getConfiguration).not.toHaveBeenCalled()
+		expect(mockProviderSettingsManager.import).not.toHaveBeenCalled()
+	})
+
+	it("should skip auto-import when startup auto-import is disabled", async () => {
+		mockContextProxy.getValue.mockReturnValue(false)
+
+		await autoImportSettings(mockOutputChannel, {
+			providerSettingsManager: mockProviderSettingsManager,
+			contextProxy: mockContextProxy,
+			customModesManager: mockCustomModesManager,
+		})
+
+		expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
+			"[AutoImport] Startup auto-import disabled, skipping auto-import",
+		)
+		expect(vscode.workspace.getConfiguration).not.toHaveBeenCalled()
 		expect(mockProviderSettingsManager.import).not.toHaveBeenCalled()
 	})
 

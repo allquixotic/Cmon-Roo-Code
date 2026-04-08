@@ -4,8 +4,8 @@ import { TranslationProvider } from "@/i18n/__mocks__/TranslationContext"
 
 import { AutoApproveToggle, autoApproveSettingsConfig } from "../AutoApproveToggle"
 
-vi.mock("@/i18n/TranslationContext", () => {
-	const actual = vi.importActual("@/i18n/TranslationContext")
+vi.mock("@/i18n/TranslationContext", async () => {
+	const actual = await vi.importActual<typeof import("@/i18n/TranslationContext")>("@/i18n/TranslationContext")
 	return {
 		...actual,
 		useAppTranslation: () => ({

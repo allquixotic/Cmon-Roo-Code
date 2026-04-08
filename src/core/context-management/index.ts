@@ -1,8 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import crypto from "crypto"
 
-import { TelemetryService } from "@roo-code/telemetry"
-
 import { ApiHandler, ApiHandlerCreateMessageMetadata } from "../../api"
 import { MAX_CONDENSE_THRESHOLD, MIN_CONDENSE_THRESHOLD, summarizeConversation, SummarizeResponse } from "../condense"
 import { ApiMessage } from "../task-persistence/apiMessages"
@@ -61,11 +59,9 @@ export type TruncationResult = {
  *
  * @param {ApiMessage[]} messages - The conversation messages.
  * @param {number} fracToRemove - The fraction (between 0 and 1) of messages (excluding the first) to hide.
- * @param {string} taskId - The task ID for the conversation, used for telemetry
  * @returns {TruncationResult} Object containing the tagged messages, truncation ID, and count of messages removed.
  */
-export function truncateConversation(messages: ApiMessage[], fracToRemove: number, taskId: string): TruncationResult {
-	TelemetryService.instance.captureSlidingWindowTruncation(taskId)
+export function truncateConversation(messages: ApiMessage[], fracToRemove: number, _taskId: string): TruncationResult {
 
 	const truncationId = crypto.randomUUID()
 

@@ -50,7 +50,6 @@ describe("MarketplaceView", () => {
 			organizationSettingsVersion: 1,
 			// Add other required properties for the context
 			didHydrateState: true,
-			showWelcome: false,
 			theme: {},
 			mcpServers: [],
 			filePaths: [],

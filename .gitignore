@@ -15,6 +15,7 @@ mock/
 # Builds
 bin/
 *.vsix
+/allquixotic/build/
 
 # Local prompts and rules
 /local-prompts

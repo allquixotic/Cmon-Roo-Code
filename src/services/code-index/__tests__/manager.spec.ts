@@ -96,14 +96,6 @@ vi.mock("../state-manager", () => ({
 	})),
 }))
 
-// Mock TelemetryService
-vi.mock("@roo-code/telemetry", () => ({
-	TelemetryService: {
-		instance: {
-			captureEvent: vi.fn(),
-		},
-	},
-}))
 
 vi.mock("../service-factory")
 const MockedCodeIndexServiceFactory = CodeIndexServiceFactory as MockedClass<typeof CodeIndexServiceFactory>
@@ -227,7 +219,9 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 				}),
 				validateEmbedder: vi.fn().mockResolvedValue({ valid: true }),
 			}
-			MockedCodeIndexServiceFactory.mockImplementation(() => mockServiceFactoryInstance as any)
+			MockedCodeIndexServiceFactory.mockImplementation(function () {
+				return mockServiceFactoryInstance as any
+			})
 
 			// The key test: this should NOT throw "CodeIndexManager not initialized" error
 			await expect(manager.handleSettingsChange()).resolves.not.toThrow()
@@ -301,7 +295,9 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 				}),
 				validateEmbedder: vi.fn().mockResolvedValue({ valid: true }),
 			}
-			MockedCodeIndexServiceFactory.mockImplementation(() => mockServiceFactoryInstance as any)
+			MockedCodeIndexServiceFactory.mockImplementation(function () {
+				return mockServiceFactoryInstance as any
+			})
 
 			// Mock the methods that would be called during restart
 			const recreateServicesSpy = vi.spyOn(manager as any, "_recreateServices")
@@ -357,7 +353,9 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 			}
 
 			// Mock the ServiceFactory constructor
-			MockedCodeIndexServiceFactory.mockImplementation(() => mockServiceFactoryInstance)
+			MockedCodeIndexServiceFactory.mockImplementation(function () {
+				return mockServiceFactoryInstance
+			})
 
 			// Mock state manager methods directly on the existing instance
 			mockStateManager = (manager as any)._stateManager
@@ -554,7 +552,9 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 				}),
 				validateEmbedder: vi.fn().mockResolvedValue({ valid: true }),
 			}
-			MockedCodeIndexServiceFactory.mockImplementation(() => mockServiceFactoryInstance as any)
+			MockedCodeIndexServiceFactory.mockImplementation(function () {
+				return mockServiceFactoryInstance as any
+			})
 
 			// Act - recover from error
 			await manager.recoverFromError()

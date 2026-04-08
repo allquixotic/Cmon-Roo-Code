@@ -9,9 +9,21 @@ import OpenAI from "openai"
 import { VercelAiGatewayHandler } from "../vercel-ai-gateway"
 import { ApiHandlerOptions } from "../../../shared/api"
 import { vercelAiGatewayDefaultModelId, VERCEL_AI_GATEWAY_DEFAULT_TEMPERATURE } from "@roo-code/types"
+const mockCreate = vitest.fn()
 
 // Mock dependencies
-vitest.mock("openai")
+vitest.mock("openai", () => ({
+	__esModule: true,
+	default: vitest.fn(function () {
+		return {
+			chat: {
+				completions: {
+					create: mockCreate,
+				},
+			},
+		}
+	}),
+}))
 vitest.mock("delay", () => ({ default: vitest.fn(() => Promise.resolve()) }))
 vitest.mock("../fetchers/modelCache", () => ({
 	getModels: vitest.fn().mockImplementation(() => {
@@ -58,24 +70,6 @@ vitest.mock("../../transform/caching/vercel-ai-gateway", () => ({
 	addCacheBreakpoints: vitest.fn(),
 }))
 
-const mockCreate = vitest.fn()
-const mockConstructor = vitest.fn()
-
-;(OpenAI as any).mockImplementation(() => ({
-	chat: {
-		completions: {
-			create: mockCreate,
-		},
-	},
-}))
-;(OpenAI as any).mockImplementation = mockConstructor.mockReturnValue({
-	chat: {
-		completions: {
-			create: mockCreate,
-		},
-	},
-})
-
 describe("VercelAiGatewayHandler", () => {
 	const mockOptions: ApiHandlerOptions = {
 		vercelAiGatewayApiKey: "test-key",
@@ -85,7 +79,6 @@ describe("VercelAiGatewayHandler", () => {
 	beforeEach(() => {
 		vitest.clearAllMocks()
 		mockCreate.mockClear()
-		mockConstructor.mockClear()
 	})
 
 	it("initializes with correct options", () => {

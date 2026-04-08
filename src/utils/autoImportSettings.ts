@@ -18,6 +18,12 @@ export async function autoImportSettings(
 	{ providerSettingsManager, contextProxy, customModesManager }: ImportOptions,
 ): Promise<void> {
 	try {
+		const autoImportSettingsOnStartup = contextProxy.getValue("autoImportSettingsOnStartup")
+
+		if (autoImportSettingsOnStartup !== true) {
+			outputChannel.appendLine("[AutoImport] Startup auto-import disabled, skipping auto-import")
+			return
+		}
 		// Get the auto-import settings path from VSCode settings
 		const settingsPath = vscode.workspace.getConfiguration(Package.name).get<string>("autoImportSettingsPath")
 

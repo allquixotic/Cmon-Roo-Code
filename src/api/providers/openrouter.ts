@@ -1,17 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { z } from "zod"
 
 import {
 	type ModelRecord,
-	ApiProviderError,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
 	OPENROUTER_DEFAULT_PROVIDER_NAME,
 	OPEN_ROUTER_PROMPT_CACHING_MODELS,
 	DEEP_SEEK_DEFAULT_TEMPERATURE,
 } from "@roo-code/types"
-import { TelemetryService } from "@roo-code/telemetry"
 
 import { NativeToolCallParser } from "../../core/assistant-message/NativeToolCallParser"
 
@@ -48,30 +45,6 @@ type OpenRouterChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
 	reasoning?: OpenRouterReasoningParams
 }
 
-// Zod schema for OpenRouter error response structure (for caught exceptions)
-const OpenRouterErrorResponseSchema = z.object({
-	error: z
-		.object({
-			message: z.string().optional(),
-			code: z.number().optional(),
-			metadata: z
-				.object({
-					raw: z.string().optional(),
-				})
-				.optional(),
-		})
-		.optional(),
-})
-
-// OpenRouter error structure that may include error.metadata.raw with actual upstream error
-// This is for caught exceptions which have the error wrapped in an "error" property
-interface OpenRouterErrorResponse {
-	error?: {
-		message?: string
-		code?: number
-		metadata?: { raw?: string }
-	}
-}
 
 // Direct error object structure (for streaming errors passed directly)
 interface OpenRouterError {
@@ -187,21 +160,15 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 	}
 
 	/**
-	 * Handle OpenRouter streaming error response and report to telemetry.
+	 * Handle OpenRouter streaming error response.
 	 * OpenRouter may include metadata.raw with the actual upstream provider error.
 	 * @param error The error object (not wrapped - receives the error directly)
 	 */
-	private handleStreamingError(error: OpenRouterError, modelId: string, operation: string): never {
+	private handleStreamingError(error: OpenRouterError): never {
 		const rawString = error?.metadata?.raw
 		const parsedError = extractErrorFromMetadataRaw(rawString)
 		const rawErrorMessage = parsedError || error?.message || "Unknown error"
 
-		const apiError = Object.assign(
-			new ApiProviderError(rawErrorMessage, this.providerName, modelId, operation, error?.code),
-			{ status: error?.code, error },
-		)
-
-		TelemetryService.instance.captureException(apiError)
 
 		throw new Error(`OpenRouter API Error ${error?.code}: ${rawErrorMessage}`)
 	}
@@ -340,38 +307,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 		try {
 			stream = await this.client.chat.completions.create(completionParams, requestOptions)
 		} catch (error) {
-			// Try to parse as OpenRouter error structure using Zod
-			const parseResult = OpenRouterErrorResponseSchema.safeParse(error)
-
-			if (parseResult.success && parseResult.data.error) {
-				const openRouterError = parseResult.data
-				const rawString = openRouterError.error?.metadata?.raw
-				const parsedError = extractErrorFromMetadataRaw(rawString)
-				const rawErrorMessage = parsedError || openRouterError.error?.message || "Unknown error"
-
-				const apiError = Object.assign(
-					new ApiProviderError(
-						rawErrorMessage,
-						this.providerName,
-						modelId,
-						"createMessage",
-						openRouterError.error?.code,
-					),
-					{
-						status: openRouterError.error?.code,
-						error: openRouterError.error,
-					},
-				)
-
-				TelemetryService.instance.captureException(apiError)
-				throw handleOpenAIError(error, this.providerName)
-			} else {
-				// Fallback for non-OpenRouter errors
-				const errorMessage = error instanceof Error ? error.message : String(error)
-				const apiError = new ApiProviderError(errorMessage, this.providerName, modelId, "createMessage")
-				TelemetryService.instance.captureException(apiError)
-				throw handleOpenAIError(error, this.providerName)
-			}
+			throw handleOpenAIError(error, this.providerName)
 		}
 
 		let lastUsage: CompletionUsage | undefined = undefined
@@ -399,7 +335,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 		for await (const chunk of stream) {
 			// OpenRouter returns an error object instead of the OpenAI SDK throwing an error.
 			if ("error" in chunk) {
-				this.handleStreamingError(chunk.error as OpenRouterError, modelId, "createMessage")
+				this.handleStreamingError(chunk.error as OpenRouterError)
 			}
 
 			const delta = chunk.choices[0]?.delta
@@ -605,42 +541,11 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 		try {
 			response = await this.client.chat.completions.create(completionParams, requestOptions)
 		} catch (error) {
-			// Try to parse as OpenRouter error structure using Zod
-			const parseResult = OpenRouterErrorResponseSchema.safeParse(error)
-
-			if (parseResult.success && parseResult.data.error) {
-				const openRouterError = parseResult.data
-				const rawString = openRouterError.error?.metadata?.raw
-				const parsedError = extractErrorFromMetadataRaw(rawString)
-				const rawErrorMessage = parsedError || openRouterError.error?.message || "Unknown error"
-
-				const apiError = Object.assign(
-					new ApiProviderError(
-						rawErrorMessage,
-						this.providerName,
-						modelId,
-						"completePrompt",
-						openRouterError.error?.code,
-					),
-					{
-						status: openRouterError.error?.code,
-						error: openRouterError.error,
-					},
-				)
-
-				TelemetryService.instance.captureException(apiError)
-				throw handleOpenAIError(error, this.providerName)
-			} else {
-				// Fallback for non-OpenRouter errors
-				const errorMessage = error instanceof Error ? error.message : String(error)
-				const apiError = new ApiProviderError(errorMessage, this.providerName, modelId, "completePrompt")
-				TelemetryService.instance.captureException(apiError)
-				throw handleOpenAIError(error, this.providerName)
-			}
+			throw handleOpenAIError(error, this.providerName)
 		}
 
 		if ("error" in response) {
-			this.handleStreamingError(response.error as OpenRouterError, modelId, "completePrompt")
+			this.handleStreamingError(response.error as OpenRouterError)
 		}
 
 		const completion = response as OpenAI.Chat.ChatCompletion

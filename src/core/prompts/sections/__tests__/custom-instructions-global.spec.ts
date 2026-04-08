@@ -58,7 +58,15 @@ describe("custom-instructions global .roo support", () => {
 	const projectRooDir = path.join(mockCwd, ".roo")
 
 	beforeEach(() => {
-		vi.clearAllMocks()
+		mockHomedir.mockReset()
+		mockStat.mockReset()
+		mockReadFile.mockReset()
+		mockReaddir.mockReset()
+		mockLstat.mockReset()
+		mockGetRooDirectoriesForCwd.mockReset()
+		mockGetAllRooDirectoriesForCwd.mockReset()
+		mockGetAgentsDirectoriesForCwd.mockReset()
+		mockGetGlobalRooDirectory.mockReset()
 		mockHomedir.mockReturnValue(mockHomeDir)
 		mockGetRooDirectoriesForCwd.mockReturnValue([globalRooDir, projectRooDir])
 		// getAllRooDirectoriesForCwd is now async and returns the same directories by default

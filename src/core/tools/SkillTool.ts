@@ -16,6 +16,14 @@ interface SkillParams {
 export class SkillTool extends BaseTool<"skill"> {
 	readonly name = "skill" as const
 
+	private async resolveTaskMode(task: Task): Promise<string> {
+		if (typeof (task as any).getTaskMode === "function") {
+			return task.getTaskMode().catch(() => "code")
+		}
+
+		return (task as any).taskMode ?? "code"
+	}
+
 	async execute(params: SkillParams, task: Task, callbacks: ToolCallbacks): Promise<void> {
 		const { skill: skillName, args } = params
 		const { askApproval, handleError, pushToolResult } = callbacks
@@ -44,8 +52,7 @@ export class SkillTool extends BaseTool<"skill"> {
 			}
 
 			// Get current mode for skill resolution
-			const state = await provider?.getState()
-			const currentMode = state?.mode ?? "code"
+			const currentMode = await this.resolveTaskMode(task)
 
 			// Fetch skill content
 			const skillContent = await resolveSkillContentForMode(skillsManager, skillName, currentMode)

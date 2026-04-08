@@ -4,14 +4,6 @@ import * as vscode from "vscode"
 
 import { FileWatcher } from "../file-watcher"
 
-// Mock TelemetryService
-vi.mock("../../../../../packages/telemetry/src/TelemetryService", () => ({
-	TelemetryService: {
-		instance: {
-			captureEvent: vi.fn(),
-		},
-	},
-}))
 
 // Mock dependencies
 vi.mock("../../cache-manager")

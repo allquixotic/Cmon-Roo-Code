@@ -39,13 +39,6 @@ vi.mock("@src/utils/vscode", () => ({
 	},
 }))
 
-// Mock telemetry client
-vi.mock("@src/utils/TelemetryClient", () => ({
-	telemetryClient: {
-		capture: vi.fn(),
-	},
-}))
-
 // Mock the extension state context
 const mockExtensionState = {
 	taskSyncEnabled: true,

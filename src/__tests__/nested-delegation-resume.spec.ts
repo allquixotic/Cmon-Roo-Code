@@ -8,14 +8,6 @@ vi.mock("safe-stable-stringify", () => ({
 	default: (obj: any) => JSON.stringify(obj),
 }))
 
-// Mock TelemetryService
-vi.mock("@roo-code/telemetry", () => ({
-	TelemetryService: {
-		instance: {
-			captureTaskCompleted: vi.fn(),
-		},
-	},
-}))
 
 // vscode mock for Task/Provider imports
 vi.mock("vscode", () => {
@@ -63,6 +55,7 @@ describe("Nested delegation resume (A → B → C)", () => {
 	it("C completes → reopens B; then B completes → reopens A; emits correct events; no resume_task asks", async () => {
 		// Track which task is "current" to satisfy provider.reopenParentFromDelegation() child-close logic
 		let currentActiveId: string | undefined = "C"
+		let visibleTaskId: string | undefined = "C"
 
 		// History index: A is parent of B, B is parent of C
 		const historyIndex: Record<string, any> = {
@@ -111,17 +104,28 @@ describe("Nested delegation resume (A → B → C)", () => {
 		}
 
 		const emitSpy = vi.fn()
-		const removeClineFromStack = vi.fn().mockImplementation(async () => {
-			// Simulate closing current child
-			currentActiveId = undefined
+		const removeClineFromStack = vi.fn().mockImplementation(async ({ taskId }: { taskId?: string } = {}) => {
+			const resolvedTaskId = taskId ?? currentActiveId
+			provider.clineStack = provider.clineStack.filter((task: any) => task.taskId !== resolvedTaskId)
+			if (currentActiveId === resolvedTaskId) {
+				currentActiveId = undefined
+			}
+			if (visibleTaskId === resolvedTaskId) {
+				visibleTaskId = undefined
+			}
 		})
 		const createTaskWithHistoryItem = vi
 			.fn()
-			.mockImplementation(async (historyItem: any, opts?: { startTask?: boolean }) => {
+			.mockImplementation(async (historyItem: any, opts?: { startTask?: boolean; focus?: boolean }) => {
 				// Assert startTask:false to avoid resume asks
 				expect(opts).toEqual(expect.objectContaining({ startTask: false }))
 				// Reopen the parent
 				currentActiveId = historyItem.id
+				provider.clineStack = provider.clineStack.filter((task: any) => task.taskId !== historyItem.id)
+				provider.clineStack.push({ taskId: historyItem.id })
+				if (opts?.focus !== false) {
+					visibleTaskId = historyItem.id
+				}
 				// Return minimal parent instance with resumeAfterDelegation
 				return {
 					taskId: historyItem.id,
@@ -148,11 +152,14 @@ describe("Nested delegation resume (A → B → C)", () => {
 			return Object.values(historyIndex)
 		})
 
-		const provider = {
+		const provider: any = {
 			contextProxy: { globalStorageUri: { fsPath: "/tmp" } },
+			clineStack: [{ taskId: "C" }] as any[],
 			getTaskWithId,
 			emit: emitSpy,
 			getCurrentTask: vi.fn(() => (currentActiveId ? ({ taskId: currentActiveId } as any) : undefined)),
+			getTaskById: vi.fn((id: string) => provider.clineStack.find((task: any) => task.taskId === id)),
+			isTaskVisible: vi.fn((id: string) => visibleTaskId === id),
 			removeClineFromStack,
 			createTaskWithHistoryItem,
 			updateTaskHistory,
@@ -160,7 +167,7 @@ describe("Nested delegation resume (A → B → C)", () => {
 			reopenParentFromDelegation: vi.fn(async (params: any) => {
 				return await (ClineProvider.prototype as any).reopenParentFromDelegation.call(provider, params)
 			}),
-		} as unknown as ClineProvider
+		}
 
 		// Empty histories for simplicity
 		vi.mocked(readTaskMessages).mockResolvedValue([])
@@ -266,5 +273,98 @@ describe("Nested delegation resume (A → B → C)", () => {
 		// Find a TaskDelegationCompleted matching A <- B
 		const hasAfromB = completedEvents.some(([, parentId, childId]: any[]) => parentId === "A" && childId === "B")
 		expect(hasAfromB).toBe(true)
+	})
+
+	it("reopens the parent in the background when a hidden child completes", async () => {
+		const historyIndex: Record<string, any> = {
+			A: {
+				id: "A",
+				status: "delegated",
+				awaitingChildId: "C",
+				childIds: ["C"],
+				ts: 1,
+				task: "Task A",
+				tokensIn: 0,
+				tokensOut: 0,
+				totalCost: 0,
+				mode: "code",
+				workspace: "/tmp",
+			},
+			C: {
+				id: "C",
+				status: "active",
+				parentTaskId: "A",
+				ts: 2,
+				task: "Task C",
+				tokensIn: 0,
+				tokensOut: 0,
+				totalCost: 0,
+				mode: "code",
+				workspace: "/tmp",
+			},
+		}
+
+		const liveOtherTask = { taskId: "X" }
+		const liveChildTask = { taskId: "C" }
+
+		const updateTaskHistory = vi.fn(async (updated: any) => {
+			historyIndex[updated.id] = updated
+			return Object.values(historyIndex)
+		})
+
+		const createTaskWithHistoryItem = vi.fn().mockResolvedValue({
+			taskId: "A",
+			resumeAfterDelegation: vi.fn().mockResolvedValue(undefined),
+			overwriteClineMessages: vi.fn().mockResolvedValue(undefined),
+			overwriteApiConversationHistory: vi.fn().mockResolvedValue(undefined),
+		})
+
+		const provider: any = {
+			contextProxy: { globalStorageUri: { fsPath: "/tmp" } },
+			clineStack: [liveOtherTask, liveChildTask] as any[],
+			visibleTaskId: "X",
+			getTaskById: vi.fn((id: string) => provider.clineStack.find((task: any) => task.taskId === id)),
+			isTaskVisible: vi.fn((id: string) => provider.visibleTaskId === id),
+			removeClineFromStack: vi.fn(async ({ taskId }: { taskId: string }) => {
+				provider.clineStack = provider.clineStack.filter((task: any) => task.taskId !== taskId)
+			}),
+			createTaskWithHistoryItem,
+			updateTaskHistory,
+			emit: vi.fn(),
+			getTaskWithId: vi.fn(async (id: string) => {
+				if (!historyIndex[id]) {
+					throw new Error("Task not found")
+				}
+				return {
+					historyItem: historyIndex[id],
+					apiConversationHistory: [],
+					taskDirPath: "/tmp",
+					apiConversationHistoryFilePath: "/tmp/api.json",
+					uiMessagesFilePath: "/tmp/ui.json",
+				}
+			}),
+		}
+
+		vi.mocked(readTaskMessages).mockResolvedValue([])
+		vi.mocked(readApiMessages).mockResolvedValue([])
+
+		await (ClineProvider.prototype as any).reopenParentFromDelegation.call(provider, {
+			parentTaskId: "A",
+			childTaskId: "C",
+			completionResultSummary: "Child complete",
+		})
+
+		expect(provider.removeClineFromStack).toHaveBeenCalledWith({ taskId: "C", broadcast: false })
+		expect(provider.clineStack.some((task: any) => task.taskId === "C")).toBe(false)
+		expect(provider.visibleTaskId).toBe("X")
+		expect(createTaskWithHistoryItem).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: "A",
+				status: "active",
+				completedByChildId: "C",
+				awaitingChildId: undefined,
+			}),
+			{ startTask: false, focus: false },
+		)
 	})
 })

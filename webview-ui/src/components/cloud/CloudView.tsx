@@ -1,15 +1,13 @@
 import { useEffect, useRef, useState } from "react"
 import { VSCodeProgressRing, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-
-import { type CloudUserInfo, type CloudOrganizationMembership, TelemetryEventName } from "@roo-code/types"
+import { type CloudUserInfo, type CloudOrganizationMembership } from "@roo-code/types"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { vscode } from "@src/utils/vscode"
-import { telemetryClient } from "@src/utils/TelemetryClient"
 import { ToggleSwitch } from "@/components/ui/toggle-switch"
 import { renderCloudBenefitsContent } from "./CloudUpsellDialog"
-import { ArrowRight, Info, Lock, TriangleAlert } from "lucide-react"
+import { ArrowRight, Lock, TriangleAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tab, TabContent } from "../common/Tab"
 import { Button } from "@/components/ui/button"
@@ -29,7 +27,6 @@ type CloudViewProps = {
 export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, organizations = [] }: CloudViewProps) => {
 	const { t } = useAppTranslation()
 	const { taskSyncEnabled, setTaskSyncEnabled } = useExtensionState()
-	const wasAuthenticatedRef = useRef(false)
 	const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 	const manualUrlInputRef = useRef<HTMLInputElement | null>(null)
 	// Manual URL entry state
@@ -37,10 +34,8 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, organization
 	const [showManualEntry, setShowManualEntry] = useState(false)
 	const [manualUrl, setManualUrl] = useState("")
 
-	// Track authentication state changes to detect successful logout
 	useEffect(() => {
 		if (isAuthenticated) {
-			wasAuthenticatedRef.current = true
 			// Clear auth in progress state when authentication succeeds
 			setAuthInProgress(false)
 			setShowManualEntry(false)
@@ -48,12 +43,6 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, organization
 				clearTimeout(timeoutRef.current)
 				timeoutRef.current = null
 			}
-		} else if (wasAuthenticatedRef.current && !isAuthenticated) {
-			// User just logged out successfully
-			// NOTE: Telemetry events use ACCOUNT_* naming for continuity with existing analytics
-			// and to maintain historical data consistency, even though the UI now uses "Cloud" terminology
-			telemetryClient.capture(TelemetryEventName.ACCOUNT_LOGOUT_SUCCESS)
-			wasAuthenticatedRef.current = false
 		}
 	}, [isAuthenticated])
 
@@ -77,9 +66,6 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, organization
 	}, [])
 
 	const handleConnectClick = () => {
-		// Send telemetry for cloud connect action
-		// NOTE: Using ACCOUNT_* telemetry events for backward compatibility with analytics
-		telemetryClient.capture(TelemetryEventName.ACCOUNT_CONNECT_CLICKED)
 		vscode.postMessage({ type: "rooCloudSignIn" })
 
 		// Start auth in progress state - show "Having trouble?" immediately for debugging
@@ -118,16 +104,10 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, organization
 	}
 
 	const handleLogoutClick = () => {
-		// Send telemetry for cloud logout action
-		// NOTE: Using ACCOUNT_* telemetry events for backward compatibility with analytics
-		telemetryClient.capture(TelemetryEventName.ACCOUNT_LOGOUT_CLICKED)
 		vscode.postMessage({ type: "rooCloudSignOut" })
 	}
 
 	const handleVisitCloudWebsite = () => {
-		// Send telemetry for cloud website visit
-		// NOTE: Using ACCOUNT_* telemetry events for backward compatibility with analytics
-		telemetryClient.capture(TelemetryEventName.ACCOUNT_CONNECT_CLICKED)
 		const cloudUrl = cloudApiUrl || PRODUCTION_ROO_CODE_API_URL
 		vscode.postMessage({ type: "openExternal", url: cloudUrl })
 	}
@@ -209,10 +189,6 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, organization
 							</div>
 						</div>
 
-						<div className="text-vscode-descriptionForeground text-sm mt-4 mb-8 pl-4">
-							<Info className="inline size-3 mr-1 mb-0.5 text-vscode-descriptionForeground" />
-							{t("cloud:usageMetricsAlwaysReported")}
-						</div>
 
 						<div className="flex flex-col gap-2 mt-4 pl-4">
 							<Button variant="secondary" onClick={handleVisitCloudWebsite} className="w-full max-w-80">

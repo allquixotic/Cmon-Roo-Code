@@ -12,7 +12,6 @@ import {
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 } from "@roo-code/types"
-import { TelemetryService } from "@roo-code/telemetry"
 
 import { defaultModeSlug } from "../../../shared/modes"
 import { experimentDefault } from "../../../shared/experiments"
@@ -185,15 +184,34 @@ vi.mock("../../task/Task", () => ({
 	Task: vi.fn().mockImplementation((options: any) => ({
 		api: undefined,
 		abortTask: vi.fn(),
+		start: vi.fn(),
 		handleWebviewAskResponse: vi.fn(),
 		clineMessages: [],
 		apiConversationHistory: [],
 		overwriteClineMessages: vi.fn(),
 		overwriteApiConversationHistory: vi.fn(),
 		getTaskNumber: vi.fn().mockReturnValue(0),
+		getTaskMode: vi.fn().mockResolvedValue(options?.historyItem?.mode ?? defaultModeSlug),
+		getTaskApiConfigName: vi.fn().mockResolvedValue(options?.historyItem?.apiConfigName ?? "default"),
 		setTaskNumber: vi.fn(),
+		setTaskApiConfigName: vi.fn(),
 		setParentTask: vi.fn(),
 		setRootTask: vi.fn(),
+		apiConfiguration: options?.apiConfiguration ?? { apiProvider: "openrouter" },
+		metadata: { task: options?.historyItem?.task ?? options?.task },
+		instanceId: "test-instance-id",
+		parentTask: options?.parentTask,
+		parentTaskId: options?.historyItem?.parentTaskId ?? options?.parentTask?.taskId,
+		rootTask: options?.rootTask,
+		rootTaskId: options?.historyItem?.rootTaskId ?? options?.rootTask?.taskId,
+		taskStatus: "running",
+		queuedMessages: [],
+		messageQueueService: { messages: [] },
+		todoList: [],
+		abandoned: false,
+		abort: false,
+		on: vi.fn(),
+		off: vi.fn(),
 		taskId: options?.historyItem?.id || "test-task-id",
 		emit: vi.fn(),
 	})),
@@ -314,15 +332,34 @@ describe("ClineProvider", () => {
 			const task: any = {
 				api: undefined,
 				abortTask: vi.fn(),
+				start: vi.fn(),
 				handleWebviewAskResponse: vi.fn(),
 				clineMessages: [],
 				apiConversationHistory: [],
 				overwriteClineMessages: vi.fn(),
 				overwriteApiConversationHistory: vi.fn(),
 				getTaskNumber: vi.fn().mockReturnValue(0),
+				getTaskMode: vi.fn().mockResolvedValue(options?.historyItem?.mode ?? defaultModeSlug),
+				getTaskApiConfigName: vi.fn().mockResolvedValue(options?.historyItem?.apiConfigName ?? "default"),
 				setTaskNumber: vi.fn(),
+				setTaskApiConfigName: vi.fn(),
 				setParentTask: vi.fn(),
 				setRootTask: vi.fn(),
+				apiConfiguration: options?.apiConfiguration ?? { apiProvider: "openrouter" },
+				metadata: { task: options?.historyItem?.task ?? options?.task },
+				instanceId: "test-instance-id",
+				parentTask: options?.parentTask,
+				parentTaskId: options?.historyItem?.parentTaskId ?? options?.parentTask?.taskId,
+				rootTask: options?.rootTask,
+				rootTaskId: options?.historyItem?.rootTaskId ?? options?.rootTask?.taskId,
+				taskStatus: "running",
+				queuedMessages: [],
+				messageQueueService: { messages: [] },
+				todoList: [],
+				abandoned: false,
+				abort: false,
+				on: vi.fn(),
+				off: vi.fn(),
 				taskId: options?.historyItem?.id || "test-task-id",
 				emit: vi.fn(),
 			}
@@ -346,10 +383,6 @@ describe("ClineProvider", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
-
-		if (!TelemetryService.hasInstance()) {
-			TelemetryService.createInstance([])
-		}
 
 		const globalState: Record<string, string | undefined> = {
 			mode: "architect",
@@ -483,10 +516,11 @@ describe("ClineProvider", () => {
 
 		expect(mockWebviewView.webview.html).toContain("<!DOCTYPE html>")
 
-		// Verify Content Security Policy contains the necessary PostHog domains
-		expect(mockWebviewView.webview.html).toContain(
-			"connect-src vscode-webview://test-csp-source https://openrouter.ai https://api.requesty.ai https://ph.roocode.com",
-		)
+		// Verify Content Security Policy contains the required API domains and excludes removed tracking endpoints
+		expect(mockWebviewView.webview.html).toContain("connect-src vscode-webview://test-csp-source")
+		expect(mockWebviewView.webview.html).toContain("https://openrouter.ai")
+		expect(mockWebviewView.webview.html).toContain("https://api.requesty.ai")
+		expect(mockWebviewView.webview.html).not.toContain("https://ph.roocode.com")
 
 		// Extract the script-src directive section and verify required security elements
 		const html = mockWebviewView.webview.html
@@ -504,7 +538,6 @@ describe("ClineProvider", () => {
 			version: "1.0.0",
 			clineMessages: [],
 			taskHistory: [],
-			shouldShowAnnouncement: false,
 			apiConfiguration: {
 				apiProvider: "openrouter",
 			},
@@ -533,7 +566,6 @@ describe("ClineProvider", () => {
 			experiments: experimentDefault,
 			maxOpenTabsContext: 20,
 			maxWorkspaceFiles: 200,
-			telemetrySetting: "unset",
 			showRooIgnoredFiles: false,
 			enableSubfolderRules: false,
 			renderContext: "sidebar",
@@ -1564,15 +1596,14 @@ describe("ClineProvider", () => {
 				totalCost: 0,
 			}
 
-			// Initialize with history item
-			await provider.createTaskWithHistoryItem(historyItem)
+			// Initialize with history item without forcing a visible-task sync.
+			await provider.createTaskWithHistoryItem(historyItem, { focus: false })
 
 			// Verify mode validation occurred
 			expect(mockCustomModesManager.getCustomModes).toHaveBeenCalled()
 			expect(getModeBySlug).toHaveBeenCalledWith("non-existent-mode", expect.any(Array))
 
 			// Verify fallback to default mode
-			expect(mockContext.globalState.update).toHaveBeenCalledWith("mode", "code")
 			expect(logSpy).toHaveBeenCalledWith(
 				"Mode 'non-existent-mode' from history no longer exists. Falling back to default mode 'code'.",
 			)
@@ -1613,7 +1644,7 @@ describe("ClineProvider", () => {
 				listConfig: vi
 					.fn()
 					.mockResolvedValue([{ name: "test-config", id: "config-id", apiProvider: "anthropic" }]),
-				activateProfile: vi
+				getProfile: vi
 					.fn()
 					.mockResolvedValue({ name: "test-config", id: "config-id", apiProvider: "anthropic" }),
 			}
@@ -1703,6 +1734,7 @@ describe("ClineProvider", () => {
 				getModeConfigId: vi.fn().mockResolvedValue(undefined),
 				listConfig: vi.fn().mockResolvedValue([]),
 			}
+			const logSpy = vi.spyOn(provider, "log")
 
 			// Create history item without mode
 			const historyItem = {
@@ -1716,11 +1748,12 @@ describe("ClineProvider", () => {
 				totalCost: 0,
 			}
 
-			// Initialize with history item
-			await provider.createTaskWithHistoryItem(historyItem)
+			// Initialize with history item without forcing a visible-task sync.
+			await provider.createTaskWithHistoryItem(historyItem, { focus: false })
 
-			// Verify no mode validation occurred (mode update not called)
-			expect(mockContext.globalState.update).not.toHaveBeenCalledWith("mode", expect.any(String))
+			// Verify no mode validation/fallback occurred.
+			expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining("Falling back to default mode"))
+			expect(historyItem).not.toHaveProperty("mode")
 		})
 
 		test("continues with task restoration even if mode config loading fails", async () => {
@@ -1748,7 +1781,7 @@ describe("ClineProvider", () => {
 				listConfig: vi
 					.fn()
 					.mockResolvedValue([{ name: "test-config", id: "config-id", apiProvider: "anthropic" }]),
-				activateProfile: vi.fn().mockRejectedValue(new Error("Failed to load config")),
+				getProfile: vi.fn().mockRejectedValue(new Error("Failed to load config")),
 			}
 
 			// Spy on log method
@@ -1771,7 +1804,7 @@ describe("ClineProvider", () => {
 
 			// Verify error was logged but task restoration continued
 			expect(logSpy).toHaveBeenCalledWith(
-				expect.stringContaining("Failed to restore API configuration for mode 'code'"),
+				expect.stringContaining("Failed to restore API configuration 'test-config' for task test-id"),
 			)
 		})
 	})
@@ -2193,171 +2226,6 @@ describe.skip("ContextProxy integration", () => {
 	})
 })
 
-describe("getTelemetryProperties", () => {
-	let defaultTaskOptions: TaskOptions
-	let provider: ClineProvider
-	let mockContext: vscode.ExtensionContext
-	let mockOutputChannel: vscode.OutputChannel
-	let mockCline: any
-
-	beforeEach(() => {
-		// Reset mocks
-		vi.clearAllMocks()
-
-		// Initialize TelemetryService if not already initialized
-		if (!TelemetryService.hasInstance()) {
-			TelemetryService.createInstance([])
-		}
-
-		// Setup basic mocks
-		mockContext = {
-			globalState: {
-				get: vi.fn().mockImplementation((key: string) => {
-					if (key === "mode") return "code"
-					if (key === "apiProvider") return "anthropic"
-					return undefined
-				}),
-				update: vi.fn(),
-				keys: vi.fn().mockReturnValue([]),
-			},
-			workspaceState: {
-				get: vi.fn().mockReturnValue(undefined),
-				update: vi.fn().mockResolvedValue(undefined),
-				keys: vi.fn().mockReturnValue([]),
-			},
-			secrets: { get: vi.fn(), store: vi.fn(), delete: vi.fn() },
-			extensionUri: {} as vscode.Uri,
-			globalStorageUri: { fsPath: "/test/path" },
-			extension: { packageJSON: { version: "1.0.0" } },
-		} as unknown as vscode.ExtensionContext
-
-		mockOutputChannel = { appendLine: vi.fn() } as unknown as vscode.OutputChannel
-		provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
-
-		defaultTaskOptions = {
-			provider,
-			apiConfiguration: {
-				apiProvider: "openrouter",
-			},
-		}
-
-		// Setup Task instance with mocked getModel method
-		mockCline = new Task(defaultTaskOptions)
-		mockCline.api = {
-			getModel: vi.fn().mockReturnValue({
-				id: "claude-sonnet-4-20250514",
-				info: { contextWindow: 200000 },
-			}),
-		}
-	})
-
-	test("includes basic properties in telemetry", async () => {
-		const properties = await provider.getTelemetryProperties()
-
-		expect(properties).toHaveProperty("vscodeVersion")
-		expect(properties).toHaveProperty("platform")
-		expect(properties).toHaveProperty("appVersion", "1.0.0")
-	})
-
-	test("includes model ID from current Cline instance if available", async () => {
-		// Add mock Cline to stack
-		await provider.addClineToStack(mockCline)
-
-		const properties = await provider.getTelemetryProperties()
-
-		expect(properties).toHaveProperty("modelId", "claude-sonnet-4-20250514")
-	})
-
-	describe("cloud authentication telemetry", () => {
-		beforeEach(() => {
-			// Reset all mocks before each test
-			vi.clearAllMocks()
-		})
-
-		test("includes cloud authentication property when user is authenticated", async () => {
-			// Import the CloudService mock and update it
-			const { CloudService } = await import("@roo-code/cloud")
-			const mockCloudService = {
-				isAuthenticated: vi.fn().mockReturnValue(true),
-			}
-
-			// Update the existing mock
-			Object.defineProperty(CloudService, "instance", {
-				get: vi.fn().mockReturnValue(mockCloudService),
-				configurable: true,
-			})
-
-			const properties = await provider.getTelemetryProperties()
-
-			expect(properties).toHaveProperty("cloudIsAuthenticated", true)
-		})
-
-		test("includes cloud authentication property when user is not authenticated", async () => {
-			// Import the CloudService mock and update it
-			const { CloudService } = await import("@roo-code/cloud")
-			const mockCloudService = {
-				isAuthenticated: vi.fn().mockReturnValue(false),
-			}
-
-			// Update the existing mock
-			Object.defineProperty(CloudService, "instance", {
-				get: vi.fn().mockReturnValue(mockCloudService),
-				configurable: true,
-			})
-
-			const properties = await provider.getTelemetryProperties()
-
-			expect(properties).toHaveProperty("cloudIsAuthenticated", false)
-		})
-
-		test("handles CloudService errors gracefully", async () => {
-			// Import the CloudService mock and update it to throw an error
-			const { CloudService } = await import("@roo-code/cloud")
-			Object.defineProperty(CloudService, "instance", {
-				get: vi.fn().mockImplementation(() => {
-					throw new Error("CloudService not available")
-				}),
-				configurable: true,
-			})
-
-			const properties = await provider.getTelemetryProperties()
-
-			// Should still include basic telemetry properties
-			expect(properties).toHaveProperty("vscodeVersion")
-			expect(properties).toHaveProperty("platform")
-			expect(properties).toHaveProperty("appVersion", "1.0.0")
-
-			// Cloud property should be undefined when CloudService is not available
-			expect(properties).toHaveProperty("cloudIsAuthenticated", undefined)
-		})
-
-		test("handles CloudService method errors gracefully", async () => {
-			// Import the CloudService mock and update it
-			const { CloudService } = await import("@roo-code/cloud")
-			const mockCloudService = {
-				isAuthenticated: vi.fn().mockImplementation(() => {
-					throw new Error("Authentication check error")
-				}),
-			}
-
-			// Update the existing mock
-			Object.defineProperty(CloudService, "instance", {
-				get: vi.fn().mockReturnValue(mockCloudService),
-				configurable: true,
-			})
-
-			const properties = await provider.getTelemetryProperties()
-
-			// Should still include basic telemetry properties
-			expect(properties).toHaveProperty("vscodeVersion")
-			expect(properties).toHaveProperty("platform")
-			expect(properties).toHaveProperty("appVersion", "1.0.0")
-
-			// Property that errored should be undefined
-			expect(properties).toHaveProperty("cloudIsAuthenticated", undefined)
-		})
-	})
-})
 
 describe("ClineProvider - Router Models", () => {
 	let provider: ClineProvider
@@ -2423,10 +2291,6 @@ describe("ClineProvider - Router Models", () => {
 			}),
 			onDidChangeVisibility: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
 		} as unknown as vscode.WebviewView
-
-		if (!TelemetryService.hasInstance()) {
-			TelemetryService.createInstance([])
-		}
 
 		provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
 	})
@@ -2680,10 +2544,6 @@ describe("ClineProvider - Comprehensive Edit/Delete Edge Cases", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
-
-		if (!TelemetryService.hasInstance()) {
-			TelemetryService.createInstance([])
-		}
 
 		const globalState: Record<string, string | undefined> = {
 			mode: "code",

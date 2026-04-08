@@ -86,7 +86,6 @@ src/node_modules
 !packages/core/
 !packages/evals/
 !packages/ipc/
-!packages/telemetry/
 !packages/types/
 !packages/vscode-shim/
 !packages/cloud/

@@ -32,5 +32,5 @@
 !assets/icons/**
 !assets/images/**
 
-# Include .env file for telemetry
+# Include .env file
 !.env

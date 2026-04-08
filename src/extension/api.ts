@@ -165,13 +165,12 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		}
 	}
 
-	public override emit<K extends keyof RooCodeEvents>(
-		eventName: K,
-		...args: K extends keyof RooCodeEvents ? RooCodeEvents[K] : never
-	) {
-		const data = { eventName: eventName as RooCodeEventName, payload: args } as TaskEvent
-		this.ipc?.broadcast({ type: IpcMessageType.TaskEvent, origin: IpcOrigin.Server, data })
-		return super.emit(eventName, ...args)
+	public override emit(eventName: string | symbol, ...args: any[]): boolean {
+		if (typeof eventName === "string") {
+			const data = { eventName: eventName as RooCodeEventName, payload: args } as TaskEvent
+			this.ipc?.broadcast({ type: IpcMessageType.TaskEvent, origin: IpcOrigin.Server, data })
+		}
+		return super.emit(eventName as any, ...args)
 	}
 
 	public async startNewTask({
@@ -199,8 +198,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 			provider = this.sidebarProvider
 		}
 
-		await provider.removeClineFromStack()
-		await provider.postStateToWebview()
+		await provider.clearTask()
 		await provider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 		await provider.postMessageToWebview({ type: "invoke", invoke: "newChat", text, images })
 
@@ -247,9 +245,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 	}
 
 	public async clearCurrentTask(_lastMessage?: string) {
-		// Legacy finishSubTask removed; clear current by closing active task instance.
-		await this.sidebarProvider.removeClineFromStack()
-		await this.sidebarProvider.postStateToWebview()
+		await this.sidebarProvider.clearTask()
 	}
 
 	public async cancelCurrentTask() {

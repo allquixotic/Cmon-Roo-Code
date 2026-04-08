@@ -1,13 +1,3 @@
-// Mock TelemetryService before other imports
-const mockCaptureException = vi.fn()
-
-vi.mock("@roo-code/telemetry", () => ({
-	TelemetryService: {
-		instance: {
-			captureException: (...args: unknown[]) => mockCaptureException(...args),
-		},
-	},
-}))
 
 // Mock AWS SDK credential providers
 vi.mock("@aws-sdk/credential-providers", () => {
@@ -40,7 +30,6 @@ import {
 	BEDROCK_1M_CONTEXT_MODEL_IDS,
 	BEDROCK_SERVICE_TIER_MODEL_IDS,
 	bedrockModels,
-	ApiProviderError,
 } from "@roo-code/types"
 
 import type { Anthropic } from "@anthropic-ai/sdk"
@@ -1141,140 +1130,6 @@ describe("AwsBedrockHandler", () => {
 		})
 	})
 
-	describe("error telemetry", () => {
-		let mockSend: ReturnType<typeof vi.fn>
-
-		beforeEach(() => {
-			mockCaptureException.mockClear()
-			// Get access to the mock send function from the mocked client
-			mockSend = vi.mocked(BedrockRuntimeClient).mock.results[0]?.value?.send
-		})
-
-		it("should capture telemetry on createMessage error", async () => {
-			// Create a handler with a fresh mock
-			const errorHandler = new AwsBedrockHandler({
-				apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-				awsAccessKey: "test-access-key",
-				awsSecretKey: "test-secret-key",
-				awsRegion: "us-east-1",
-			})
-
-			// Get the mock send from the new handler instance
-			const clientInstance =
-				vi.mocked(BedrockRuntimeClient).mock.results[vi.mocked(BedrockRuntimeClient).mock.results.length - 1]
-					?.value
-			const mockSendFn = clientInstance?.send as ReturnType<typeof vi.fn>
-
-			// Mock the send to throw an error
-			mockSendFn.mockRejectedValueOnce(new Error("Bedrock API error"))
-
-			const messages: Anthropic.Messages.MessageParam[] = [
-				{
-					role: "user",
-					content: "Hello",
-				},
-			]
-
-			const generator = errorHandler.createMessage("You are a helpful assistant", messages)
-
-			// Consume the generator - it should throw
-			await expect(async () => {
-				for await (const _chunk of generator) {
-					// Should throw before or during iteration
-				}
-			}).rejects.toThrow()
-
-			// Verify telemetry was captured
-			expect(mockCaptureException).toHaveBeenCalledTimes(1)
-			expect(mockCaptureException).toHaveBeenCalledWith(
-				expect.objectContaining({
-					message: "Bedrock API error",
-					provider: "Bedrock",
-					modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-					operation: "createMessage",
-				}),
-			)
-
-			// Verify it's an ApiProviderError
-			const capturedError = mockCaptureException.mock.calls[0][0]
-			expect(capturedError).toBeInstanceOf(ApiProviderError)
-		})
-
-		it("should capture telemetry on completePrompt error", async () => {
-			// Create a handler with a fresh mock
-			const errorHandler = new AwsBedrockHandler({
-				apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-				awsAccessKey: "test-access-key",
-				awsSecretKey: "test-secret-key",
-				awsRegion: "us-east-1",
-			})
-
-			// Get the mock send from the new handler instance
-			const clientInstance =
-				vi.mocked(BedrockRuntimeClient).mock.results[vi.mocked(BedrockRuntimeClient).mock.results.length - 1]
-					?.value
-			const mockSendFn = clientInstance?.send as ReturnType<typeof vi.fn>
-
-			// Mock the send to throw an error for ConverseCommand
-			mockSendFn.mockRejectedValueOnce(new Error("Bedrock completion error"))
-
-			// Call completePrompt - it should throw
-			await expect(errorHandler.completePrompt("Test prompt")).rejects.toThrow()
-
-			// Verify telemetry was captured
-			expect(mockCaptureException).toHaveBeenCalledTimes(1)
-			expect(mockCaptureException).toHaveBeenCalledWith(
-				expect.objectContaining({
-					message: "Bedrock completion error",
-					provider: "Bedrock",
-					modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-					operation: "completePrompt",
-				}),
-			)
-
-			// Verify it's an ApiProviderError
-			const capturedError = mockCaptureException.mock.calls[0][0]
-			expect(capturedError).toBeInstanceOf(ApiProviderError)
-		})
-
-		it("should still throw the error after capturing telemetry", async () => {
-			// Create a handler with a fresh mock
-			const errorHandler = new AwsBedrockHandler({
-				apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-				awsAccessKey: "test-access-key",
-				awsSecretKey: "test-secret-key",
-				awsRegion: "us-east-1",
-			})
-
-			// Get the mock send from the new handler instance
-			const clientInstance =
-				vi.mocked(BedrockRuntimeClient).mock.results[vi.mocked(BedrockRuntimeClient).mock.results.length - 1]
-					?.value
-			const mockSendFn = clientInstance?.send as ReturnType<typeof vi.fn>
-
-			// Mock the send to throw an error
-			mockSendFn.mockRejectedValueOnce(new Error("Test error for throw verification"))
-
-			const messages: Anthropic.Messages.MessageParam[] = [
-				{
-					role: "user",
-					content: "Hello",
-				},
-			]
-
-			const generator = errorHandler.createMessage("You are a helpful assistant", messages)
-
-			// Verify the error is still thrown after telemetry capture
-			await expect(async () => {
-				for await (const _chunk of generator) {
-					// Should throw
-				}
-			}).rejects.toThrow()
-
-			// Telemetry should have been captured before the error was thrown
-			expect(mockCaptureException).toHaveBeenCalled()
-		})
-	})
 
 	describe("prompt cache default behavior", () => {
 		beforeEach(() => {

@@ -1,16 +1,17 @@
 import { renderHook } from "@testing-library/react"
+import type { Mock } from "vitest"
 
 import { useEscapeKey } from "./useEscapeKey"
 
 describe("useEscapeKey", () => {
-	let mockOnEscape: ReturnType<typeof vi.fn>
+	let mockOnEscape: Mock<() => void>
 
 	beforeEach(() => {
-		mockOnEscape = vi.fn()
+		mockOnEscape = vi.fn<() => void>()
 	})
 
 	afterEach(() => {
-		vi.clearAllMocks()
+		vi.restoreAllMocks()
 	})
 
 	it("should call onEscape when Escape key is pressed and isOpen is true", () => {

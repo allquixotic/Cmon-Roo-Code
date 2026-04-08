@@ -1,19 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export const window = {
+export const window: any = {
 	showInformationMessage: vi.fn(),
 	showErrorMessage: vi.fn(),
 }
 
-export const env = {
+export const env: any = {
 	openExternal: vi.fn(),
 }
 
-export const Uri = {
+export const Uri: any = {
 	parse: vi.fn((uri: string) => ({ toString: () => uri })),
 }
 
-export const commands = {
+export const commands: any = {
 	executeCommand: vi.fn().mockResolvedValue(undefined),
 }
 

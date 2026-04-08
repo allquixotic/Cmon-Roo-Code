@@ -1,4 +1,4 @@
-import { useCallback, useState, memo, useMemo } from "react"
+import { useCallback, useState, memo, useMemo, type ReactNode } from "react"
 import { useEvent } from "react-use"
 import { t } from "i18next"
 import { ChevronDown, OctagonX } from "lucide-react"
@@ -28,8 +28,8 @@ interface CommandPattern {
 interface CommandExecutionProps {
 	executionId: string
 	text?: string
-	icon?: JSX.Element | null
-	title?: JSX.Element | null
+	icon?: ReactNode
+	title?: ReactNode
 }
 
 export const CommandExecution = ({ executionId, text, icon, title }: CommandExecutionProps) => {

@@ -2,7 +2,6 @@ import type { Disposable, ExtensionContext } from "vscode"
 import EventEmitter from "events"
 
 import type {
-	TelemetryEvent,
 	ClineMessage,
 	CloudServiceEvents,
 	AuthService,
@@ -22,7 +21,7 @@ import { WebAuthService } from "./WebAuthService.js"
 import { StaticTokenAuthService } from "./StaticTokenAuthService.js"
 import { CloudSettingsService } from "./CloudSettingsService.js"
 import { StaticSettingsService } from "./StaticSettingsService.js"
-import { CloudTelemetryClient as TelemetryClient } from "./TelemetryClient.js"
+import { TaskSyncClient } from "./TaskSyncClient.js"
 import { CloudShareService } from "./CloudShareService.js"
 import { CloudAPI } from "./CloudAPI.js"
 import { RetryQueue } from "./retry-queue/index.js"
@@ -58,11 +57,10 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements Di
 	public get settingsService() {
 		return this._settingsService
 	}
+	private _taskSyncClient: TaskSyncClient | null = null
 
-	private _telemetryClient: TelemetryClient | null = null
-
-	public get telemetryClient() {
-		return this._telemetryClient
+	public get taskSyncClient() {
+		return this._taskSyncClient
 	}
 
 	private _shareService: CloudShareService | null = null
@@ -165,7 +163,7 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements Di
 				},
 			)
 
-			this._telemetryClient = new TelemetryClient(this._authService, this._settingsService, this._retryQueue)
+			this._taskSyncClient = new TaskSyncClient(this._authService, this._settingsService, this._retryQueue)
 
 			this._shareService = new CloudShareService(this._cloudAPI, this._settingsService, this.log)
 
@@ -303,11 +301,11 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements Di
 		return this.settingsService!.isTaskSyncEnabled()
 	}
 
-	// TelemetryClient
+	// TaskSyncClient
 
-	public captureEvent(event: TelemetryEvent): void {
+	public syncTaskMessage(taskId: string, message: ClineMessage): void {
 		this.ensureInitialized()
-		this.telemetryClient!.capture(event)
+		void this.taskSyncClient!.syncMessage(taskId, message)
 	}
 
 	// ShareService
@@ -324,7 +322,7 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements Di
 		} catch (error) {
 			if (error instanceof TaskNotFoundError && clineMessages) {
 				// Backfill messages and retry.
-				await this.telemetryClient!.backfillMessages(clineMessages, taskId)
+				await this.taskSyncClient!.backfillTaskMessages(clineMessages, taskId)
 				return await this.shareService!.shareTask(taskId, visibility)
 			}
 

@@ -72,24 +72,6 @@ vi.mock("@roo-code/cloud", () => ({
 	getRooCodeApiUrl: vi.fn().mockReturnValue("https://app.roocode.com"),
 }))
 
-vi.mock("@roo-code/telemetry", () => ({
-	TelemetryService: {
-		createInstance: vi.fn().mockReturnValue({
-			register: vi.fn(),
-			setProvider: vi.fn(),
-			shutdown: vi.fn(),
-		}),
-		get instance() {
-			return {
-				register: vi.fn(),
-				setProvider: vi.fn(),
-				shutdown: vi.fn(),
-			}
-		},
-	},
-	PostHogTelemetryClient: vi.fn(),
-}))
-
 vi.mock("../utils/outputChannelLogger", () => ({
 	createOutputChannelLogger: vi.fn().mockReturnValue(vi.fn()),
 	createDualLogger: vi.fn().mockReturnValue(vi.fn()),
@@ -280,11 +262,8 @@ describe("extension.ts", () => {
 					authStateChangedHandler = handlers["auth-state-changed"]
 				}
 				return {
-					off: vi.fn(),
-					on: vi.fn(),
-					telemetryClient: null,
+					...mockCloudServiceInstance,
 					authService: mockAuthService,
-					hasActiveSession: vi.fn().mockReturnValue(false),
 				} as any
 			})
 
@@ -319,13 +298,7 @@ describe("extension.ts", () => {
 				if (handlers?.["auth-state-changed"]) {
 					authStateChangedHandler = handlers["auth-state-changed"]
 				}
-				return {
-					off: vi.fn(),
-					on: vi.fn(),
-					telemetryClient: null,
-					authService: null,
-					hasActiveSession: vi.fn().mockReturnValue(false),
-				} as any
+				return mockCloudServiceInstance as any
 			})
 
 			vi.mocked(CloudService.hasInstance).mockReturnValue(true)
