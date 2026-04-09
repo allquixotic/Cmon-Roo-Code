@@ -118,7 +118,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		}
 	}, [selectedDraftId, visibleConversationIds])
 
-	const selectedConversationId = currentTaskId ?? selectedDraftId
+	const selectedConversationId = selectedDraftId ?? currentTaskId
 
 	const conversations = useMemo<ConversationListItem[]>(() => {
 		const draftItems = draftConversations

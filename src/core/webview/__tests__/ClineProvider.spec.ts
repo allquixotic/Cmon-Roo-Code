@@ -671,6 +671,28 @@ describe("ClineProvider", () => {
 		expect(stackSizeBeforeAbort - stackSizeAfterAbort).toBe(1)
 	})
 
+	test("clearTask hides the active task instead of falling back to the last stack entry", async () => {
+		const mockCline = new Task(defaultTaskOptions)
+		;(mockCline as any).clineMessages = [
+			{
+				ts: 1,
+				type: "say",
+				say: "text",
+				text: "Existing conversation",
+			},
+		]
+
+		await provider.addClineToStack(mockCline)
+		await provider.clearTask()
+
+		const state = await provider.getStateToPostToWebview()
+
+		expect(provider.getCurrentTask()).toBeUndefined()
+		expect(state.currentTaskId).toBeUndefined()
+		expect(state.currentTaskItem).toBeUndefined()
+		expect(state.clineMessages).toEqual([])
+	})
+
 	describe("clearTask message handler", () => {
 		beforeEach(async () => {
 			await provider.resolveWebviewView(mockWebviewView)

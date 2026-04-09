@@ -311,6 +311,44 @@ describe("ChatView - Conversation Drafts", () => {
 		})
 	})
 
+	it("selects the new draft immediately even before the extension clears the previous task state", async () => {
+		const { getByText } = renderChatView()
+
+		mockPostMessage({
+			currentTaskId: "task-1",
+			clineMessages: [{ type: "say", say: "text", ts: 1, text: "Existing conversation" }],
+			activeConversations: [
+				{
+					rootTaskId: "task-1",
+					activeTaskId: "task-1",
+					rootTask: "Existing conversation",
+					activeTask: "Existing conversation",
+					ts: Date.now(),
+					status: "idle",
+					queuedMessageCount: 0,
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(getByText("New")).toBeInTheDocument()
+		})
+
+		fireEvent.click(getByText("New"))
+
+		await waitFor(() => {
+			expect(getByText("New conversation")).toBeInTheDocument()
+		})
+
+		const draftRow = getByText("New conversation").closest('[role="button"]')
+		const existingRow = Array.from(document.querySelectorAll('[role="button"][aria-pressed]')).find((row) =>
+			row.textContent?.includes("Existing conversation"),
+		)
+
+		expect(draftRow).toHaveAttribute("aria-pressed", "true")
+		expect(existingRow).toHaveAttribute("aria-pressed", "false")
+	})
+
 	it("reuses the selected draft id when the first message starts a task", async () => {
 		const { getByText, getByTestId } = renderChatView()
 

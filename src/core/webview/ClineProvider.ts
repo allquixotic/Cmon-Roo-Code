@@ -138,6 +138,7 @@ export class ClineProvider
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private clineStack: Task[] = []
 	private visibleTaskId?: string
+	private hasExplicitTaskSelectionClear = false
 	private codeIndexStatusSubscription?: vscode.Disposable
 	private codeIndexManager?: CodeIndexManager
 	private _workspaceTracker?: WorkspaceTracker // workSpaceTracker read-only for access outside this class
@@ -467,10 +468,13 @@ export class ClineProvider
 		const { broadcast = true } = options ?? {}
 		const previousTask = this.getTaskById(this.visibleTaskId)
 		const nextTask = this.getTaskById(taskId)
+		const nextSelectionCleared = taskId === undefined && nextTask === undefined
 
-		if (previousTask?.taskId === nextTask?.taskId) {
-			if (broadcast && nextTask) {
-				await this.syncVisibleTaskContext(nextTask)
+		if (previousTask?.taskId === nextTask?.taskId && this.hasExplicitTaskSelectionClear === nextSelectionCleared) {
+			if (broadcast) {
+				if (nextTask) {
+					await this.syncVisibleTaskContext(nextTask)
+				}
 				await this.postStateToWebviewWithoutTaskHistory()
 			}
 			return
@@ -481,6 +485,7 @@ export class ClineProvider
 		}
 
 		this.visibleTaskId = nextTask?.taskId
+		this.hasExplicitTaskSelectionClear = nextSelectionCleared
 
 		if (nextTask) {
 			await this.syncVisibleTaskContext(nextTask)
@@ -488,11 +493,7 @@ export class ClineProvider
 		}
 
 		if (broadcast) {
-			if (nextTask) {
-				await this.postStateToWebviewWithoutTaskHistory()
-			} else {
-				await this.postStateToWebviewWithoutClineMessages()
-			}
+			await this.postStateToWebviewWithoutTaskHistory()
 		}
 	}
 
@@ -1211,7 +1212,7 @@ export class ClineProvider
 				})
 			}
 			this.visibleTaskId = undefined
-		} else if (!this.getTaskById(this.visibleTaskId)) {
+		} else if (!this.hasExplicitTaskSelectionClear && !this.getTaskById(this.visibleTaskId)) {
 			await this.selectTask(activeTasks[activeTasks.length - 1]?.taskId, { broadcast: false })
 		}
 
@@ -3190,6 +3191,10 @@ export class ClineProvider
 		const visibleTask = this.getTaskById(this.visibleTaskId)
 		if (visibleTask) {
 			return visibleTask
+		}
+
+		if (this.hasExplicitTaskSelectionClear) {
+			return undefined
 		}
 
 		if (this.clineStack.length === 0) {

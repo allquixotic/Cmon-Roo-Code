@@ -102,6 +102,7 @@ export default function ActiveConversationList({
 								key={conversation.activeTaskId}
 								role="button"
 								tabIndex={0}
+								aria-pressed={isActive}
 								onClick={() => {
 									setContextMenu(null)
 									onSelectConversation(conversation)
