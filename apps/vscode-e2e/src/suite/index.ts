@@ -8,10 +8,13 @@ import type { RooCodeAPI } from "@roo-code/types"
 import { waitFor } from "./utils"
 
 export async function run() {
-	const extension = vscode.extensions.getExtension<RooCodeAPI>("RooVeterinaryInc.crc")
+	const extensionIds = ["allquixotic.crc", "RooVeterinaryInc.crc", "RooVeterinaryInc.roo-cline"]
+	const extension = extensionIds
+		.map((extensionId) => vscode.extensions.getExtension<RooCodeAPI>(extensionId))
+		.find((candidate) => candidate)
 
 	if (!extension) {
-		throw new Error("Extension not found")
+		throw new Error(`Extension not found. Tried: ${extensionIds.join(", ")}`)
 	}
 
 	const api = extension.isActive ? extension.exports : await extension.activate()

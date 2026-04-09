@@ -15,7 +15,7 @@ vi.mock("vscode", () => ({
 vi.mock("../../../shared/package", () => ({
 	Package: {
 		name: "crc",
-		publisher: "RooVeterinaryInc",
+		publisher: "allquixotic",
 		version: "1.0.0",
 		outputChannel: "Roo-Code",
 	},

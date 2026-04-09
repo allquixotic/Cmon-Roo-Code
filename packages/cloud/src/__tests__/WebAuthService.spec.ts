@@ -84,7 +84,7 @@ describe("WebAuthService", () => {
 			extension: {
 				packageJSON: {
 					version: "1.0.0",
-					publisher: "RooVeterinaryInc",
+					publisher: "allquixotic",
 					name: "crc",
 				},
 			},
@@ -271,7 +271,7 @@ describe("WebAuthService", () => {
 			await authService.login()
 
 			const expectedUrl =
-				"https://api.test.com/extension/sign-in?state=746573742d72616e646f6d2d6279746573&auth_redirect=vscode%3A%2F%2FRooVeterinaryInc.crc"
+				"https://api.test.com/extension/sign-in?state=746573742d72616e646f6d2d6279746573&auth_redirect=vscode%3A%2F%2Fallquixotic.crc"
 			expect(mockOpenExternal).toHaveBeenCalledWith(
 				expect.objectContaining({
 					toString: expect.any(Function),
@@ -291,7 +291,7 @@ describe("WebAuthService", () => {
 			await authService.login(undefined, true)
 
 			const expectedUrl =
-				"https://api.test.com/extension/provider-sign-up?state=746573742d72616e646f6d2d6279746573&auth_redirect=vscode%3A%2F%2FRooVeterinaryInc.crc"
+				"https://api.test.com/extension/provider-sign-up?state=746573742d72616e646f6d2d6279746573&auth_redirect=vscode%3A%2F%2Fallquixotic.crc"
 			expect(mockOpenExternal).toHaveBeenCalledWith(
 				expect.objectContaining({
 					toString: expect.any(Function),

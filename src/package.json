@@ -2,8 +2,8 @@
 	"name": "crc",
 	"displayName": "%extension.displayName%",
 	"description": "%extension.description%",
-	"publisher": "RooVeterinaryInc",
-	"version": "3.52.0",
+	"publisher": "allquixotic",
+	"version": "3.52.1",
 	"icon": "assets/icons/icon.png",
 	"galleryBanner": {
 		"color": "#617A91",
@@ -14,13 +14,13 @@
 		"node": "20.19.2"
 	},
 	"author": {
-		"name": "CRC"
+		"name": "allquixotic"
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/RooCodeInc/Roo-Code"
+		"url": "https://github.com/allquixotic/Cmon-Roo-Code"
 	},
-	"homepage": "https://roocode.com",
+	"homepage": "https://github.com/allquixotic/Cmon-Roo-Code",
 	"categories": [
 		"AI",
 		"Chat",

@@ -279,10 +279,15 @@ export function createVSCodeAPIMock(
 		extensions: {
 			all: [],
 			getExtension: (extensionId: string) => {
-				// Mock the active extension metadata, while still accepting the
-				// previous extension id during the rename transition.
-				const currentExtensionId = context.extension?.id ?? "RooVeterinaryInc.crc"
-				if (extensionId === currentExtensionId || extensionId === "RooVeterinaryInc.roo-cline") {
+				// Mock the active extension metadata, while still accepting legacy
+				// extension ids during the fork/publisher transition.
+				const currentExtensionId = context.extension?.id ?? "allquixotic.crc"
+				const acceptedExtensionIds = new Set([
+					currentExtensionId,
+					"RooVeterinaryInc.crc",
+					"RooVeterinaryInc.roo-cline",
+				])
+				if (acceptedExtensionIds.has(extensionId)) {
 					return {
 						id: extensionId,
 						extensionUri: context.extensionUri,
