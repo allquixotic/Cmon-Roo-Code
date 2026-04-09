@@ -1,0 +1,94 @@
+name: CRC VSIX Release
+
+on:
+    push:
+        branches: [allquixotic]
+    workflow_dispatch:
+
+concurrency:
+    group: crc-vsix-release-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    build-vsix-release:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Node.js and pnpm
+              uses: ./.github/actions/setup-node-pnpm
+              with:
+                  install-args: "--frozen-lockfile"
+
+            - name: Package Extension
+              id: package
+              run: |
+                  package_name=$(node -p "require('./src/package.json').name")
+                  current_package_version=$(node -p "require('./src/package.json').version")
+                  rm -f bin/*.vsix
+
+                  pnpm vsix
+
+                  vsix_path="bin/${package_name}-${current_package_version}.vsix"
+                  if [ ! -f "$vsix_path" ]; then
+                    echo "Expected VSIX package was not produced: $vsix_path"
+                    exit 1
+                  fi
+
+                  unzip -l "$vsix_path" > /tmp/crc-vsix-contents.txt
+
+                  grep -q "extension/package.json" /tmp/crc-vsix-contents.txt || exit 1
+                  grep -q "extension/package.nls.json" /tmp/crc-vsix-contents.txt || exit 1
+                  grep -q "extension/dist/extension.js" /tmp/crc-vsix-contents.txt || exit 1
+                  grep -q "extension/webview-ui/audio/celebration.wav" /tmp/crc-vsix-contents.txt || exit 1
+                  grep -q "extension/webview-ui/build/assets/index.js" /tmp/crc-vsix-contents.txt || exit 1
+                  grep -q "extension/assets/codicons/codicon.ttf" /tmp/crc-vsix-contents.txt || exit 1
+                  grep -q "extension/assets/vscode-material-icons/icons/3d.svg" /tmp/crc-vsix-contents.txt || exit 1
+
+                  rm /tmp/crc-vsix-contents.txt
+
+                  echo "version=${current_package_version}" >> "$GITHUB_OUTPUT"
+                  echo "vsix_name=$(basename "$vsix_path")" >> "$GITHUB_OUTPUT"
+                  echo "vsix_path=${vsix_path}" >> "$GITHUB_OUTPUT"
+
+            - name: Upload VSIX artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: crc-vsix-${{ steps.package.outputs.version }}
+                  path: ${{ steps.package.outputs.vsix_path }}
+                  if-no-files-found: error
+
+            - name: Refresh GitHub prerelease
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  PACKAGE_VERSION: ${{ steps.package.outputs.version }}
+                  RELEASE_TAG: crc-allquixotic-latest
+                  RELEASE_TITLE: CRC allquixotic latest
+                  VSIX_PATH: ${{ steps.package.outputs.vsix_path }}
+              run: |
+                  notes_file=$(mktemp)
+
+                  cat > "$notes_file" <<EOF
+                  Automated downloadable VSIX build for the allquixotic branch.
+
+                  Extension version: ${PACKAGE_VERSION}
+                  Commit: ${GITHUB_SHA}
+                  Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+                  EOF
+
+                  if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+                    gh release delete "$RELEASE_TAG" --yes --cleanup-tag
+                  fi
+
+                  gh release create "$RELEASE_TAG" \
+                    "$VSIX_PATH" \
+                    --target "$GITHUB_SHA" \
+                    --title "$RELEASE_TITLE" \
+                    --prerelease \
+                    --notes-file "$notes_file"
