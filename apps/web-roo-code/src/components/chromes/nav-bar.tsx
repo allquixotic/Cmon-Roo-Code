@@ -1,5 +1,3 @@
-/* eslint-disable react/jsx-no-target-blank */
-
 "use client"
 
 import Link from "next/link"

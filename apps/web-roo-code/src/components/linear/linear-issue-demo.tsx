@@ -1,6 +1,6 @@
 "use client"
 
-import type { ReactNode } from "react"
+import type { JSX, ReactNode } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ChevronRight, GitPullRequest, Paperclip, Send } from "lucide-react"
 

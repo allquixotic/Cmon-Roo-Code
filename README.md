@@ -51,11 +51,11 @@ bun allquixotic/build.js install --portable-data-dir=/path/to/code-portable-data
 
 Built VSIX artifacts are copied to `allquixotic/build/artifacts/`. After `install` or `build-install`, restart VS Code to load the updated extension.
 
-## What's New in v3.51.0
+## What's New in v3.52.0
 
-- Add support for OpenAI GPT-5.4 and GPT-5.3 Chat Latest so you can use the newest OpenAI chat models in CRC.
-- Expose skills as slash commands with fallback execution to make reusable workflows faster to trigger.
-- Default prompt caching to on where supported, and warn clearly when it is turned off on a cache-capable model.
+- Add Poe as an AI provider so you can access Poe models directly in CRC.
+- Improve the xAI provider with a Responses API migration, reusable transform utilities, and updated Grok-4.20 defaults.
+- Fix MiniMax model listings and context window handling for more reliable setup.
 
 <details>
   <summary>🌐 Available languages</summary>

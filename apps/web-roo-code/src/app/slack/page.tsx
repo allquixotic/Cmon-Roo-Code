@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { Metadata } from "next"
+import type { JSX } from "react"
 
 import { AnimatedBackground } from "@/components/homepage"
 import { SlackThreadDemo } from "@/components/slack/slack-thread-demo"

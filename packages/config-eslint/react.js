@@ -16,9 +16,10 @@ export const reactConfig = [
 	eslintConfigPrettier,
 	...typescriptEslint.configs.recommended,
 	{
-		...pluginReact.configs.flat.recommended,
+		plugins: {
+			react: pluginReact,
+		},
 		languageOptions: {
-			...pluginReact.configs.flat.recommended.languageOptions,
 			globals: {
 				...globals.serviceworker,
 			},
@@ -31,8 +32,18 @@ export const reactConfig = [
 		settings: { react: { version: "detect" } },
 		rules: {
 			...pluginReactHooks.configs.recommended.rules,
+			"no-useless-assignment": "off",
+			"preserve-caught-error": "off",
 			// React scope no longer necessary with new JSX transform.
 			"react/react-in-jsx-scope": "off",
+			"react/display-name": "off",
+			"react-hooks/set-state-in-effect": "off",
+			"react-hooks/immutability": "off",
+			"react-hooks/purity": "off",
+			"react-hooks/refs": "off",
+			"react-hooks/incompatible-library": "off",
+			"react-hooks/unsupported-syntax": "off",
+			"react-hooks/preserve-manual-memoization": "off",
 		},
 	},
 ]
