@@ -239,7 +239,7 @@ const WelcomeViewProvider = () => {
 												ref={manualUrlInputRef as any}
 												value={manualUrl}
 												onKeyUp={handleManualUrlChange}
-												placeholder="vscode://RooVeterinaryInc.roo-cline/auth/clerk/callback?state=..."
+												placeholder="vscode://RooVeterinaryInc.crc/auth/clerk/callback?state=..."
 												className="flex-1"
 											/>
 											<Button
@@ -352,9 +352,7 @@ const WelcomeViewProvider = () => {
 								</p>
 								<p className="text-base text-vscode-descriptionForeground mt-0">
 									{t("welcome:providerSignup.rooCloudDescription")}{" "}
-									<VSCodeLink
-										href="https://roocode.com/provider/pricing"
-										className="cursor-pointer">
+									<VSCodeLink href="https://roocode.com/provider/pricing" className="cursor-pointer">
 										{t("welcome:providerSignup.learnMore")}
 									</VSCodeLink>
 								</p>

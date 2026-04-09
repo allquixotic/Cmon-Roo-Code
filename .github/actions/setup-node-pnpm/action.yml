@@ -8,9 +8,9 @@ inputs:
         required: false
         default: "20.19.2"
     pnpm-version:
-        description: "pnpm version to use"
+        description: "Optional pnpm version to use; defaults to the repo packageManager field"
         required: false
-        default: "10.8.1"
+        default: ""
     skip-install:
         description: "Skip dependency installation"
         required: false
@@ -23,7 +23,11 @@ inputs:
 runs:
     using: "composite"
     steps:
-        - name: Install pnpm
+        - name: Install pnpm from packageManager
+          if: ${{ inputs.pnpm-version == '' }}
+          uses: pnpm/action-setup@v4
+        - name: Install pnpm from explicit version
+          if: ${{ inputs.pnpm-version != '' }}
           uses: pnpm/action-setup@v4
           with:
               version: ${{ inputs.pnpm-version }}

@@ -156,8 +156,20 @@ export async function copyConversationHistory({
 	iteration: number
 	logger: Logger
 }): Promise<void> {
-	// VS Code extension global storage path within the container
-	const extensionStoragePath = "/roo/.vscode/User/globalStorage/rooveterinaryinc.roo-cline"
+	// Prefer the current CRC extension id, but keep compatibility with prior runs.
+	const extensionStoragePathCandidates = [
+		"/roo/.vscode/User/globalStorage/rooveterinaryinc.crc",
+		"/roo/.vscode/User/globalStorage/rooveterinaryinc.roo-cline",
+	] as const
+	let extensionStoragePath: string = extensionStoragePathCandidates[0]
+
+	for (const candidate of extensionStoragePathCandidates) {
+		if (fs.existsSync(candidate)) {
+			extensionStoragePath = candidate
+			break
+		}
+	}
+
 	const taskStoragePath = path.join(extensionStoragePath, "tasks", rooTaskId)
 
 	const filesToCopy = ["api_conversation_history.json", "ui_messages.json"]

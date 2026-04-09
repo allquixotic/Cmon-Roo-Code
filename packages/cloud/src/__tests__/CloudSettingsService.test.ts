@@ -75,7 +75,9 @@ describe("CloudSettingsService", () => {
 		mockLog = vi.fn() as ReturnType<typeof vi.fn> & ((...args: unknown[]) => void)
 
 		// Mock RefreshTimer constructor
-		vi.mocked(RefreshTimer).mockImplementation(() => mockRefreshTimer as unknown as RefreshTimer)
+		vi.mocked(RefreshTimer).mockImplementation(function MockRefreshTimer() {
+			return mockRefreshTimer as unknown as RefreshTimer
+		})
 
 		cloudSettingsService = new CloudSettingsService(mockContext, mockAuthService as unknown as AuthService, mockLog)
 	})

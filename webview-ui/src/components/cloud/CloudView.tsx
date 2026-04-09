@@ -189,7 +189,6 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, organization
 							</div>
 						</div>
 
-
 						<div className="flex flex-col gap-2 mt-4 pl-4">
 							<Button variant="secondary" onClick={handleVisitCloudWebsite} className="w-full max-w-80">
 								{t("cloud:visitCloudWebsite")}
@@ -240,7 +239,7 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, organization
 										value={manualUrl}
 										onChange={handleManualUrlChange}
 										onKeyDown={handleKeyDown}
-										placeholder="vscode://RooVeterinaryInc.roo-cline/auth/clerk/callback?state=..."
+										placeholder="vscode://RooVeterinaryInc.crc/auth/clerk/callback?state=..."
 										className="w-full"
 									/>
 									<p className="mt-1">

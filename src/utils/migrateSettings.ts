@@ -17,6 +17,8 @@ export async function migrateSettings(
 	context: vscode.ExtensionContext,
 	outputChannel: vscode.OutputChannel,
 ): Promise<void> {
+	await migrateConfigurationNamespace(context, outputChannel)
+
 	// First, migrate commands from old defaults (security fix)
 	await migrateDefaultCommands(context, outputChannel)
 	// Legacy file names that need to be migrated to the new names in GlobalFileNames
@@ -63,6 +65,105 @@ export async function migrateSettings(
 		}
 	} catch (error) {
 		outputChannel.appendLine(`Error migrating settings files: ${error}`)
+	}
+}
+
+async function migrateConfigurationNamespace(
+	context: vscode.ExtensionContext,
+	outputChannel: vscode.OutputChannel,
+): Promise<void> {
+	const globalState = context.globalState
+	if (!globalState?.get || !globalState?.update) {
+		outputChannel.appendLine("[Configuration Migration] Global state unavailable, skipping")
+		return
+	}
+
+	let workspace: typeof vscode.workspace | undefined
+
+	try {
+		workspace = vscode.workspace
+	} catch {
+		outputChannel.appendLine("[Configuration Migration] Workspace configuration unavailable, skipping")
+		return
+	}
+
+	if (!workspace?.getConfiguration) {
+		outputChannel.appendLine("[Configuration Migration] Workspace configuration unavailable, skipping")
+		return
+	}
+
+	const migrationKey = "crcConfigurationNamespaceMigrationCompleted"
+	if (globalState.get(migrationKey)) {
+		outputChannel.appendLine("[Configuration Migration] Namespace migration already completed, skipping")
+		return
+	}
+
+	const oldConfig = workspace.getConfiguration("roo-cline")
+	const newConfig = workspace.getConfiguration("crc")
+	const keys = [
+		"allowedCommands",
+		"deniedCommands",
+		"commandExecutionTimeout",
+		"commandTimeoutAllowlist",
+		"preventCompletionWithOpenTodos",
+		"vsCodeLmModelSelector",
+		"customStoragePath",
+		"enableCodeActions",
+		"autoImportSettingsPath",
+		"maximumIndexedFilesForFileSearch",
+		"useAgentRules",
+		"apiRequestTimeout",
+		"newTaskRequireTodos",
+		"codeIndex.embeddingBatchSize",
+		"debug",
+		"debugProxy.enabled",
+		"debugProxy.serverUrl",
+		"debugProxy.tlsInsecure",
+	] as const
+
+	try {
+		let migratedCount = 0
+
+		for (const key of keys) {
+			const oldInspection = oldConfig.inspect(key)
+			const newInspection = newConfig.inspect(key)
+
+			if (oldInspection?.globalValue !== undefined && newInspection?.globalValue === undefined) {
+				await newConfig.update(key, oldInspection.globalValue, vscode.ConfigurationTarget.Global)
+				migratedCount++
+			}
+
+			if (oldInspection?.workspaceValue !== undefined && newInspection?.workspaceValue === undefined) {
+				await newConfig.update(key, oldInspection.workspaceValue, vscode.ConfigurationTarget.Workspace)
+				migratedCount++
+			}
+
+			for (const folder of workspace.workspaceFolders ?? []) {
+				const oldFolderConfig = workspace.getConfiguration("roo-cline", folder)
+				const newFolderConfig = workspace.getConfiguration("crc", folder)
+				const oldFolderInspection = oldFolderConfig.inspect(key)
+				const newFolderInspection = newFolderConfig.inspect(key)
+
+				if (
+					oldFolderInspection?.workspaceFolderValue !== undefined &&
+					newFolderInspection?.workspaceFolderValue === undefined
+				) {
+					await newFolderConfig.update(
+						key,
+						oldFolderInspection.workspaceFolderValue,
+						vscode.ConfigurationTarget.WorkspaceFolder,
+					)
+					migratedCount++
+				}
+			}
+		}
+
+		await globalState.update(migrationKey, true)
+		outputChannel.appendLine(
+			`[Configuration Migration] Namespace migration completed${migratedCount > 0 ? ` (${migratedCount} value(s) copied)` : ""}`,
+		)
+	} catch (error) {
+		outputChannel.appendLine(`[Configuration Migration] Error migrating configuration namespace: ${error}`)
 	}
 }
 

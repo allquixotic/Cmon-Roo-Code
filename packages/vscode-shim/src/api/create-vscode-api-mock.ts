@@ -279,14 +279,16 @@ export function createVSCodeAPIMock(
 		extensions: {
 			all: [],
 			getExtension: (extensionId: string) => {
-				// Mock the extension object with extensionUri for theme loading
-				if (extensionId === "RooVeterinaryInc.roo-cline") {
+				// Mock the active extension metadata, while still accepting the
+				// previous extension id during the rename transition.
+				const currentExtensionId = context.extension?.id ?? "RooVeterinaryInc.crc"
+				if (extensionId === currentExtensionId || extensionId === "RooVeterinaryInc.roo-cline") {
 					return {
 						id: extensionId,
 						extensionUri: context.extensionUri,
 						extensionPath: context.extensionPath,
 						isActive: true,
-						packageJSON: {},
+						packageJSON: context.extension?.packageJSON ?? {},
 						exports: undefined,
 						activate: () => Promise.resolve(),
 					}

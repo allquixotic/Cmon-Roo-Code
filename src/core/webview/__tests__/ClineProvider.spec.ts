@@ -1,4 +1,4 @@
-// pnpm --filter roo-cline test core/webview/__tests__/ClineProvider.spec.ts
+// pnpm --filter crc test core/webview/__tests__/ClineProvider.spec.ts
 
 import Anthropic from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
@@ -497,7 +497,7 @@ describe("ClineProvider", () => {
 		})
 
 		expect(mockWebviewView.webview.html).toContain("<!DOCTYPE html>")
-		expect(vscode.commands.executeCommand).toHaveBeenCalledWith("roo-cline.openInNewTab")
+		expect(vscode.commands.executeCommand).toHaveBeenCalledWith("crc.openInNewTab")
 	})
 
 	test("resolveWebviewView sets up webview correctly in development mode even if local server is not running", async () => {

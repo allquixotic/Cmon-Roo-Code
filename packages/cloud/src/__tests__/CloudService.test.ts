@@ -146,13 +146,21 @@ describe("CloudService", () => {
 			backfillTaskMessages: vi.fn().mockResolvedValue(undefined),
 		}
 
-		vi.mocked(WebAuthService).mockImplementation(() => mockAuthService as unknown as WebAuthService)
+		vi.mocked(WebAuthService).mockImplementation(function MockWebAuthService() {
+			return mockAuthService as unknown as WebAuthService
+		})
 
-		vi.mocked(CloudSettingsService).mockImplementation(() => mockSettingsService as unknown as CloudSettingsService)
+		vi.mocked(CloudSettingsService).mockImplementation(function MockCloudSettingsService() {
+			return mockSettingsService as unknown as CloudSettingsService
+		})
 
-		vi.mocked(CloudShareService).mockImplementation(() => mockShareService as unknown as CloudShareService)
+		vi.mocked(CloudShareService).mockImplementation(function MockCloudShareService() {
+			return mockShareService as unknown as CloudShareService
+		})
 
-		vi.mocked(TaskSyncClient).mockImplementation(() => mockTaskSyncClient as unknown as TaskSyncClient)
+		vi.mocked(TaskSyncClient).mockImplementation(function MockTaskSyncClient() {
+			return mockTaskSyncClient as unknown as TaskSyncClient
+		})
 	})
 
 	afterEach(() => {
@@ -405,7 +413,9 @@ describe("CloudService", () => {
 			})
 
 			// Override the mock to return our properly typed instance
-			vi.mocked(CloudSettingsService).mockImplementation(() => mockCloudSettingsService)
+			vi.mocked(CloudSettingsService).mockImplementation(function MockCloudSettingsService() {
+				return mockCloudSettingsService
+			})
 
 			const cloudService = await CloudService.createInstance(mockContext)
 
@@ -438,9 +448,9 @@ describe("CloudService", () => {
 			}
 
 			// Override the mock to return a service that won't pass instanceof check
-			vi.mocked(CloudSettingsService).mockImplementation(
-				() => mockStaticSettingsService as unknown as CloudSettingsService,
-			)
+			vi.mocked(CloudSettingsService).mockImplementation(function MockStaticSettingsService() {
+				return mockStaticSettingsService as unknown as CloudSettingsService
+			})
 
 			// This should not throw even though the service doesn't pass instanceof check
 			const _cloudService = await CloudService.createInstance(mockContext)

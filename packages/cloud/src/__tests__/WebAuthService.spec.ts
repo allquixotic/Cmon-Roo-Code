@@ -85,7 +85,7 @@ describe("WebAuthService", () => {
 				packageJSON: {
 					version: "1.0.0",
 					publisher: "RooVeterinaryInc",
-					name: "roo-cline",
+					name: "crc",
 				},
 			},
 		}
@@ -97,7 +97,9 @@ describe("WebAuthService", () => {
 			reset: vi.fn(),
 		}
 		const MockedRefreshTimer = vi.mocked(RefreshTimer)
-		MockedRefreshTimer.mockImplementation(() => mockTimer as unknown as RefreshTimer)
+		MockedRefreshTimer.mockImplementation(function MockRefreshTimer() {
+			return mockTimer as unknown as RefreshTimer
+		})
 
 		// Setup config mocks - use production URL by default to maintain existing test behavior
 		vi.mocked(getClerkBaseUrl).mockReturnValue("https://clerk.roocode.com")
@@ -269,7 +271,7 @@ describe("WebAuthService", () => {
 			await authService.login()
 
 			const expectedUrl =
-				"https://api.test.com/extension/sign-in?state=746573742d72616e646f6d2d6279746573&auth_redirect=vscode%3A%2F%2FRooVeterinaryInc.roo-cline"
+				"https://api.test.com/extension/sign-in?state=746573742d72616e646f6d2d6279746573&auth_redirect=vscode%3A%2F%2FRooVeterinaryInc.crc"
 			expect(mockOpenExternal).toHaveBeenCalledWith(
 				expect.objectContaining({
 					toString: expect.any(Function),
@@ -289,7 +291,7 @@ describe("WebAuthService", () => {
 			await authService.login(undefined, true)
 
 			const expectedUrl =
-				"https://api.test.com/extension/provider-sign-up?state=746573742d72616e646f6d2d6279746573&auth_redirect=vscode%3A%2F%2FRooVeterinaryInc.roo-cline"
+				"https://api.test.com/extension/provider-sign-up?state=746573742d72616e646f6d2d6279746573&auth_redirect=vscode%3A%2F%2FRooVeterinaryInc.crc"
 			expect(mockOpenExternal).toHaveBeenCalledWith(
 				expect.objectContaining({
 					toString: expect.any(Function),
