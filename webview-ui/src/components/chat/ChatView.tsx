@@ -35,7 +35,7 @@ import { StandardTooltip, Button } from "@src/components/ui"
 import { CloudUpsellDialog } from "@src/components/cloud/CloudUpsellDialog"
 
 import HistoryPreview from "../history/HistoryPreview"
-import ActiveConversationList from "./ActiveConversationList"
+import ActiveConversationList, { type ConversationListItem } from "./ActiveConversationList"
 import ChatRow from "./ChatRow"
 import WarningRow from "./WarningRow"
 import { ChatTextArea } from "./ChatTextArea"
@@ -61,6 +61,12 @@ export interface ChatViewRef {
 export const MAX_IMAGES_PER_MESSAGE = 20 // This is the Anthropic limit.
 
 const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0
+
+interface DraftConversation {
+	id: string
+	ts: number
+	title: string
+}
 
 const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewProps> = ({ isHidden }, ref) => {
 	const [audioBaseUri] = useState(() => {
@@ -90,8 +96,67 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		showWorktreesInHomeScreen,
 		currentAskDecision,
 	} = useExtensionState()
+	const [draftConversations, setDraftConversations] = useState<DraftConversation[]>([])
+	const [selectedDraftId, setSelectedDraftId] = useState<string | undefined>(undefined)
 
-	const hasActiveConversations = activeConversations.length > 0
+	const visibleConversationIds = useMemo(
+		() =>
+			new Set(
+				activeConversations.flatMap((conversation) => [conversation.rootTaskId, conversation.activeTaskId]),
+			),
+		[activeConversations],
+	)
+
+	useEffect(() => {
+		setDraftConversations((prev) => {
+			const next = prev.filter((draft) => !visibleConversationIds.has(draft.id))
+			return next.length === prev.length ? prev : next
+		})
+
+		if (selectedDraftId && visibleConversationIds.has(selectedDraftId)) {
+			setSelectedDraftId(undefined)
+		}
+	}, [selectedDraftId, visibleConversationIds])
+
+	const selectedConversationId = currentTaskId ?? selectedDraftId
+
+	const conversations = useMemo<ConversationListItem[]>(() => {
+		const draftItems = draftConversations
+			.filter((draft) => !visibleConversationIds.has(draft.id))
+			.map(
+				(draft) =>
+					({
+						kind: "draft",
+						rootTaskId: draft.id,
+						activeTaskId: draft.id,
+						rootTask: draft.title,
+						activeTask: draft.title,
+						ts: draft.ts,
+						status: "none",
+						queuedMessageCount: 0,
+					}) satisfies ConversationListItem,
+			)
+
+		const taskItems = activeConversations.map(
+			(conversation) =>
+				({
+					...conversation,
+					kind: "task",
+				}) satisfies ConversationListItem,
+		)
+
+		return [...draftItems, ...taskItems].sort((a, b) => {
+			if (a.activeTaskId === selectedConversationId) {
+				return -1
+			}
+			if (b.activeTaskId === selectedConversationId) {
+				return 1
+			}
+			return b.ts - a.ts
+		})
+	}, [activeConversations, draftConversations, selectedConversationId, visibleConversationIds])
+
+	const hasConversationSidebar = conversations.length > 0
 
 	// Show a WarningRow when the user sends a message with a retired provider.
 	const [showRetiredProviderWarning, setShowRetiredProviderWarning] = useState(false)
@@ -649,7 +714,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				userRespondedRef.current = true
 
 				if (messagesRef.current.length === 0) {
-					vscode.postMessage({ type: "newTask", text, images })
+					vscode.postMessage({ type: "newTask", taskId: selectedDraftId, text, images })
 				} else if (clineAskRef.current) {
 					if (clineAskRef.current === "followup") {
 						markFollowUpAsAnswered()
@@ -692,6 +757,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			messageQueue.length,
 			apiConfiguration?.apiProvider,
 			submissionDisabled,
+			selectedDraftId,
 		], // messagesRef and clineAskRef are stable
 	)
 
@@ -711,8 +777,47 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	)
 
 	const startNewTask = useCallback(() => {
+		const draftId = `draft-${typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Date.now().toString(36)}`
 		setShowRetiredProviderWarning(false)
+		setInputValue("")
+		setSelectedImages([])
+		setSelectedDraftId(draftId)
+		setDraftConversations((prev) => [{ id: draftId, ts: Date.now(), title: "New conversation" }, ...prev])
 		vscode.postMessage({ type: "clearTask" })
+	}, [])
+
+	const handleSelectConversation = useCallback(
+		(conversation: ConversationListItem) => {
+			if (conversation.kind === "draft") {
+				setSelectedDraftId(conversation.activeTaskId)
+				if (currentTaskId) {
+					vscode.postMessage({ type: "clearTask" })
+				}
+				return
+			}
+
+			setSelectedDraftId(undefined)
+			vscode.postMessage({ type: "showTaskWithId", text: conversation.activeTaskId })
+		},
+		[currentTaskId],
+	)
+
+	const handleDeleteConversation = useCallback((conversation: ConversationListItem) => {
+		if (conversation.kind === "draft") {
+			setDraftConversations((prev) => prev.filter((draft) => draft.id !== conversation.activeTaskId))
+			setSelectedDraftId((prev) => (prev === conversation.activeTaskId ? undefined : prev))
+			return
+		}
+
+		vscode.postMessage({ type: "deleteTaskWithId", text: conversation.rootTaskId })
+	}, [])
+
+	const handleArchiveConversation = useCallback((conversation: ConversationListItem) => {
+		if (conversation.kind !== "task") {
+			return
+		}
+
+		vscode.postMessage({ type: "archiveTaskWithId", text: conversation.rootTaskId })
 	}, [])
 
 	// Handle stop button click from textarea
@@ -1547,240 +1652,270 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			data-testid="chat-view"
 			className={isHidden ? "hidden" : "fixed top-0 left-0 right-0 bottom-0 flex flex-col overflow-hidden"}>
 			<div className="flex min-h-0 flex-1 overflow-hidden">
-				{hasActiveConversations && (
-					<ActiveConversationList conversations={activeConversations} currentTaskId={currentTaskId} />
+				{hasConversationSidebar && (
+					<ActiveConversationList
+						conversations={conversations}
+						selectedConversationId={selectedConversationId}
+						onCreateConversation={startNewTask}
+						onSelectConversation={handleSelectConversation}
+						onDeleteConversation={handleDeleteConversation}
+						onArchiveConversation={handleArchiveConversation}
+					/>
 				)}
 				<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-			{task ? (
-				<>
-					<TaskHeader
-						task={task}
-						tokensIn={apiMetrics.totalTokensIn}
-						tokensOut={apiMetrics.totalTokensOut}
-						cacheWrites={apiMetrics.totalCacheWrites}
-						cacheReads={apiMetrics.totalCacheReads}
-						totalCost={apiMetrics.totalCost}
-						aggregatedCost={
-							currentTaskItem?.id && aggregatedCostsMap.has(currentTaskItem.id)
-								? aggregatedCostsMap.get(currentTaskItem.id)!.totalCost
-								: undefined
-						}
-						hasSubtasks={
-							!!(
-								currentTaskItem?.id &&
-								aggregatedCostsMap.has(currentTaskItem.id) &&
-								aggregatedCostsMap.get(currentTaskItem.id)!.childrenCost > 0
-							)
-						}
-						parentTaskId={currentTaskItem?.parentTaskId}
-						costBreakdown={
-							currentTaskItem?.id && aggregatedCostsMap.has(currentTaskItem.id)
-								? getCostBreakdownIfNeeded(aggregatedCostsMap.get(currentTaskItem.id)!, {
-										own: t("common:costs.own"),
-										subtasks: t("common:costs.subtasks"),
-									})
-								: undefined
-						}
-						contextTokens={apiMetrics.contextTokens}
-						buttonsDisabled={sendingDisabled}
-						handleCondenseContext={handleCondenseContext}
-						todos={latestTodos}
-					/>
+					{task ? (
+						<>
+							<TaskHeader
+								task={task}
+								tokensIn={apiMetrics.totalTokensIn}
+								tokensOut={apiMetrics.totalTokensOut}
+								cacheWrites={apiMetrics.totalCacheWrites}
+								cacheReads={apiMetrics.totalCacheReads}
+								totalCost={apiMetrics.totalCost}
+								aggregatedCost={
+									currentTaskItem?.id && aggregatedCostsMap.has(currentTaskItem.id)
+										? aggregatedCostsMap.get(currentTaskItem.id)!.totalCost
+										: undefined
+								}
+								hasSubtasks={
+									!!(
+										currentTaskItem?.id &&
+										aggregatedCostsMap.has(currentTaskItem.id) &&
+										aggregatedCostsMap.get(currentTaskItem.id)!.childrenCost > 0
+									)
+								}
+								parentTaskId={currentTaskItem?.parentTaskId}
+								costBreakdown={
+									currentTaskItem?.id && aggregatedCostsMap.has(currentTaskItem.id)
+										? getCostBreakdownIfNeeded(aggregatedCostsMap.get(currentTaskItem.id)!, {
+												own: t("common:costs.own"),
+												subtasks: t("common:costs.subtasks"),
+											})
+										: undefined
+								}
+								contextTokens={apiMetrics.contextTokens}
+								buttonsDisabled={sendingDisabled}
+								handleCondenseContext={handleCondenseContext}
+								todos={latestTodos}
+							/>
 
-					{checkpointWarning && (
-						<div className="px-3">
-							<CheckpointWarning warning={checkpointWarning} />
+							{checkpointWarning && (
+								<div className="px-3">
+									<CheckpointWarning warning={checkpointWarning} />
+								</div>
+							)}
+						</>
+					) : (
+						<div className="flex flex-col h-full justify-center p-6 min-h-0 overflow-y-auto gap-4 relative">
+							<div className="flex flex-col items-start gap-2 justify-center h-full min-[400px]:px-6">
+								<div className="flex flex-col gap-4 w-full">
+									<RooHero />
+									{/* Show RooTips when authenticated or when user is new */}
+									{taskHistory.length < 6 && <RooTips />}
+									{/* Everyone should see their task history if any */}
+									{taskHistory.length > 0 && <HistoryPreview />}
+								</div>
+								{/* Logged out users should see a one-time upsell, but not for brand new users */}
+								{!cloudIsAuthenticated && taskHistory.length >= 6 && (
+									<DismissibleUpsell
+										upsellId="taskList2"
+										icon={<Cloud className="size-5 shrink-0" />}
+										onClick={() => openUpsell()}
+										dismissOnClick={false}
+										className="bg-none mt-6 border-border rounded-xl p-3 !text-base">
+										<Trans
+											i18nKey="cloud:upsell.taskList"
+											components={{
+												learnMoreLink: <VSCodeLink href="#" />,
+											}}
+										/>
+									</DismissibleUpsell>
+								)}
+							</div>
 						</div>
 					)}
-				</>
-			) : (
-				<div className="flex flex-col h-full justify-center p-6 min-h-0 overflow-y-auto gap-4 relative">
-					<div className="flex flex-col items-start gap-2 justify-center h-full min-[400px]:px-6">
-						<div className="flex flex-col gap-4 w-full">
-							<RooHero />
-							{/* Show RooTips when authenticated or when user is new */}
-							{taskHistory.length < 6 && <RooTips />}
-							{/* Everyone should see their task history if any */}
-							{taskHistory.length > 0 && <HistoryPreview />}
-						</div>
-						{/* Logged out users should see a one-time upsell, but not for brand new users */}
-						{!cloudIsAuthenticated && taskHistory.length >= 6 && (
-							<DismissibleUpsell
-								upsellId="taskList2"
-								icon={<Cloud className="size-5 shrink-0" />}
-								onClick={() => openUpsell()}
-								dismissOnClick={false}
-								className="bg-none mt-6 border-border rounded-xl p-3 !text-base">
-								<Trans
-									i18nKey="cloud:upsell.taskList"
-									components={{
-										learnMoreLink: <VSCodeLink href="#" />,
-									}}
+
+					{!task && showWorktreesInHomeScreen && <WorktreeSelector />}
+
+					{task && (
+						<>
+							<div className="grow flex" ref={scrollContainerRef}>
+								<Virtuoso
+									ref={virtuosoRef}
+									key={task.ts}
+									className="scrollable grow overflow-y-scroll mb-1"
+									increaseViewportBy={{ top: 3_000, bottom: 1000 }}
+									data={groupedMessages}
+									itemContent={itemContent}
+									followOutput={followOutputCallback}
+									atBottomStateChange={atBottomStateChangeCallback}
+									atBottomThreshold={10}
 								/>
-							</DismissibleUpsell>
-						)}
-					</div>
-				</div>
-			)}
-
-			{!task && showWorktreesInHomeScreen && <WorktreeSelector />}
-
-			{task && (
-				<>
-					<div className="grow flex" ref={scrollContainerRef}>
-						<Virtuoso
-							ref={virtuosoRef}
-							key={task.ts}
-							className="scrollable grow overflow-y-scroll mb-1"
-							increaseViewportBy={{ top: 3_000, bottom: 1000 }}
-							data={groupedMessages}
-							itemContent={itemContent}
-							followOutput={followOutputCallback}
-							atBottomStateChange={atBottomStateChangeCallback}
-							atBottomThreshold={10}
-						/>
-					</div>
-					<FileChangesPanel clineMessages={messages} />
-					{areButtonsVisible && (
-						<div
-							className={`flex h-9 items-center mb-1 px-[15px] ${
-								showScrollToBottom ? "opacity-100" : enableButtons ? "opacity-100" : "opacity-50"
-							}`}>
-							{showScrollToBottom ? (
-								<StandardTooltip content={t("chat:scrollToBottom")}>
-									<Button
-										variant="secondary"
-										className="flex-[2]"
-										onClick={handleScrollToBottomClick}>
-										<span className="codicon codicon-chevron-down"></span>
-									</Button>
-								</StandardTooltip>
-							) : (
-								<>
-									{displayedPrimaryButtonText && (
-										<StandardTooltip
-											content={
-												displayedPrimaryButtonText === t("chat:retry.title")
-													? t("chat:retry.tooltip")
-													: displayedPrimaryButtonText === t("chat:save.title")
-														? t("chat:save.tooltip")
-														: displayedPrimaryButtonText === t("chat:approve.title")
-															? t("chat:approve.tooltip")
-															: displayedPrimaryButtonText === t("chat:runCommand.title")
-																? t("chat:runCommand.tooltip")
-																: displayedPrimaryButtonText === t("chat:startNewTask.title")
-																	? t("chat:startNewTask.tooltip")
-																	: displayedPrimaryButtonText === t("chat:resumeTask.title")
-																		? t("chat:resumeTask.tooltip")
-																		: displayedPrimaryButtonText ===
-																			  t("chat:proceedAnyways.title")
-																			? t("chat:proceedAnyways.tooltip")
-																			: displayedPrimaryButtonText ===
-																				  t("chat:proceedWhileRunning.title")
-																				? t("chat:proceedWhileRunning.tooltip")
-																				: undefined
-											}>
-											<Button
-												variant="primary"
-												disabled={!enableButtons}
-												className={
-													displayedSecondaryButtonText ? "flex-1 mr-[6px]" : "flex-[2] mr-0"
-												}
-												onClick={() => handlePrimaryButtonClick(inputValue, selectedImages)}>
-												{displayedPrimaryButtonText}
-											</Button>
-										</StandardTooltip>
-									)}
-									{displayedSecondaryButtonText && (
-										<StandardTooltip
-											content={
-												displayedSecondaryButtonText === t("chat:startNewTask.title")
-													? t("chat:startNewTask.tooltip")
-													: displayedSecondaryButtonText === t("chat:reject.title")
-														? t("chat:reject.tooltip")
-														: displayedSecondaryButtonText === t("chat:terminate.title")
-															? t("chat:terminate.tooltip")
-															: displayedSecondaryButtonText === t("chat:killCommand.title")
-																? t("chat:killCommand.tooltip")
-																: undefined
-											}>
+							</div>
+							<FileChangesPanel clineMessages={messages} />
+							{areButtonsVisible && (
+								<div
+									className={`flex h-9 items-center mb-1 px-[15px] ${
+										showScrollToBottom
+											? "opacity-100"
+											: enableButtons
+												? "opacity-100"
+												: "opacity-50"
+									}`}>
+									{showScrollToBottom ? (
+										<StandardTooltip content={t("chat:scrollToBottom")}>
 											<Button
 												variant="secondary"
-												disabled={!enableButtons}
-												className="flex-1 ml-[6px]"
-												onClick={() => handleSecondaryButtonClick(inputValue, selectedImages)}>
-												{displayedSecondaryButtonText}
+												className="flex-[2]"
+												onClick={handleScrollToBottomClick}>
+												<span className="codicon codicon-chevron-down"></span>
 											</Button>
 										</StandardTooltip>
+									) : (
+										<>
+											{displayedPrimaryButtonText && (
+												<StandardTooltip
+													content={
+														displayedPrimaryButtonText === t("chat:retry.title")
+															? t("chat:retry.tooltip")
+															: displayedPrimaryButtonText === t("chat:save.title")
+																? t("chat:save.tooltip")
+																: displayedPrimaryButtonText === t("chat:approve.title")
+																	? t("chat:approve.tooltip")
+																	: displayedPrimaryButtonText ===
+																		  t("chat:runCommand.title")
+																		? t("chat:runCommand.tooltip")
+																		: displayedPrimaryButtonText ===
+																			  t("chat:startNewTask.title")
+																			? t("chat:startNewTask.tooltip")
+																			: displayedPrimaryButtonText ===
+																				  t("chat:resumeTask.title")
+																				? t("chat:resumeTask.tooltip")
+																				: displayedPrimaryButtonText ===
+																					  t("chat:proceedAnyways.title")
+																					? t("chat:proceedAnyways.tooltip")
+																					: displayedPrimaryButtonText ===
+																						  t(
+																								"chat:proceedWhileRunning.title",
+																						  )
+																						? t(
+																								"chat:proceedWhileRunning.tooltip",
+																							)
+																						: undefined
+													}>
+													<Button
+														variant="primary"
+														disabled={!enableButtons}
+														className={
+															displayedSecondaryButtonText
+																? "flex-1 mr-[6px]"
+																: "flex-[2] mr-0"
+														}
+														onClick={() =>
+															handlePrimaryButtonClick(inputValue, selectedImages)
+														}>
+														{displayedPrimaryButtonText}
+													</Button>
+												</StandardTooltip>
+											)}
+											{displayedSecondaryButtonText && (
+												<StandardTooltip
+													content={
+														displayedSecondaryButtonText === t("chat:startNewTask.title")
+															? t("chat:startNewTask.tooltip")
+															: displayedSecondaryButtonText === t("chat:reject.title")
+																? t("chat:reject.tooltip")
+																: displayedSecondaryButtonText ===
+																	  t("chat:terminate.title")
+																	? t("chat:terminate.tooltip")
+																	: displayedSecondaryButtonText ===
+																		  t("chat:killCommand.title")
+																		? t("chat:killCommand.tooltip")
+																		: undefined
+													}>
+													<Button
+														variant="secondary"
+														disabled={!enableButtons}
+														className="flex-1 ml-[6px]"
+														onClick={() =>
+															handleSecondaryButtonClick(inputValue, selectedImages)
+														}>
+														{displayedSecondaryButtonText}
+													</Button>
+												</StandardTooltip>
+											)}
+										</>
 									)}
-								</>
+								</div>
 							)}
+						</>
+					)}
+
+					<QueuedMessages
+						queue={messageQueue}
+						onRemove={(index) => {
+							if (messageQueue[index]) {
+								vscode.postMessage({ type: "removeQueuedMessage", text: messageQueue[index].id })
+							}
+						}}
+						onUpdate={(index, newText) => {
+							if (messageQueue[index]) {
+								vscode.postMessage({
+									type: "editQueuedMessage",
+									payload: {
+										id: messageQueue[index].id,
+										text: newText,
+										images: messageQueue[index].images,
+									},
+								})
+							}
+						}}
+					/>
+					{showRetiredProviderWarning && (
+						<div className="px-[15px] py-1">
+							<WarningRow
+								title={t("chat:retiredProvider.title")}
+								message={t("chat:retiredProvider.message")}
+								actionText={t("chat:retiredProvider.openSettings")}
+								onAction={() => vscode.postMessage({ type: "switchTab", tab: "settings" })}
+							/>
 						</div>
 					)}
-				</>
-			)}
-
-			<QueuedMessages
-				queue={messageQueue}
-				onRemove={(index) => {
-					if (messageQueue[index]) {
-						vscode.postMessage({ type: "removeQueuedMessage", text: messageQueue[index].id })
-					}
-				}}
-				onUpdate={(index, newText) => {
-					if (messageQueue[index]) {
-						vscode.postMessage({
-							type: "editQueuedMessage",
-							payload: { id: messageQueue[index].id, text: newText, images: messageQueue[index].images },
-						})
-					}
-				}}
-			/>
-			{showRetiredProviderWarning && (
-				<div className="px-[15px] py-1">
-					<WarningRow
-						title={t("chat:retiredProvider.title")}
-						message={t("chat:retiredProvider.message")}
-						actionText={t("chat:retiredProvider.openSettings")}
-						onAction={() => vscode.postMessage({ type: "switchTab", tab: "settings" })}
+					<ChatTextArea
+						ref={textAreaRef}
+						inputValue={inputValue}
+						setInputValue={setInputValue}
+						sendingDisabled={sendingDisabled}
+						submissionDisabled={submissionDisabled}
+						submissionDisabledReason={submissionDisabledReason}
+						selectApiConfigDisabled={sendingDisabled && clineAsk !== "api_req_failed"}
+						placeholderText={placeholderText}
+						selectedImages={selectedImages}
+						setSelectedImages={setSelectedImages}
+						onSend={() => handleSendMessage(inputValue, selectedImages)}
+						onSelectImages={selectImages}
+						shouldDisableImages={shouldDisableImages}
+						onHeightChange={() => {
+							if (isAtBottomRef.current && scrollPhaseRef.current !== "USER_BROWSING_HISTORY") {
+								scrollToBottomAuto()
+							}
+						}}
+						mode={mode}
+						setMode={setMode}
+						modeShortcutText={modeShortcutText}
+						isStreaming={isStreaming}
+						onStop={handleStopTask}
+						onEnqueueMessage={handleEnqueueCurrentMessage}
 					/>
-				</div>
-			)}
-			<ChatTextArea
-				ref={textAreaRef}
-				inputValue={inputValue}
-				setInputValue={setInputValue}
-				sendingDisabled={sendingDisabled}
-				submissionDisabled={submissionDisabled}
-				submissionDisabledReason={submissionDisabledReason}
-				selectApiConfigDisabled={sendingDisabled && clineAsk !== "api_req_failed"}
-				placeholderText={placeholderText}
-				selectedImages={selectedImages}
-				setSelectedImages={setSelectedImages}
-				onSend={() => handleSendMessage(inputValue, selectedImages)}
-				onSelectImages={selectImages}
-				shouldDisableImages={shouldDisableImages}
-				onHeightChange={() => {
-					if (isAtBottomRef.current && scrollPhaseRef.current !== "USER_BROWSING_HISTORY") {
-						scrollToBottomAuto()
-					}
-				}}
-				mode={mode}
-				setMode={setMode}
-				modeShortcutText={modeShortcutText}
-				isStreaming={isStreaming}
-				onStop={handleStopTask}
-				onEnqueueMessage={handleEnqueueCurrentMessage}
-			/>
 
-			{isProfileDisabled && (
-				<div className="px-3">
-					<ProfileViolationWarning />
-				</div>
-			)}
+					{isProfileDisabled && (
+						<div className="px-3">
+							<ProfileViolationWarning />
+						</div>
+					)}
 
-			<div id="roo-portal" />
-			<CloudUpsellDialog open={isUpsellOpen} onOpenChange={closeUpsell} onConnect={handleConnect} />
+					<div id="roo-portal" />
+					<CloudUpsellDialog open={isUpsellOpen} onOpenChange={closeUpsell} onConnect={handleConnect} />
 				</div>
 			</div>
 		</div>

@@ -1214,6 +1214,10 @@ export class ClineProvider
 		} else if (!this.getTaskById(this.visibleTaskId)) {
 			await this.selectTask(activeTasks[activeTasks.length - 1]?.taskId, { broadcast: false })
 		}
+
+		if (this.view?.visible) {
+			await this.handleDidBecomeVisible()
+		}
 	}
 
 	public async createTaskWithHistoryItem(
@@ -2182,6 +2186,97 @@ export class ClineProvider
 				await this.deleteTaskFromState(id)
 				return
 			}
+			throw error
+		}
+	}
+
+	private async moveTaskDirectoryToArchive(sourceBasePath: string, taskId: string): Promise<void> {
+		const sourceDir = path.join(sourceBasePath, "tasks", taskId)
+		const archiveRoot = path.join(os.homedir(), ".crc", "archive", "tasks")
+		const archiveDir = path.join(archiveRoot, taskId)
+
+		await fs.mkdir(archiveRoot, { recursive: true })
+		await fs.rm(archiveDir, { recursive: true, force: true })
+
+		try {
+			await fs.rename(sourceDir, archiveDir)
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException | undefined)?.code
+
+			if (code === "ENOENT") {
+				return
+			}
+
+			if (code !== "EXDEV") {
+				throw error
+			}
+
+			await fs.cp(sourceDir, archiveDir, { recursive: true, force: true })
+			await fs.rm(sourceDir, { recursive: true, force: true })
+		}
+	}
+
+	async archiveTaskWithId(id: string, cascadeSubtasks: boolean = true) {
+		try {
+			await this.getTaskWithId(id)
+			const allIdsToArchive: string[] = [id]
+
+			if (cascadeSubtasks) {
+				const collectChildIds = async (taskId: string): Promise<void> => {
+					try {
+						const { historyItem: item } = await this.getTaskWithId(taskId)
+						if (item.childIds && item.childIds.length > 0) {
+							for (const childId of item.childIds) {
+								allIdsToArchive.push(childId)
+								await collectChildIds(childId)
+							}
+						}
+					} catch (error) {
+						console.log(`[archiveTaskWithId] child task ${taskId} not found, skipping`)
+					}
+				}
+
+				await collectChildIds(id)
+			}
+
+			const liveTaskIdsToArchive = this.clineStack
+				.filter((task) => allIdsToArchive.includes(task.taskId))
+				.map((task) => task.taskId)
+			const removedVisibleTask =
+				this.visibleTaskId !== undefined && liveTaskIdsToArchive.includes(this.visibleTaskId)
+
+			for (const taskId of liveTaskIdsToArchive) {
+				await this.removeClineFromStack({ taskId, broadcast: false })
+			}
+
+			if (removedVisibleTask) {
+				await this.selectTask(this.clineStack[this.clineStack.length - 1]?.taskId, { broadcast: false })
+			}
+
+			await this.taskHistoryStore.deleteMany(allIdsToArchive)
+			this.recentTasksCache = undefined
+
+			const { getStorageBasePath } = await import("../../utils/storage")
+			const sourceBasePath = await getStorageBasePath(this.contextProxy.globalStorageUri.fsPath)
+
+			for (const taskId of allIdsToArchive) {
+				try {
+					await this.moveTaskDirectoryToArchive(sourceBasePath, taskId)
+					console.log(`[archiveTaskWithId${taskId}] archived task directory`)
+				} catch (error) {
+					console.error(
+						`[archiveTaskWithId${taskId}] failed to archive task directory: ${error instanceof Error ? error.message : String(error)}`,
+					)
+				}
+			}
+
+			await this.postStateToWebview()
+		} catch (error) {
+			if (error instanceof Error && error.message === "Task not found") {
+				await this.deleteTaskFromState(id)
+				return
+			}
+
 			throw error
 		}
 	}

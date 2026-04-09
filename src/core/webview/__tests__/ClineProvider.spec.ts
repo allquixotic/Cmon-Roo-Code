@@ -488,6 +488,7 @@ describe("ClineProvider", () => {
 	})
 
 	test("resolveWebviewView sets up webview correctly", async () => {
+		vi.mocked(vscode.commands.executeCommand).mockClear()
 		await provider.resolveWebviewView(mockWebviewView)
 
 		expect(mockWebviewView.webview.options).toEqual({
@@ -496,6 +497,7 @@ describe("ClineProvider", () => {
 		})
 
 		expect(mockWebviewView.webview.html).toContain("<!DOCTYPE html>")
+		expect(vscode.commands.executeCommand).toHaveBeenCalledWith("roo-cline.openInNewTab")
 	})
 
 	test("resolveWebviewView sets up webview correctly in development mode even if local server is not running", async () => {
@@ -2225,7 +2227,6 @@ describe.skip("ContextProxy integration", () => {
 		expect(mockContextProxy.setValues).toBeDefined()
 	})
 })
-
 
 describe("ClineProvider - Router Models", () => {
 	let provider: ClineProvider

@@ -603,7 +603,6 @@ export const webviewMessageHandler = async (
 					),
 				)
 
-
 			provider.isViewLaunched = true
 			break
 		case "newTask":
@@ -822,6 +821,9 @@ export const webviewMessageHandler = async (
 		case "deleteTaskWithId":
 			provider.deleteTaskWithId(message.text!)
 			break
+		case "archiveTaskWithId":
+			provider.archiveTaskWithId(message.text!)
+			break
 		case "deleteMultipleTasksWithIds": {
 			const ids = message.ids
 
@@ -896,12 +898,15 @@ export const webviewMessageHandler = async (
 			break
 		}
 		case "importSettings": {
-			await importSettingsWithFeedback({
-				providerSettingsManager: provider.providerSettingsManager,
-				contextProxy: provider.contextProxy,
-				customModesManager: provider.customModesManager,
-				provider: provider,
-			}, message.text)
+			await importSettingsWithFeedback(
+				{
+					providerSettingsManager: provider.providerSettingsManager,
+					contextProxy: provider.contextProxy,
+					customModesManager: provider.customModesManager,
+					provider: provider,
+				},
+				message.text,
+			)
 
 			break
 		}
@@ -1576,7 +1581,6 @@ export const webviewMessageHandler = async (
 					hasOpenedModeSelector: currentState.hasOpenedModeSelector ?? false,
 				}
 				provider.postMessageToWebview({ type: "state", state: stateWithPrompts })
-
 			}
 			break
 		case "deleteMessage": {
@@ -1995,14 +1999,12 @@ export const webviewMessageHandler = async (
 		case "updateCustomMode":
 			if (message.modeConfig) {
 				try {
-
 					await provider.customModesManager.updateCustomMode(message.modeConfig.slug, message.modeConfig)
 					// Update state after saving the mode
 					const customModes = await provider.customModesManager.getCustomModes()
 					await updateGlobalState("customModes", customModes)
 					await updateGlobalState("mode", message.modeConfig.slug)
 					await provider.postStateToWebview()
-
 				} catch (error) {
 					// Error already shown to user by updateCustomMode
 					// Just prevent unhandled rejection and skip state updates
@@ -2917,7 +2919,6 @@ export const webviewMessageHandler = async (
 
 		case "switchTab": {
 			if (message.tab) {
-
 				await provider.postMessageToWebview({
 					type: "action",
 					action: "switchTab",

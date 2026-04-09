@@ -56,7 +56,7 @@
 				{
 					"id": "roo-cline-ActivityBar",
 					"title": "%views.activitybar.title%",
-					"icon": "assets/icons/icon.svg"
+					"icon": "assets/icons/activitybar.svg"
 				}
 			]
 		},

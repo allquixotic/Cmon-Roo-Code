@@ -1,4 +1,6 @@
 // pnpm --filter roo-cline test core/webview/__tests__/ClineProvider.taskHistory.spec.ts
+import os from "os"
+import * as fs from "fs/promises"
 
 import * as vscode from "vscode"
 import type { HistoryItem, ExtensionMessage } from "@roo-code/types"
@@ -12,16 +14,25 @@ vi.mock("p-wait-for", () => ({
 	default: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock("fs/promises", () => ({
-	mkdir: vi.fn().mockResolvedValue(undefined),
-	writeFile: vi.fn().mockResolvedValue(undefined),
-	readFile: vi.fn().mockResolvedValue(""),
-	readdir: vi.fn().mockResolvedValue([]),
-	unlink: vi.fn().mockResolvedValue(undefined),
-	rmdir: vi.fn().mockResolvedValue(undefined),
-	access: vi.fn().mockResolvedValue(undefined),
-	rm: vi.fn().mockResolvedValue(undefined),
-}))
+vi.mock("fs/promises", () => {
+	const mockFs = {
+		mkdir: vi.fn().mockResolvedValue(undefined),
+		writeFile: vi.fn().mockResolvedValue(undefined),
+		readFile: vi.fn().mockResolvedValue(""),
+		readdir: vi.fn().mockResolvedValue([]),
+		unlink: vi.fn().mockResolvedValue(undefined),
+		rmdir: vi.fn().mockResolvedValue(undefined),
+		access: vi.fn().mockResolvedValue(undefined),
+		rm: vi.fn().mockResolvedValue(undefined),
+		rename: vi.fn().mockResolvedValue(undefined),
+		cp: vi.fn().mockResolvedValue(undefined),
+	}
+
+	return {
+		...mockFs,
+		default: mockFs,
+	}
+})
 
 vi.mock("axios", () => ({
 	default: {
@@ -651,6 +662,61 @@ describe("ClineProvider Task History Synchronization", () => {
 			expect(state.taskHistory.some((item: HistoryItem) => item.workspace === "/path/to/workspace1")).toBe(true)
 			expect(state.taskHistory.some((item: HistoryItem) => item.workspace === "/path/to/workspace2")).toBe(true)
 			expect(state.taskHistory.some((item: HistoryItem) => item.workspace === "/different/workspace")).toBe(true)
+		})
+	})
+
+	describe("archiveTaskWithId", () => {
+		it("removes archived tasks from live history and moves task directories into ~/.crc/archive", async () => {
+			vi.spyOn(os, "homedir").mockReturnValue("/Users/tester")
+
+			await provider.updateTaskHistory(
+				createHistoryItem({
+					id: "root-task",
+					task: "Root task",
+					childIds: ["child-task"],
+				}),
+				{ broadcast: false },
+			)
+			await provider.updateTaskHistory(
+				createHistoryItem({
+					id: "child-task",
+					task: "Child task",
+					rootTaskId: "root-task",
+					parentTaskId: "root-task",
+				}),
+				{ broadcast: false },
+			)
+
+			vi.spyOn(provider, "getTaskWithId").mockImplementation(async (taskId: string) => {
+				const historyItem = provider.taskHistoryStore.get(taskId)
+				if (!historyItem) {
+					throw new Error("Task not found")
+				}
+
+				return {
+					historyItem,
+					taskDirPath: `/test/storage/path/tasks/${taskId}`,
+					apiConversationHistoryFilePath: `/test/storage/path/tasks/${taskId}/api_conversation_history.json`,
+					uiMessagesFilePath: `/test/storage/path/tasks/${taskId}/ui_messages.json`,
+					apiConversationHistory: [],
+				}
+			})
+
+			const postStateSpy = vi.spyOn(provider, "postStateToWebview").mockResolvedValue(undefined)
+
+			await provider.archiveTaskWithId("root-task")
+
+			expect(provider.taskHistoryStore.get("root-task")).toBeUndefined()
+			expect(provider.taskHistoryStore.get("child-task")).toBeUndefined()
+			expect(vi.mocked(fs.rename)).toHaveBeenCalledWith(
+				"/test/storage/path/tasks/root-task",
+				"/Users/tester/.crc/archive/tasks/root-task",
+			)
+			expect(vi.mocked(fs.rename)).toHaveBeenCalledWith(
+				"/test/storage/path/tasks/child-task",
+				"/Users/tester/.crc/archive/tasks/child-task",
+			)
+			expect(postStateSpy).toHaveBeenCalled()
 		})
 	})
 

@@ -441,6 +441,7 @@ export interface WebviewMessage {
 		| "shareCurrentTask"
 		| "showTaskWithId"
 		| "deleteTaskWithId"
+		| "archiveTaskWithId"
 		| "exportTaskWithId"
 		| "importSettings"
 		| "exportSettings"

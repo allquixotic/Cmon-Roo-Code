@@ -76,7 +76,6 @@ vi.mock("react-virtuoso", () => ({
 	},
 }))
 
-
 // Mock DismissibleUpsell component
 vi.mock("@/components/common/DismissibleUpsell", () => ({
 	default: function MockDismissibleUpsell({ children }: { children: React.ReactNode }) {
@@ -125,7 +124,6 @@ vi.mock("@src/components/welcome/RooHero", () => ({
 		return <div data-testid="roo-hero">Hero content</div>
 	},
 }))
-
 
 // Mock i18n
 vi.mock("react-i18next", () => ({
@@ -278,6 +276,89 @@ const renderChatView = (props: Partial<ChatViewProps> = {}) => {
 		</ExtensionStateContextProvider>,
 	)
 }
+
+describe("ChatView - Conversation Drafts", () => {
+	beforeEach(() => vi.clearAllMocks())
+
+	it("adds a new draft conversation to the sidebar when New is clicked", async () => {
+		const { getByText } = renderChatView()
+
+		mockPostMessage({
+			activeConversations: [
+				{
+					rootTaskId: "task-1",
+					activeTaskId: "task-1",
+					rootTask: "Existing conversation",
+					activeTask: "Existing conversation",
+					ts: Date.now(),
+					status: "idle",
+					queuedMessageCount: 0,
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(getByText("New")).toBeInTheDocument()
+		})
+
+		vi.mocked(vscode.postMessage).mockClear()
+		fireEvent.click(getByText("New"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "clearTask" })
+
+		await waitFor(() => {
+			expect(getByText("New conversation")).toBeInTheDocument()
+		})
+	})
+
+	it("reuses the selected draft id when the first message starts a task", async () => {
+		const { getByText, getByTestId } = renderChatView()
+
+		mockPostMessage({
+			activeConversations: [
+				{
+					rootTaskId: "task-1",
+					activeTaskId: "task-1",
+					rootTask: "Existing conversation",
+					activeTask: "Existing conversation",
+					ts: Date.now(),
+					status: "idle",
+					queuedMessageCount: 0,
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(getByText("New")).toBeInTheDocument()
+		})
+
+		fireEvent.click(getByText("New"))
+
+		await waitFor(() => {
+			expect(getByText("New conversation")).toBeInTheDocument()
+		})
+
+		vi.mocked(vscode.postMessage).mockClear()
+
+		const input = getByTestId("chat-textarea").querySelector("input") as HTMLInputElement
+
+		await act(async () => {
+			fireEvent.change(input, { target: { value: "Start draft" } })
+			fireEvent.keyDown(input, { key: "Enter", code: "Enter" })
+		})
+
+		await waitFor(() => {
+			expect(vscode.postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "newTask",
+					taskId: expect.stringMatching(/^draft-/),
+					text: "Start draft",
+					images: [],
+				}),
+			)
+		})
+	})
+})
 
 describe("ChatView - Sound Playing Tests", () => {
 	beforeEach(() => vi.clearAllMocks())
