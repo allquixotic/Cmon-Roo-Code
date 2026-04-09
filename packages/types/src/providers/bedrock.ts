@@ -527,6 +527,312 @@ export const BEDROCK_1M_CONTEXT_MODEL_IDS = [
 	"anthropic.claude-opus-4-6-v1",
 ] as const
 
+// Claude 4.6 model cards currently advertise a 1M context window directly,
+// while older Claude 4 variants still require selecting a dedicated 1M path.
+export const BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS = [
+	"anthropic.claude-sonnet-4-6",
+	"anthropic.claude-opus-4-6-v1",
+] as const
+
+export const BEDROCK_1M_CONTEXT_OPT_IN_MODEL_IDS = BEDROCK_1M_CONTEXT_MODEL_IDS.filter(
+	(modelId) =>
+		!BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS.includes(
+			modelId as (typeof BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS)[number],
+		),
+)
+
+export type BedrockInvokeTargetKind =
+	| "foundation-model"
+	| "system-profile"
+	| "application-profile"
+	| "custom-arn"
+	| "prompt-router"
+	| "unknown"
+
+export type BedrockContextSource = "default-1m" | "profile-id" | "toggle" | "base"
+
+export interface BedrockDiscoveredTarget {
+	id: string
+	label: string
+	baseModelId: string
+	targetKind: Extract<BedrockInvokeTargetKind, "foundation-model" | "system-profile" | "application-profile">
+	contextWindow: number
+	contextSource: BedrockContextSource
+	description?: string
+	arn?: string
+	region?: string
+	status?: string
+	isGlobal?: boolean
+	isCrossRegion?: boolean
+	supportsImages?: boolean
+	supportsPromptCache?: boolean
+}
+
+type ParsedBedrockArn = {
+	isArn: boolean
+	region?: string
+	modelType?: string
+	resourceId?: string
+}
+
+const BEDROCK_PROFILE_PREFIXES = Array.from(
+	new Set(["global.", ...AWS_INFERENCE_PROFILE_MAPPING.map(([, prefix]) => prefix)]),
+)
+
+const BEDROCK_1M_SUFFIX_PATTERNS = [/\[1m\]$/i, /:1m(?::fast)?$/i]
+
+const cloneModelInfo = (info: ModelInfo): ModelInfo => ({
+	...info,
+	cachableFields: info.cachableFields ? [...info.cachableFields] : undefined,
+	excludedTools: info.excludedTools ? [...info.excludedTools] : undefined,
+	includedTools: info.includedTools ? [...info.includedTools] : undefined,
+	supportedParameters: info.supportedParameters ? [...info.supportedParameters] : undefined,
+	tiers: info.tiers?.map((tier) => ({ ...tier })),
+	longContextPricing: info.longContextPricing ? { ...info.longContextPricing } : undefined,
+})
+
+export const stripBedrock1MContextSuffix = (targetId: string) =>
+	BEDROCK_1M_SUFFIX_PATTERNS.reduce((value, pattern) => value.replace(pattern, ""), targetId.trim())
+
+export const hasBedrock1MContextIndicator = (targetId?: string) => {
+	if (!targetId) {
+		return false
+	}
+
+	const normalized = targetId.trim().toLowerCase()
+	return BEDROCK_1M_SUFFIX_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
+export const parseBedrockArn = (targetId?: string): ParsedBedrockArn => {
+	if (!targetId?.startsWith("arn:")) {
+		return { isArn: false }
+	}
+
+	const arnRegex = /^arn:[^:]+:(?:bedrock|sagemaker):([^:]+):([^:]*):(?:([^/]+)\/([\w.\-:]+)|([^/]+))$/
+	const match = targetId.match(arnRegex)
+
+	if (!match) {
+		return { isArn: true }
+	}
+
+	return {
+		isArn: true,
+		region: match[1],
+		modelType: match[3],
+		resourceId: match[4],
+	}
+}
+
+export const parseBedrockBaseModelId = (targetId: string): string => {
+	if (!targetId) {
+		return targetId
+	}
+
+	const normalizedTargetId = stripBedrock1MContextSuffix(targetId)
+	const parsedArn = parseBedrockArn(normalizedTargetId)
+	const value = parsedArn.resourceId ?? normalizedTargetId
+
+	for (const prefix of BEDROCK_PROFILE_PREFIXES) {
+		if (value.startsWith(prefix)) {
+			return value.substring(prefix.length)
+		}
+	}
+
+	return value
+}
+
+export const inferBedrockInvokeTargetKind = ({
+	targetId,
+	explicitKind,
+}: {
+	targetId?: string
+	explicitKind?: BedrockInvokeTargetKind
+}): BedrockInvokeTargetKind => {
+	if (explicitKind) {
+		return explicitKind
+	}
+
+	if (!targetId) {
+		return "unknown"
+	}
+
+	if (targetId.startsWith("arn:")) {
+		const parsedArn = parseBedrockArn(targetId)
+		switch (parsedArn.modelType) {
+			case "foundation-model":
+				return "foundation-model"
+			case "inference-profile":
+				if (
+					parsedArn.resourceId &&
+					BEDROCK_PROFILE_PREFIXES.some((prefix) => parsedArn.resourceId!.startsWith(prefix))
+				) {
+					return "system-profile"
+				}
+				return "application-profile"
+			case "application-inference-profile":
+				return "application-profile"
+			case "default-prompt-router":
+			case "prompt-router":
+				return "prompt-router"
+			default:
+				return "custom-arn"
+		}
+	}
+
+	if (
+		targetId.startsWith("global.") ||
+		AWS_INFERENCE_PROFILE_MAPPING.some(([, prefix]) => targetId.startsWith(prefix))
+	) {
+		return "system-profile"
+	}
+
+	return "foundation-model"
+}
+
+export const usesBedrockDefault1MContext = (baseModelId?: string) =>
+	!!baseModelId &&
+	BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS.includes(baseModelId as (typeof BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS)[number])
+
+export const shouldUseBedrock1MContext = ({
+	targetId,
+	baseModelId,
+	optIn1MContext,
+}: {
+	targetId?: string
+	baseModelId?: string
+	optIn1MContext?: boolean
+}): { enabled: boolean; source: BedrockContextSource } => {
+	if (hasBedrock1MContextIndicator(targetId)) {
+		return { enabled: true, source: "profile-id" }
+	}
+
+	if (usesBedrockDefault1MContext(baseModelId)) {
+		return { enabled: true, source: "default-1m" }
+	}
+
+	if (
+		optIn1MContext &&
+		baseModelId &&
+		BEDROCK_1M_CONTEXT_MODEL_IDS.includes(baseModelId as (typeof BEDROCK_1M_CONTEXT_MODEL_IDS)[number])
+	) {
+		return { enabled: true, source: "toggle" }
+	}
+
+	return { enabled: false, source: "base" }
+}
+
+export const guessBedrockModelInfoFromId = (modelId: string): Partial<ModelInfo> => {
+	const modelConfigMap: Record<string, Partial<ModelInfo>> = {
+		"claude-4": {
+			maxTokens: 8192,
+			contextWindow: 200_000,
+			supportsImages: true,
+			supportsPromptCache: true,
+		},
+		"claude-3-7": {
+			maxTokens: 8192,
+			contextWindow: 200_000,
+			supportsImages: true,
+			supportsPromptCache: true,
+		},
+		"claude-3-5": {
+			maxTokens: 8192,
+			contextWindow: 200_000,
+			supportsImages: true,
+			supportsPromptCache: true,
+		},
+		"claude-4-opus": {
+			maxTokens: 4096,
+			contextWindow: 200_000,
+			supportsImages: true,
+			supportsPromptCache: true,
+		},
+		"claude-3-opus": {
+			maxTokens: 4096,
+			contextWindow: 200_000,
+			supportsImages: true,
+			supportsPromptCache: true,
+		},
+		"claude-3-haiku": {
+			maxTokens: 4096,
+			contextWindow: 200_000,
+			supportsImages: true,
+			supportsPromptCache: true,
+		},
+	}
+
+	const normalizedId = modelId.toLowerCase()
+	for (const [pattern, config] of Object.entries(modelConfigMap)) {
+		if (normalizedId.includes(pattern)) {
+			return config
+		}
+	}
+
+	return {
+		maxTokens: BEDROCK_MAX_TOKENS,
+		contextWindow: BEDROCK_DEFAULT_CONTEXT,
+		supportsImages: false,
+		supportsPromptCache: false,
+	}
+}
+
+export const resolveBedrockModelInfo = ({
+	baseModelId,
+	targetId,
+	optIn1MContext,
+	modelMaxTokens,
+	contextWindowOverride,
+}: {
+	baseModelId?: string
+	targetId?: string
+	optIn1MContext?: boolean
+	modelMaxTokens?: number
+	contextWindowOverride?: number
+}): { baseModelId: string; info: ModelInfo; uses1MContext: boolean; contextSource: BedrockContextSource } => {
+	const resolvedBaseModelId = parseBedrockBaseModelId(baseModelId || targetId || bedrockDefaultModelId)
+
+	const baseInfo =
+		resolvedBaseModelId in bedrockModels
+			? cloneModelInfo(bedrockModels[resolvedBaseModelId as keyof typeof bedrockModels])
+			: {
+					...cloneModelInfo(bedrockModels[bedrockDefaultModelId]),
+					...guessBedrockModelInfoFromId(resolvedBaseModelId),
+				}
+
+	const oneMillionContext = shouldUseBedrock1MContext({
+		targetId,
+		baseModelId: resolvedBaseModelId,
+		optIn1MContext,
+	})
+
+	let info: ModelInfo = baseInfo
+	if (oneMillionContext.enabled) {
+		const tier = info.tiers?.[0]
+		info = {
+			...info,
+			contextWindow: tier?.contextWindow ?? 1_000_000,
+			inputPrice: tier?.inputPrice ?? info.inputPrice,
+			outputPrice: tier?.outputPrice ?? info.outputPrice,
+			cacheWritesPrice: tier?.cacheWritesPrice ?? info.cacheWritesPrice,
+			cacheReadsPrice: tier?.cacheReadsPrice ?? info.cacheReadsPrice,
+		}
+	}
+
+	if (modelMaxTokens && modelMaxTokens > 0) {
+		info.maxTokens = modelMaxTokens
+	}
+	if (contextWindowOverride && contextWindowOverride > 0) {
+		info.contextWindow = contextWindowOverride
+	}
+
+	return {
+		baseModelId: resolvedBaseModelId,
+		info,
+		uses1MContext: oneMillionContext.enabled,
+		contextSource: oneMillionContext.source,
+	}
+}
+
 // Amazon Bedrock models that support Global Inference profiles
 // As of Nov 2025, AWS supports Global Inference for:
 // - Claude Sonnet 4

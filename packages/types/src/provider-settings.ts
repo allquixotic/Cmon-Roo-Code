@@ -229,6 +229,10 @@ const bedrockSchema = apiModelIdProviderModelSchema.extend({
 	awsApiKey: z.string().optional(),
 	awsUseApiKey: z.boolean().optional(),
 	awsCustomArn: z.string().optional(),
+	awsBedrockInvokeTarget: z.string().optional(),
+	awsBedrockTargetKind: z
+		.enum(["foundation-model", "system-profile", "application-profile", "custom-arn", "prompt-router", "unknown"])
+		.optional(),
 	awsModelContextWindow: z.number().optional(),
 	awsBedrockEndpointEnabled: z.boolean().optional(),
 	awsBedrockEndpoint: z.string().optional(),

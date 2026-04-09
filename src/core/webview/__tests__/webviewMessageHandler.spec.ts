@@ -4,6 +4,9 @@ import type { Mock } from "vitest"
 
 // Mock dependencies - must come before imports
 vi.mock("../../../api/providers/fetchers/modelCache")
+vi.mock("../../../api/providers/bedrock-discovery", () => ({
+	discoverBedrockTargets: vi.fn(),
+}))
 
 vi.mock("../../../integrations/openai-codex/oauth", () => ({
 	openAiCodexOAuthManager: {
@@ -42,11 +45,13 @@ import type { ModelRecord } from "@roo-code/types"
 import { webviewMessageHandler } from "../webviewMessageHandler"
 import type { ClineProvider } from "../ClineProvider"
 import { getModels } from "../../../api/providers/fetchers/modelCache"
+import { discoverBedrockTargets } from "../../../api/providers/bedrock-discovery"
 import { getCommands } from "../../../services/command/commands"
 const { openAiCodexOAuthManager } = await import("../../../integrations/openai-codex/oauth")
 const { fetchOpenAiCodexRateLimitInfo } = await import("../../../integrations/openai-codex/rate-limits")
 
 const mockGetModels = getModels as Mock<typeof getModels>
+const mockDiscoverBedrockTargets = vi.mocked(discoverBedrockTargets)
 const mockGetCommands = vi.mocked(getCommands)
 const mockGetAccessToken = vi.mocked(openAiCodexOAuthManager.getAccessToken)
 const mockGetAccountId = vi.mocked(openAiCodexOAuthManager.getAccountId)
@@ -569,6 +574,72 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 			provider: "litellm",
 			apiKey: "litellm-key", // From config
 			baseUrl: "http://localhost:4000", // From config
+		})
+	})
+})
+
+describe("webviewMessageHandler - requestBedrockDiscovery", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		mockClineProvider.getState = vi.fn().mockResolvedValue({
+			apiConfiguration: {
+				apiProvider: "bedrock",
+				awsRegion: "us-east-1",
+			},
+		})
+	})
+
+	it("returns discovered Bedrock targets for the provided api configuration", async () => {
+		const bedrockDiscovery = [
+			{
+				id: "us.anthropic.claude-sonnet-4-5-20250929-v1:0:1m",
+				label: "Claude Sonnet 4.5 1M",
+				baseModelId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+				targetKind: "system-profile",
+				contextWindow: 1_000_000,
+				contextSource: "profile-id",
+			},
+		]
+
+		mockDiscoverBedrockTargets.mockResolvedValue(bedrockDiscovery as any)
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "requestBedrockDiscovery",
+			requestId: "bedrock-request-1",
+			apiConfiguration: {
+				apiProvider: "bedrock",
+				awsRegion: "us-west-2",
+				awsUseProfile: true,
+				awsProfile: "dev",
+			},
+		})
+
+		expect(mockDiscoverBedrockTargets).toHaveBeenCalledWith({
+			apiProvider: "bedrock",
+			awsRegion: "us-west-2",
+			awsUseProfile: true,
+			awsProfile: "dev",
+		})
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "bedrockDiscovery",
+			bedrockDiscovery,
+			requestId: "bedrock-request-1",
+		})
+	})
+
+	it("returns an error payload when Bedrock discovery fails", async () => {
+		mockDiscoverBedrockTargets.mockRejectedValue(new Error("AccessDenied"))
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "requestBedrockDiscovery",
+			requestId: "bedrock-request-2",
+		})
+
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "bedrockDiscovery",
+			bedrockDiscovery: [],
+			error: "AccessDenied",
+			requestId: "bedrock-request-2",
 		})
 	})
 })

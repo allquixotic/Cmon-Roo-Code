@@ -8,6 +8,7 @@ import type { Mock } from "vitest"
 import {
 	ProviderSettings,
 	ModelInfo,
+	BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS,
 	BEDROCK_1M_CONTEXT_MODEL_IDS,
 	litellmDefaultModelInfo,
 	openAiModelInfoSaneDefaults,
@@ -496,6 +497,35 @@ describe("useSelectedModel", () => {
 			expect(result.current.id).toBe("anthropic.claude-3-5-sonnet-20241022-v2:0")
 			expect(result.current.info?.contextWindow).toBe(200_000)
 		})
+
+		it("should treat Claude 4.6 Bedrock models as 1M context by default", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "bedrock",
+				apiModelId: BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS[0],
+				awsBedrock1MContext: false,
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.id).toBe(BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS[0])
+			expect(result.current.info?.contextWindow).toBe(1_000_000)
+		})
+
+		it("should infer 1M context from an explicit Bedrock invoke target id", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "bedrock",
+				apiModelId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+				awsBedrockInvokeTarget: "us.anthropic.claude-sonnet-4-5-20250929-v1:0:1m",
+				awsBedrockTargetKind: "system-profile",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.id).toBe("anthropic.claude-sonnet-4-5-20250929-v1:0")
+			expect(result.current.info?.contextWindow).toBe(1_000_000)
+		})
 	})
 
 	describe("bedrock provider with custom ARN", () => {
@@ -517,30 +547,20 @@ describe("useSelectedModel", () => {
 			} as any)
 		})
 
-		it("should enable supportsPromptCache for custom-arn model", () => {
+		it("should use parsed model metadata for a custom ARN", () => {
 			const apiConfiguration: ProviderSettings = {
 				apiProvider: "bedrock",
-				apiModelId: "custom-arn",
+				apiModelId: "anthropic.claude-sonnet-4-6",
+				awsCustomArn: "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-4-6",
 			}
 
 			const wrapper = createWrapper()
 			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
 
-			expect(result.current.id).toBe("custom-arn")
+			expect(result.current.id).toBe("anthropic.claude-sonnet-4-6")
 			expect(result.current.info?.supportsPromptCache).toBe(true)
-		})
-
-		it("should enable supportsImages for custom-arn model", () => {
-			const apiConfiguration: ProviderSettings = {
-				apiProvider: "bedrock",
-				apiModelId: "custom-arn",
-			}
-
-			const wrapper = createWrapper()
-			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
-
-			expect(result.current.id).toBe("custom-arn")
 			expect(result.current.info?.supportsImages).toBe(true)
+			expect(result.current.info?.contextWindow).toBe(1_000_000)
 		})
 	})
 

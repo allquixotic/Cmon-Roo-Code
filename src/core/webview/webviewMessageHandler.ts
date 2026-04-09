@@ -57,6 +57,7 @@ import { searchCommits } from "../../utils/git"
 import { exportSettings, importSettingsWithFeedback } from "../config/importExport"
 import { getOpenAiModels } from "../../api/providers/openai"
 import { getVsCodeLmModels } from "../../api/providers/vscode-lm"
+import { discoverBedrockTargets } from "../../api/providers/bedrock-discovery"
 import { openMention } from "../mentions"
 import { resolveImageMentions } from "../mentions/resolveImageMentions"
 import { RooIgnoreController } from "../ignore/RooIgnoreController"
@@ -1073,6 +1074,31 @@ export const webviewMessageHandler = async (
 				values: providerFilter ? { provider: requestedProvider } : undefined,
 			})
 			break
+		case "requestBedrockDiscovery": {
+			const state = await provider.getState()
+			const apiConfiguration = message.apiConfiguration ?? state.apiConfiguration
+
+			try {
+				const bedrockDiscovery = await discoverBedrockTargets(apiConfiguration)
+
+				provider.postMessageToWebview({
+					type: "bedrockDiscovery",
+					bedrockDiscovery,
+					requestId: message.requestId,
+				})
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				console.error("Error discovering Bedrock targets:", error)
+
+				provider.postMessageToWebview({
+					type: "bedrockDiscovery",
+					bedrockDiscovery: [],
+					error: errorMessage,
+					requestId: message.requestId,
+				})
+			}
+			break
+		}
 		case "requestOllamaModels": {
 			// Specific handler for Ollama models only.
 			const { apiConfiguration: ollamaApiConfig } = await provider.getState()

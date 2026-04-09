@@ -1,68 +1,93 @@
 import React from "react"
-import { render, screen, fireEvent } from "@/utils/test-utils"
-import { Bedrock } from "../Bedrock"
-import { ProviderSettings } from "@roo-code/types"
+import { fireEvent, render, screen } from "@/utils/test-utils"
 
-// Mock the vscrui Checkbox component
+import type { ProviderSettings } from "@roo-code/types"
+
+import { Bedrock } from "../Bedrock"
+
+const mockSetApiConfigurationField = vi.fn()
+const mockRefetch = vi.fn()
+
+vi.mock("@src/components/ui/hooks/useBedrockDiscovery", () => ({
+	useBedrockDiscovery: vi.fn(() => ({
+		data: [
+			{
+				id: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+				label: "Claude Sonnet 4.5",
+				baseModelId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+				targetKind: "foundation-model",
+				contextWindow: 200_000,
+				contextSource: "base",
+			},
+			{
+				id: "us.anthropic.claude-sonnet-4-5-20250929-v1:0:1m",
+				label: "Claude Sonnet 4.5 1M",
+				baseModelId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+				targetKind: "system-profile",
+				contextWindow: 1_000_000,
+				contextSource: "profile-id",
+			},
+		],
+		isLoading: false,
+		isError: false,
+		error: undefined,
+		refetch: mockRefetch,
+		isFetching: false,
+	})),
+}))
+
 vi.mock("vscrui", () => ({
-	Checkbox: ({ children, checked, onChange }: any) => (
-		<label data-testid={`checkbox-${children?.toString().replace(/\s+/g, "-").toLowerCase()}`}>
+	Checkbox: ({ children, checked, onChange, disabled }: any) => (
+		<label data-testid={`checkbox-${String(children).replace(/\s+/g, "-").toLowerCase()}`}>
 			<input
 				type="checkbox"
 				checked={checked}
-				onChange={() => onChange(!checked)} // Toggle the checked state
-				data-testid={`checkbox-input-${children?.toString().replace(/\s+/g, "-").toLowerCase()}`}
+				disabled={disabled}
+				onChange={() => onChange(!checked)}
+				data-testid={`checkbox-input-${String(children).replace(/\s+/g, "-").toLowerCase()}`}
 			/>
 			{children}
 		</label>
 	),
 }))
 
-// Mock the VSCodeTextField component
 vi.mock("@vscode/webview-ui-toolkit/react", () => ({
-	VSCodeTextField: ({
-		children,
-		value,
-		onInput,
-		placeholder,
-		className,
-		style,
-		"data-testid": dataTestId,
-		...rest
-	}: any) => {
-		// For all text fields - apply data-testid directly to input if provided
-		return (
-			<div
-				data-testid={dataTestId ? `${dataTestId}-text-field` : "vscode-text-field"}
-				className={className}
-				style={style}>
-				{children}
-				<input
-					type="text"
-					value={value}
-					onChange={(e) => onInput && onInput(e)}
-					placeholder={placeholder}
-					data-testid={dataTestId}
-					{...rest}
-				/>
-			</div>
-		)
-	},
-	VSCodeRadio: () => <div>Radio</div>,
-	VSCodeRadioGroup: ({ children }: any) => <div>{children}</div>,
+	VSCodeTextField: ({ children, value, onInput, "data-testid": dataTestId, ...rest }: any) => (
+		<div>
+			{children}
+			<input
+				data-testid={dataTestId ?? "vscode-text-field-input"}
+				value={value}
+				onChange={(event) => onInput?.(event)}
+				{...rest}
+			/>
+		</div>
+	),
 }))
 
-// Mock the translation hook
 vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string) => key,
 	}),
 }))
 
-// Mock the UI components
 vi.mock("@src/components/ui", () => ({
+	Button: ({ children, onClick, disabled }: any) => (
+		<button type="button" onClick={onClick} disabled={disabled}>
+			{children}
+		</button>
+	),
+	SearchableSelect: ({ value, onValueChange, options, "data-testid": dataTestId }: any) => (
+		<select data-testid={dataTestId} value={value} onChange={(event) => onValueChange(event.target.value)}>
+			{options.map((option: any) => (
+				<option key={option.value} value={option.value}>
+					{option.label}
+				</option>
+			))}
+		</select>
+	),
 	Select: ({ children, value, onValueChange }: any) => (
-		<select value={value} onChange={(e) => onValueChange && onValueChange(e.target.value)}>
+		<select value={value} onChange={(event) => onValueChange(event.target.value)}>
 			{children}
 		</select>
 	),
@@ -73,482 +98,80 @@ vi.mock("@src/components/ui", () => ({
 	StandardTooltip: ({ children }: any) => <div>{children}</div>,
 }))
 
-// Mock the constants
-vi.mock("../../constants", () => ({
-	AWS_REGIONS: [{ value: "us-east-1", label: "US East (N. Virginia)" }],
-}))
-
-describe("Bedrock Component", () => {
-	const mockSetApiConfigurationField = vi.fn()
-
+describe("Bedrock", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 	})
 
-	it("should show text field when VPC endpoint checkbox is checked", () => {
-		// Initial render with checkbox unchecked
-		const apiConfiguration: Partial<ProviderSettings> = {
-			awsBedrockEndpoint: "",
-			awsUseProfile: true, // Use profile to avoid rendering other text fields
+	it("selects a discovered Bedrock profile and persists the resolved invoke target", () => {
+		const apiConfiguration: ProviderSettings = {
+			apiProvider: "bedrock",
+			apiModelId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+			awsRegion: "us-east-1",
+			awsUseProfile: true,
+			awsProfile: "dev",
+			awsBedrockInvokeTarget: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+			awsBedrockTargetKind: "foundation-model",
 		}
 
-		render(
-			<Bedrock
-				apiConfiguration={apiConfiguration as ProviderSettings}
-				setApiConfigurationField={mockSetApiConfigurationField}
-			/>,
+		render(<Bedrock apiConfiguration={apiConfiguration} setApiConfigurationField={mockSetApiConfigurationField} />)
+
+		fireEvent.change(screen.getByTestId("bedrock-target-select"), {
+			target: { value: "us.anthropic.claude-sonnet-4-5-20250929-v1:0:1m" },
+		})
+
+		expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsCustomArn", "")
+		expect(mockSetApiConfigurationField).toHaveBeenCalledWith(
+			"awsBedrockInvokeTarget",
+			"us.anthropic.claude-sonnet-4-5-20250929-v1:0:1m",
 		)
-
-		// Text field should not be visible initially
-		expect(screen.queryByTestId("vpc-endpoint-input")).not.toBeInTheDocument()
-
-		// Click the checkbox
-		fireEvent.click(screen.getByTestId("checkbox-input-settings:providers.awsbedrockvpc.usecustomvpcendpoint"))
-
-		// Text field should now be visible
-		expect(screen.getByTestId("vpc-endpoint-input")).toBeInTheDocument()
+		expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsBedrockTargetKind", "system-profile")
+		expect(mockSetApiConfigurationField).toHaveBeenCalledWith(
+			"apiModelId",
+			"anthropic.claude-sonnet-4-5-20250929-v1:0",
+		)
 	})
 
-	it("should hide text field when VPC endpoint checkbox is unchecked", () => {
-		// Initial render with checkbox checked
-		const apiConfiguration: Partial<ProviderSettings> = {
+	it("shows the custom ARN input when manual ARN mode is selected", () => {
+		const apiConfiguration: ProviderSettings = {
+			apiProvider: "bedrock",
+			apiModelId: "anthropic.claude-sonnet-4-6",
+			awsRegion: "us-east-1",
+			awsUseProfile: true,
+			awsProfile: "dev",
+		}
+
+		render(<Bedrock apiConfiguration={apiConfiguration} setApiConfigurationField={mockSetApiConfigurationField} />)
+
+		fireEvent.change(screen.getByTestId("bedrock-target-select"), {
+			target: { value: "__bedrock_manual_arn__" },
+		})
+
+		expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsBedrockTargetKind", "custom-arn")
+	})
+
+	it("shows and updates the VPC endpoint field when enabled", () => {
+		const apiConfiguration: ProviderSettings = {
+			apiProvider: "bedrock",
+			apiModelId: "anthropic.claude-sonnet-4-6",
+			awsRegion: "us-east-1",
+			awsUseProfile: true,
+			awsProfile: "dev",
+			awsBedrockEndpointEnabled: true,
 			awsBedrockEndpoint: "https://example.com",
-			awsBedrockEndpointEnabled: true, // Need to explicitly set this to true
-			awsUseProfile: true, // Use profile to avoid rendering other text fields
 		}
 
-		render(
-			<Bedrock
-				apiConfiguration={apiConfiguration as ProviderSettings}
-				setApiConfigurationField={mockSetApiConfigurationField}
-			/>,
+		render(<Bedrock apiConfiguration={apiConfiguration} setApiConfigurationField={mockSetApiConfigurationField} />)
+
+		expect(screen.getByTestId("vpc-endpoint-input")).toHaveValue("https://example.com")
+
+		fireEvent.change(screen.getByTestId("vpc-endpoint-input"), {
+			target: { value: "https://bedrock-vpc.example.com" },
+		})
+
+		expect(mockSetApiConfigurationField).toHaveBeenCalledWith(
+			"awsBedrockEndpoint",
+			"https://bedrock-vpc.example.com",
 		)
-
-		// Text field should be visible initially
-		expect(screen.getByTestId("vpc-endpoint-input")).toBeInTheDocument()
-
-		// Click the checkbox to uncheck it
-		fireEvent.click(screen.getByTestId("checkbox-input-settings:providers.awsbedrockvpc.usecustomvpcendpoint"))
-
-		// Text field should now be hidden
-		expect(screen.queryByTestId("vpc-endpoint-input")).not.toBeInTheDocument()
-
-		// Should call setApiConfigurationField to update the enabled flag
-		expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsBedrockEndpointEnabled", false)
-	})
-
-	// Test Scenario 1: Input Validation Test
-	describe("Input Validation", () => {
-		it("should accept valid URL formats", () => {
-			const apiConfiguration: Partial<ProviderSettings> = {
-				awsBedrockEndpoint: "",
-				awsBedrockEndpointEnabled: true,
-				awsUseProfile: true,
-			}
-
-			render(
-				<Bedrock
-					apiConfiguration={apiConfiguration as ProviderSettings}
-					setApiConfigurationField={mockSetApiConfigurationField}
-				/>,
-			)
-
-			// Find the input field
-			const inputField = screen.getByTestId("vpc-endpoint-input")
-			expect(inputField).toBeInTheDocument()
-
-			// Test with a valid URL
-			fireEvent.change(inputField, { target: { value: "https://bedrock.us-east-1.amazonaws.com" } })
-
-			// Verify the configuration field was updated with the valid URL
-			expect(mockSetApiConfigurationField).toHaveBeenCalledWith(
-				"awsBedrockEndpoint",
-				"https://bedrock.us-east-1.amazonaws.com",
-			)
-		})
-
-		it("should handle empty URL input", () => {
-			const apiConfiguration: Partial<ProviderSettings> = {
-				awsBedrockEndpoint: "https://example.com",
-				awsBedrockEndpointEnabled: true,
-				awsUseProfile: true,
-			}
-
-			render(
-				<Bedrock
-					apiConfiguration={apiConfiguration as ProviderSettings}
-					setApiConfigurationField={mockSetApiConfigurationField}
-				/>,
-			)
-
-			// Find the input field
-			const inputField = screen.getByTestId("vpc-endpoint-input")
-
-			// Clear the field
-			fireEvent.change(inputField, { target: { value: "" } })
-
-			// Verify the configuration field was updated with empty string
-			expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsBedrockEndpoint", "")
-		})
-	})
-
-	// Test Scenario 2: Edge Case Tests
-	describe("Edge Cases", () => {
-		it("should preserve endpoint URL when toggling checkbox multiple times", () => {
-			const apiConfiguration: Partial<ProviderSettings> = {
-				awsBedrockEndpoint: "https://bedrock-vpc.example.com",
-				awsBedrockEndpointEnabled: true,
-				awsUseProfile: true,
-			}
-
-			render(
-				<Bedrock
-					apiConfiguration={apiConfiguration as ProviderSettings}
-					setApiConfigurationField={mockSetApiConfigurationField}
-				/>,
-			)
-
-			// Initial state: checkbox checked, URL visible
-			expect(screen.getByTestId("vpc-endpoint-input")).toBeInTheDocument()
-			expect(screen.getByTestId("vpc-endpoint-input")).toHaveValue("https://bedrock-vpc.example.com")
-
-			// Uncheck the checkbox
-			fireEvent.click(screen.getByTestId("checkbox-input-settings:providers.awsbedrockvpc.usecustomvpcendpoint"))
-
-			// Verify endpoint enabled was set to false
-			expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsBedrockEndpointEnabled", false)
-
-			// Check the checkbox again
-			fireEvent.click(screen.getByTestId("checkbox-input-settings:providers.awsbedrockvpc.usecustomvpcendpoint"))
-
-			// Verify endpoint enabled was set to true
-			expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsBedrockEndpointEnabled", true)
-
-			// Verify the URL field is visible again
-			expect(screen.getByTestId("vpc-endpoint-input")).toBeInTheDocument()
-		})
-
-		it("should handle very long endpoint URLs", () => {
-			const veryLongUrl =
-				"https://bedrock-vpc-endpoint-with-a-very-long-name-that-might-cause-issues-in-some-ui-components.region-1.amazonaws.com/api/v1/endpoint"
-
-			const apiConfiguration: Partial<ProviderSettings> = {
-				awsBedrockEndpoint: veryLongUrl,
-				awsBedrockEndpointEnabled: true,
-				awsUseProfile: true,
-			}
-
-			render(
-				<Bedrock
-					apiConfiguration={apiConfiguration as ProviderSettings}
-					setApiConfigurationField={mockSetApiConfigurationField}
-				/>,
-			)
-
-			// Verify the long URL is displayed correctly
-			expect(screen.getByTestId("vpc-endpoint-input")).toHaveValue(veryLongUrl)
-
-			// Change the URL to something else
-			fireEvent.change(screen.getByTestId("vpc-endpoint-input"), {
-				target: { value: "https://shorter-url.com" },
-			})
-
-			// Verify the configuration was updated
-			expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsBedrockEndpoint", "https://shorter-url.com")
-		})
-	})
-
-	// Test Scenario 3: UI Elements Tests
-	describe("UI Elements", () => {
-		it("should display example URLs when VPC endpoint checkbox is checked", () => {
-			const apiConfiguration: Partial<ProviderSettings> = {
-				awsBedrockEndpoint: "https://example.com",
-				awsBedrockEndpointEnabled: true,
-				awsUseProfile: true,
-			}
-
-			render(
-				<Bedrock
-					apiConfiguration={apiConfiguration as ProviderSettings}
-					setApiConfigurationField={mockSetApiConfigurationField}
-				/>,
-			)
-
-			// Check that the VPC endpoint input is visible
-			expect(screen.getByTestId("vpc-endpoint-input")).toBeInTheDocument()
-
-			// Check for the example URLs section
-			// Since we don't have a specific testid for the examples section,
-			// we'll check for the text content
-			expect(screen.getByText("settings:providers.awsBedrockVpc.examples")).toBeInTheDocument()
-			expect(screen.getByText("• https://vpce-xxx.bedrock.region.vpce.amazonaws.com/")).toBeInTheDocument()
-			expect(screen.getByText("• https://gateway.my-company.com/route/app/bedrock")).toBeInTheDocument()
-		})
-
-		it("should hide example URLs when VPC endpoint checkbox is unchecked", () => {
-			const apiConfiguration: Partial<ProviderSettings> = {
-				awsBedrockEndpoint: "https://example.com",
-				awsBedrockEndpointEnabled: true,
-				awsUseProfile: true,
-			}
-
-			render(
-				<Bedrock
-					apiConfiguration={apiConfiguration as ProviderSettings}
-					setApiConfigurationField={mockSetApiConfigurationField}
-				/>,
-			)
-
-			// Initially the examples should be visible
-			expect(screen.getByText("settings:providers.awsBedrockVpc.examples")).toBeInTheDocument()
-
-			// Uncheck the VPC endpoint checkbox
-			fireEvent.click(screen.getByTestId("checkbox-input-settings:providers.awsbedrockvpc.usecustomvpcendpoint"))
-
-			// Now the examples should be hidden
-			expect(screen.queryByText("settings:providers.awsBedrockVpc.examples")).not.toBeInTheDocument()
-			expect(screen.queryByText("• https://vpce-xxx.bedrock.region.vpce.amazonaws.com/")).not.toBeInTheDocument()
-			expect(screen.queryByText("• https://gateway.my-company.com/route/app/bedrock")).not.toBeInTheDocument()
-		})
-	})
-
-	// Test Scenario 4: Error Handling Tests
-	describe("Error Handling", () => {
-		it("should handle invalid endpoint URLs gracefully", () => {
-			const apiConfiguration: Partial<ProviderSettings> = {
-				awsBedrockEndpoint: "",
-				awsBedrockEndpointEnabled: true,
-				awsUseProfile: true,
-			}
-
-			render(
-				<Bedrock
-					apiConfiguration={apiConfiguration as ProviderSettings}
-					setApiConfigurationField={mockSetApiConfigurationField}
-				/>,
-			)
-
-			// Find the input field
-			const inputField = screen.getByTestId("vpc-endpoint-input")
-
-			// Enter an invalid URL (missing protocol)
-			fireEvent.change(inputField, { target: { value: "invalid-url" } })
-
-			// The component should still update the configuration
-			// (URL validation would typically happen at a higher level or when used)
-			expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsBedrockEndpoint", "invalid-url")
-		})
-	})
-
-	// Test Scenario 5: Persistence Tests
-	describe("Persistence", () => {
-		it("should initialize with the correct state from apiConfiguration", () => {
-			// Test with endpoint enabled
-			const apiConfigurationEnabled: Partial<ProviderSettings> = {
-				awsBedrockEndpoint: "https://custom-endpoint.aws.com",
-				awsBedrockEndpointEnabled: true,
-				awsUseProfile: true,
-			}
-
-			const { unmount } = render(
-				<Bedrock
-					apiConfiguration={apiConfigurationEnabled as ProviderSettings}
-					setApiConfigurationField={mockSetApiConfigurationField}
-				/>,
-			)
-
-			// Verify checkbox is checked and endpoint is visible
-			expect(
-				screen.getByTestId("checkbox-input-settings:providers.awsbedrockvpc.usecustomvpcendpoint"),
-			).toBeChecked()
-			expect(screen.getByTestId("vpc-endpoint-input")).toBeInTheDocument()
-			expect(screen.getByTestId("vpc-endpoint-input")).toHaveValue("https://custom-endpoint.aws.com")
-
-			unmount()
-
-			// Test with endpoint disabled
-			const apiConfigurationDisabled: Partial<ProviderSettings> = {
-				awsBedrockEndpoint: "https://custom-endpoint.aws.com",
-				awsBedrockEndpointEnabled: false,
-				awsUseProfile: true,
-			}
-
-			render(
-				<Bedrock
-					apiConfiguration={apiConfigurationDisabled as ProviderSettings}
-					setApiConfigurationField={mockSetApiConfigurationField}
-				/>,
-			)
-
-			// Verify checkbox is unchecked and endpoint is not visible
-			expect(
-				screen.getByTestId("checkbox-input-settings:providers.awsbedrockvpc.usecustomvpcendpoint"),
-			).not.toBeChecked()
-			expect(screen.queryByTestId("vpc-endpoint-input")).not.toBeInTheDocument()
-		})
-
-		it("should update state when apiConfiguration changes", () => {
-			// Initial render with endpoint disabled
-			const apiConfigurationInitial: Partial<ProviderSettings> = {
-				awsBedrockEndpoint: "https://initial-endpoint.aws.com",
-				awsBedrockEndpointEnabled: false,
-				awsUseProfile: true,
-			}
-
-			const { rerender } = render(
-				<Bedrock
-					apiConfiguration={apiConfigurationInitial as ProviderSettings}
-					setApiConfigurationField={mockSetApiConfigurationField}
-				/>,
-			)
-
-			// Verify initial state
-			expect(
-				screen.getByTestId("checkbox-input-settings:providers.awsbedrockvpc.usecustomvpcendpoint"),
-			).not.toBeChecked()
-			expect(screen.queryByTestId("vpc-endpoint-input")).not.toBeInTheDocument()
-
-			// Update with new configuration
-			const apiConfigurationUpdated: Partial<ProviderSettings> = {
-				awsBedrockEndpoint: "https://updated-endpoint.aws.com",
-				awsBedrockEndpointEnabled: true,
-				awsUseProfile: true,
-			}
-
-			rerender(
-				<Bedrock
-					apiConfiguration={apiConfigurationUpdated as ProviderSettings}
-					setApiConfigurationField={mockSetApiConfigurationField}
-				/>,
-			)
-
-			// Verify updated state
-			expect(
-				screen.getByTestId("checkbox-input-settings:providers.awsbedrockvpc.usecustomvpcendpoint"),
-			).toBeChecked()
-			expect(screen.getByTestId("vpc-endpoint-input")).toBeInTheDocument()
-			expect(screen.getByTestId("vpc-endpoint-input")).toHaveValue("https://updated-endpoint.aws.com")
-		})
-
-		// Test Scenario 6: Authentication Method Selection Tests
-		describe("Authentication Method Selection", () => {
-			it("should display credentials option as selected when neither awsUseProfile nor awsUseApiKey is true", () => {
-				const apiConfiguration: Partial<ProviderSettings> = {
-					awsUseProfile: false,
-					awsUseApiKey: false,
-				}
-
-				render(
-					<Bedrock
-						apiConfiguration={apiConfiguration as ProviderSettings}
-						setApiConfigurationField={mockSetApiConfigurationField}
-					/>,
-				)
-
-				// Find the first select element (authentication method)
-				const selectInputs = screen.getAllByRole("combobox")
-				const authSelect = selectInputs[0] as HTMLSelectElement
-				expect(authSelect).toHaveValue("credentials")
-			})
-
-			it("should display profile option as selected when awsUseProfile is true", () => {
-				const apiConfiguration: Partial<ProviderSettings> = {
-					awsUseProfile: true,
-					awsUseApiKey: false,
-				}
-
-				render(
-					<Bedrock
-						apiConfiguration={apiConfiguration as ProviderSettings}
-						setApiConfigurationField={mockSetApiConfigurationField}
-					/>,
-				)
-
-				const selectInputs = screen.getAllByRole("combobox")
-				const authSelect = selectInputs[0] as HTMLSelectElement
-				expect(authSelect).toHaveValue("profile")
-			})
-
-			it("should display apikey option as selected when awsUseApiKey is true", () => {
-				const apiConfiguration: Partial<ProviderSettings> = {
-					awsUseProfile: false,
-					awsUseApiKey: true,
-				}
-
-				render(
-					<Bedrock
-						apiConfiguration={apiConfiguration as ProviderSettings}
-						setApiConfigurationField={mockSetApiConfigurationField}
-					/>,
-				)
-
-				const selectInputs = screen.getAllByRole("combobox")
-				const authSelect = selectInputs[0] as HTMLSelectElement
-				expect(authSelect).toHaveValue("apikey")
-			})
-
-			it("should call setApiConfigurationField correctly when switching to profile", () => {
-				const apiConfiguration: Partial<ProviderSettings> = {
-					awsUseProfile: false,
-					awsUseApiKey: false,
-				}
-
-				render(
-					<Bedrock
-						apiConfiguration={apiConfiguration as ProviderSettings}
-						setApiConfigurationField={mockSetApiConfigurationField}
-					/>,
-				)
-
-				const selectInputs = screen.getAllByRole("combobox")
-				const authSelect = selectInputs[0] as HTMLSelectElement
-				fireEvent.change(authSelect, { target: { value: "profile" } })
-
-				expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsUseApiKey", false)
-				expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsUseProfile", true)
-			})
-
-			it("should call setApiConfigurationField correctly when switching to apikey", () => {
-				const apiConfiguration: Partial<ProviderSettings> = {
-					awsUseProfile: false,
-					awsUseApiKey: false,
-				}
-
-				render(
-					<Bedrock
-						apiConfiguration={apiConfiguration as ProviderSettings}
-						setApiConfigurationField={mockSetApiConfigurationField}
-					/>,
-				)
-
-				const selectInputs = screen.getAllByRole("combobox")
-				const authSelect = selectInputs[0] as HTMLSelectElement
-				fireEvent.change(authSelect, { target: { value: "apikey" } })
-
-				expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsUseApiKey", true)
-				expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsUseProfile", false)
-			})
-
-			it("should call setApiConfigurationField correctly when switching to credentials", () => {
-				const apiConfiguration: Partial<ProviderSettings> = {
-					awsUseProfile: true,
-					awsUseApiKey: false,
-				}
-
-				render(
-					<Bedrock
-						apiConfiguration={apiConfiguration as ProviderSettings}
-						setApiConfigurationField={mockSetApiConfigurationField}
-					/>,
-				)
-
-				const selectInputs = screen.getAllByRole("combobox")
-				const authSelect = selectInputs[0] as HTMLSelectElement
-				fireEvent.change(authSelect, { target: { value: "credentials" } })
-
-				expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsUseApiKey", false)
-				expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsUseProfile", false)
-			})
-		})
 	})
 })

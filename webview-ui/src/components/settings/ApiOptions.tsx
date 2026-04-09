@@ -106,7 +106,6 @@ import { TodoListSettingsControl } from "./TodoListSettingsControl"
 import { TemperatureControl } from "./TemperatureControl"
 import { RateLimitSecondsControl } from "./RateLimitSecondsControl"
 import { ConsecutiveMistakeLimitControl } from "./ConsecutiveMistakeLimitControl"
-import { BedrockCustomArn } from "./providers/BedrockCustomArn"
 import { RooBalanceDisplay } from "./providers/RooBalanceDisplay"
 import { buildDocLink } from "@src/utils/docLinks"
 import { BookOpenText, TriangleAlert } from "lucide-react"
@@ -309,11 +308,6 @@ const ApiOptions = ({
 				// Note: We only validate providers with static model lists.
 				const staticModels = MODELS_BY_PROVIDER[provider]
 				if (!staticModels) {
-					return
-				}
-
-				// Bedrock has a special “custom-arn” pseudo-model that isn't part of MODELS_BY_PROVIDER.
-				if (provider === "bedrock" && modelId === "custom-arn") {
 					return
 				}
 
@@ -794,13 +788,6 @@ const ApiOptions = ({
 									)
 								}
 							/>
-
-							{selectedProvider === "bedrock" && selectedModelId === "custom-arn" && (
-								<BedrockCustomArn
-									apiConfiguration={apiConfiguration}
-									setApiConfigurationField={setApiConfigurationField}
-								/>
-							)}
 						</>
 					)}
 

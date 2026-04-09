@@ -1,4 +1,3 @@
-
 // Mock AWS SDK credential providers
 vi.mock("@aws-sdk/credential-providers", () => {
 	const mockFromIni = vi.fn().mockReturnValue({
@@ -27,6 +26,7 @@ vi.mock("@aws-sdk/client-bedrock-runtime", () => {
 import { AwsBedrockHandler } from "../bedrock"
 import { ConverseStreamCommand, BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime"
 import {
+	BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS,
 	BEDROCK_1M_CONTEXT_MODEL_IDS,
 	BEDROCK_SERVICE_TIER_MODEL_IDS,
 	bedrockModels,
@@ -705,6 +705,19 @@ describe("AwsBedrockHandler", () => {
 			expect(model.info.outputPrice).toBe(22.5)
 		})
 
+		it("should treat Claude 4.6 Bedrock models as 1M context by default", () => {
+			const handler = new AwsBedrockHandler({
+				apiModelId: BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS[0],
+				awsAccessKey: "test",
+				awsSecretKey: "test",
+				awsRegion: "us-east-1",
+				awsBedrock1MContext: false,
+			})
+
+			const model = handler.getModel()
+			expect(model.info.contextWindow).toBe(1_000_000)
+		})
+
 		it("should use default context window when awsBedrock1MContext is false for Claude Sonnet 4", () => {
 			const handler = new AwsBedrockHandler({
 				apiModelId: BEDROCK_1M_CONTEXT_MODEL_IDS[0],
@@ -848,6 +861,22 @@ describe("AwsBedrockHandler", () => {
 			expect(model.info.contextWindow).toBe(1_000_000)
 			// Model ID should have cross-region prefix
 			expect(model.id).toBe(`us.${BEDROCK_1M_CONTEXT_MODEL_IDS[0]}`)
+		})
+
+		it("should invoke an explicitly discovered Bedrock profile without adding another routing prefix", () => {
+			const handler = new AwsBedrockHandler({
+				apiModelId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+				awsBedrockInvokeTarget: "us.anthropic.claude-sonnet-4-5-20250929-v1:0:1m",
+				awsBedrockTargetKind: "system-profile",
+				awsAccessKey: "test",
+				awsSecretKey: "test",
+				awsRegion: "us-east-1",
+				awsUseCrossRegionInference: true,
+			})
+
+			const model = handler.getModel()
+			expect(model.id).toBe("us.anthropic.claude-sonnet-4-5-20250929-v1:0:1m")
+			expect(model.info.contextWindow).toBe(1_000_000)
 		})
 
 		it("should include anthropic_beta parameter with cross-region inference for Claude Sonnet 4", async () => {
@@ -1129,7 +1158,6 @@ describe("AwsBedrockHandler", () => {
 			})
 		})
 	})
-
 
 	describe("prompt cache default behavior", () => {
 		beforeEach(() => {

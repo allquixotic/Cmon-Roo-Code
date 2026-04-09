@@ -23,13 +23,14 @@ import {
 	bedrockModels,
 	bedrockDefaultPromptRouterModelId,
 	BEDROCK_DEFAULT_TEMPERATURE,
-	BEDROCK_MAX_TOKENS,
-	BEDROCK_DEFAULT_CONTEXT,
 	AWS_INFERENCE_PROFILE_MAPPING,
 	BEDROCK_1M_CONTEXT_MODEL_IDS,
 	BEDROCK_GLOBAL_INFERENCE_MODEL_IDS,
 	BEDROCK_SERVICE_TIER_MODEL_IDS,
 	BEDROCK_SERVICE_TIER_PRICING,
+	inferBedrockInvokeTargetKind,
+	parseBedrockBaseModelId,
+	resolveBedrockModelInfo,
 } from "@roo-code/types"
 
 import { ApiStream } from "../transform/stream"
@@ -281,65 +282,6 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		}
 
 		this.client = new BedrockRuntimeClient(clientConfig)
-	}
-
-	// Helper to guess model info from custom modelId string if not in bedrockModels
-	private guessModelInfoFromId(modelId: string): Partial<ModelInfo> {
-		// Define a mapping for model ID patterns and their configurations
-		const modelConfigMap: Record<string, Partial<ModelInfo>> = {
-			"claude-4": {
-				maxTokens: 8192,
-				contextWindow: 200_000,
-				supportsImages: true,
-				supportsPromptCache: true,
-			},
-			"claude-3-7": {
-				maxTokens: 8192,
-				contextWindow: 200_000,
-				supportsImages: true,
-				supportsPromptCache: true,
-			},
-			"claude-3-5": {
-				maxTokens: 8192,
-				contextWindow: 200_000,
-				supportsImages: true,
-				supportsPromptCache: true,
-			},
-			"claude-4-opus": {
-				maxTokens: 4096,
-				contextWindow: 200_000,
-				supportsImages: true,
-				supportsPromptCache: true,
-			},
-			"claude-3-opus": {
-				maxTokens: 4096,
-				contextWindow: 200_000,
-				supportsImages: true,
-				supportsPromptCache: true,
-			},
-			"claude-3-haiku": {
-				maxTokens: 4096,
-				contextWindow: 200_000,
-				supportsImages: true,
-				supportsPromptCache: true,
-			},
-		}
-
-		// Match the model ID to a configuration
-		const id = modelId.toLowerCase()
-		for (const [pattern, config] of Object.entries(modelConfigMap)) {
-			if (id.includes(pattern)) {
-				return config
-			}
-		}
-
-		// Default fallback
-		return {
-			maxTokens: BEDROCK_MAX_TOKENS,
-			contextWindow: BEDROCK_DEFAULT_CONTEXT,
-			supportsImages: false,
-			supportsPromptCache: false,
-		}
 	}
 
 	override async *createMessage(
@@ -782,7 +724,6 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			}
 			return ""
 		} catch (error) {
-
 			// Use the extracted error handling method for all errors
 			const errorResult = this.handleBedrockError(error, false) // false for non-streaming context
 			// Since we're in a non-streaming context, we know the result is a string
@@ -974,62 +915,35 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 
 	//This strips any region prefix that used on cross-region model inference ARNs
 	private parseBaseModelId(modelId: string): string {
-		if (!modelId) {
-			return modelId
-		}
-
-		// Remove AWS cross-region inference profile prefixes
-		// as defined in AWS_INFERENCE_PROFILE_MAPPING
-		for (const [_, inferenceProfile] of AWS_INFERENCE_PROFILE_MAPPING) {
-			if (modelId.startsWith(inferenceProfile)) {
-				// Remove the inference profile prefix from the model ID
-				return modelId.substring(inferenceProfile.length)
-			}
-		}
-
-		// Also strip Global Inference profile prefix if present
-		if (modelId.startsWith("global.")) {
-			return modelId.substring("global.".length)
-		}
-
-		// Return the model ID as-is for all other cases
-		return modelId
+		return parseBedrockBaseModelId(modelId)
 	}
 
 	//Prompt Router responses come back in a different sequence and the model used is in the response and must be fetched by name
 	getModelById(modelId: string, modelType?: string): { id: BedrockModelId | string; info: ModelInfo } {
-		// Try to find the model in bedrockModels
-		const baseModelId = this.parseBaseModelId(modelId) as BedrockModelId
-
 		let model
-		if (baseModelId in bedrockModels) {
+		const resolved = resolveBedrockModelInfo({
+			baseModelId: this.parseBaseModelId(modelId),
+			targetId: modelId,
+			optIn1MContext: this.options.awsBedrock1MContext,
+			modelMaxTokens: this.options.modelMaxTokens,
+			contextWindowOverride: this.options.awsModelContextWindow,
+		})
+
+		if (resolved.baseModelId in bedrockModels) {
 			//Do a deep copy of the model info so that later in the code the model id and maxTokens can be set.
 			// The bedrockModels array is a constant and updating the model ID from the returned invokedModelID value
 			// in a prompt router response isn't possible on the constant.
-			model = { id: baseModelId, info: JSON.parse(JSON.stringify(bedrockModels[baseModelId])) }
+			model = { id: resolved.baseModelId, info: resolved.info }
 		} else if (modelType && modelType.includes("router")) {
 			model = {
 				id: bedrockDefaultPromptRouterModelId,
 				info: JSON.parse(JSON.stringify(bedrockModels[bedrockDefaultPromptRouterModelId])),
 			}
 		} else {
-			// Use heuristics for model info, then allow overrides from ProviderSettings
-			const guessed = this.guessModelInfoFromId(modelId)
 			model = {
-				id: bedrockDefaultModelId,
-				info: {
-					...JSON.parse(JSON.stringify(bedrockModels[bedrockDefaultModelId])),
-					...guessed,
-				},
+				id: resolved.baseModelId || bedrockDefaultModelId,
+				info: resolved.info,
 			}
-		}
-
-		// Always allow user to override detected/guessed maxTokens and contextWindow
-		if (this.options.modelMaxTokens && this.options.modelMaxTokens > 0) {
-			model.info.maxTokens = this.options.modelMaxTokens
-		}
-		if (this.options.awsModelContextWindow && this.options.awsModelContextWindow > 0) {
-			model.info.contextWindow = this.options.awsModelContextWindow
 		}
 
 		return model
@@ -1056,6 +970,12 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		}
 
 		let modelConfig = undefined
+		const explicitTargetKind = this.options.awsCustomArn
+			? "custom-arn"
+			: inferBedrockInvokeTargetKind({
+					targetId: this.options.awsBedrockInvokeTarget || (this.options.apiModelId as string),
+					explicitKind: this.options.awsBedrockTargetKind,
+				})
 
 		// If custom ARN is provided, use it
 		if (this.options.awsCustomArn) {
@@ -1066,22 +986,34 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			//Otherwise the ARN is not a foundation-model resource type that ARN should be used as the identifier in Bedrock interactions
 			if (this.arnInfo.modelType !== "foundation-model") modelConfig.id = this.options.awsCustomArn
 		} else {
-			//a model was selected from the drop down
-			modelConfig = this.getModelById(this.options.apiModelId as string)
+			const configuredTargetId = this.options.awsBedrockInvokeTarget || (this.options.apiModelId as string)
 
-			// Apply Global Inference prefix if enabled and supported (takes precedence over cross-region)
-			const baseIdForGlobal = this.parseBaseModelId(modelConfig.id)
+			// A discovered/profile target was explicitly selected, so invoke it directly.
 			if (
-				this.options.awsUseGlobalInference &&
-				BEDROCK_GLOBAL_INFERENCE_MODEL_IDS.includes(baseIdForGlobal as any)
+				explicitTargetKind === "system-profile" ||
+				explicitTargetKind === "application-profile" ||
+				explicitTargetKind === "prompt-router"
 			) {
-				modelConfig.id = `global.${baseIdForGlobal}`
-			}
-			// Otherwise, add cross-region inference prefix if enabled
-			else if (this.options.awsUseCrossRegionInference && this.options.awsRegion) {
-				const prefix = AwsBedrockHandler.getPrefixForRegion(this.options.awsRegion)
-				if (prefix) {
-					modelConfig.id = `${prefix}${modelConfig.id}`
+				modelConfig = this.getModelById(configuredTargetId)
+				modelConfig.id = configuredTargetId
+			} else {
+				// A foundation model was selected, so optional routing toggles still apply.
+				modelConfig = this.getModelById(configuredTargetId)
+
+				// Apply Global Inference prefix if enabled and supported (takes precedence over cross-region)
+				const baseIdForGlobal = this.parseBaseModelId(modelConfig.id)
+				if (
+					this.options.awsUseGlobalInference &&
+					BEDROCK_GLOBAL_INFERENCE_MODEL_IDS.includes(baseIdForGlobal as any)
+				) {
+					modelConfig.id = `global.${baseIdForGlobal}`
+				}
+				// Otherwise, add cross-region inference prefix if enabled
+				else if (this.options.awsUseCrossRegionInference && this.options.awsRegion) {
+					const prefix = AwsBedrockHandler.getPrefixForRegion(this.options.awsRegion)
+					if (prefix) {
+						modelConfig.id = `${prefix}${modelConfig.id}`
+					}
 				}
 			}
 		}
