@@ -157,6 +157,47 @@ async function pathExists(target) {
 	}
 }
 
+async function removeObsoleteExtensionEntries(extensionsDir, installPrefix) {
+	const obsoletePath = path.join(extensionsDir, ".obsolete")
+	if (!(await pathExists(obsoletePath))) {
+		return
+	}
+
+	let obsoleteEntries
+	try {
+		obsoleteEntries = JSON.parse(await fs.readFile(obsoletePath, "utf8"))
+	} catch {
+		log(`Skipping obsolete cleanup because ${obsoletePath} could not be parsed`)
+		return
+	}
+
+	if (!obsoleteEntries || typeof obsoleteEntries !== "object" || Array.isArray(obsoleteEntries)) {
+		log(`Skipping obsolete cleanup because ${obsoletePath} does not contain an object`)
+		return
+	}
+
+	const normalizedInstallPrefix = installPrefix.toLowerCase()
+	let changed = false
+	for (const key of Object.keys(obsoleteEntries)) {
+		if (key.toLowerCase().startsWith(normalizedInstallPrefix)) {
+			delete obsoleteEntries[key]
+			changed = true
+		}
+	}
+
+	if (!changed) {
+		return
+	}
+
+	if (Object.keys(obsoleteEntries).length === 0) {
+		await fs.rm(obsoletePath, { force: true })
+	} else {
+		await fs.writeFile(obsoletePath, JSON.stringify(obsoleteEntries))
+	}
+
+	log(`Removed obsolete markers for ${installPrefix} from ${obsoletePath}`)
+}
+
 async function ensureBuildRoot() {
 	await fs.mkdir(buildRoot, { recursive: true })
 }
@@ -353,18 +394,19 @@ async function installVsix(vsixPath, installTarget) {
 			throw new Error(`VSIX manifest ${manifestPath} is missing publisher, name, or version`)
 		}
 
-		const installPrefix = `${publisher}.${name}-`
+		const extensionId = `${publisher}.${name}`
+		const installPrefix = `${extensionId.toLowerCase()}-`
 		const extensionEntries = await fs.readdir(installTarget.extensionsDir, { withFileTypes: true })
 		for (const entry of extensionEntries) {
 			if (!entry.isDirectory()) {
 				continue
 			}
-			if (entry.name.startsWith(installPrefix)) {
+			if (entry.name.toLowerCase().startsWith(installPrefix)) {
 				await fs.rm(path.join(installTarget.extensionsDir, entry.name), { recursive: true, force: true })
 			}
 		}
-
-		const installedDir = path.join(installTarget.extensionsDir, `${publisher}.${name}-${version}`)
+		await removeObsoleteExtensionEntries(installTarget.extensionsDir, installPrefix)
+		const installedDir = path.join(installTarget.extensionsDir, `${installPrefix}${version}`)
 		await fs.rm(installedDir, { recursive: true, force: true })
 		await fs.cp(extensionDir, installedDir, { recursive: true })
 
