@@ -660,7 +660,7 @@ describe("ChatView - No Profile State", () => {
 	})
 })
 
-describe("ChatView - DismissibleUpsell Display Tests", () => {
+describe("ChatView - Empty state cloud promo suppression", () => {
 	beforeEach(() => vi.clearAllMocks())
 
 	it("does not show DismissibleUpsell when user is authenticated to Cloud", () => {
@@ -700,8 +700,8 @@ describe("ChatView - DismissibleUpsell Display Tests", () => {
 		expect(queryByTestId("dismissible-upsell")).not.toBeInTheDocument()
 	})
 
-	it("shows DismissibleUpsell when user is not authenticated and has run 6 or more tasks", async () => {
-		const { getByTestId } = renderChatView()
+	it("does not show DismissibleUpsell when user is not authenticated and has run 6 or more tasks", async () => {
+		const { queryByTestId } = renderChatView()
 
 		// Hydrate state with user not authenticated and 4 tasks
 		mockPostMessage({
@@ -718,9 +718,9 @@ describe("ChatView - DismissibleUpsell Display Tests", () => {
 			clineMessages: [], // No active task
 		})
 
-		// Wait for component to render and show DismissibleUpsell
+		// Wait for component to render and confirm the task-list upsell stays suppressed
 		await waitFor(() => {
-			expect(getByTestId("dismissible-upsell")).toBeInTheDocument()
+			expect(queryByTestId("dismissible-upsell")).not.toBeInTheDocument()
 		})
 	})
 

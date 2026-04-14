@@ -27,7 +27,6 @@
 	"createTeamAccount": "Create Team Account",
 	"upsell": {
 		"autoApprovePowerUser": "Giving CRC some independence? Control it from anywhere with CRC Cloud. <learnMoreLink>Learn more</learnMoreLink>.",
-		"longRunningTask": "This might take a while. Continue from anywhere with Cloud.",
-		"taskList": "Enjoying CRC? Check out CRC Cloud: follow and control your tasks from anywhere, run autonomous cloud agents, and more. <learnMoreLink>Learn more</learnMoreLink>."
+		"longRunningTask": "This might take a while. Continue from anywhere with Cloud."
 	}
 }
