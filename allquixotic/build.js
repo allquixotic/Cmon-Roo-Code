@@ -197,6 +197,91 @@ async function removeObsoleteExtensionEntries(extensionsDir, installPrefix) {
 
 	log(`Removed obsolete markers for ${installPrefix} from ${obsoletePath}`)
 }
+function isObjectRecord(value) {
+	return value !== null && typeof value === "object" && !Array.isArray(value)
+}
+
+function matchesExtensionRegistryEntry(entry, extensionId, installPrefix) {
+	if (!isObjectRecord(entry)) {
+		return false
+	}
+
+	const identifier = isObjectRecord(entry.identifier) ? entry.identifier.id : undefined
+	if (typeof identifier === "string" && identifier.toLowerCase() === extensionId) {
+		return true
+	}
+
+	if (typeof entry.relativeLocation === "string" && entry.relativeLocation.toLowerCase().startsWith(installPrefix)) {
+		return true
+	}
+
+	const locationPath = isObjectRecord(entry.location) ? (entry.location.path ?? entry.location.fsPath) : undefined
+	if (typeof locationPath === "string" && path.basename(locationPath).toLowerCase().startsWith(installPrefix)) {
+		return true
+	}
+
+	return false
+}
+
+async function updateExtensionsRegistry(extensionsDir, extensionId, version, installedDir) {
+	const extensionsRegistryPath = path.join(extensionsDir, "extensions.json")
+	let extensionEntries = []
+
+	if (await pathExists(extensionsRegistryPath)) {
+		try {
+			extensionEntries = JSON.parse(await fs.readFile(extensionsRegistryPath, "utf8"))
+		} catch (error) {
+			throw new Error(
+				`Could not parse ${extensionsRegistryPath}: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
+
+		if (!Array.isArray(extensionEntries)) {
+			throw new Error(`${extensionsRegistryPath} does not contain an array`)
+		}
+	}
+
+	const normalizedExtensionId = extensionId.toLowerCase()
+	const installPrefix = `${normalizedExtensionId}-`
+	const relativeLocation = path.basename(installedDir)
+	const existingEntry = extensionEntries.find((entry) =>
+		matchesExtensionRegistryEntry(entry, normalizedExtensionId, installPrefix),
+	)
+
+	const nextEntry = {
+		...(isObjectRecord(existingEntry) ? existingEntry : {}),
+		identifier: {
+			...(isObjectRecord(existingEntry) && isObjectRecord(existingEntry.identifier)
+				? existingEntry.identifier
+				: {}),
+			id: extensionId,
+		},
+		version,
+		location: {
+			$mid: 1,
+			path: installedDir,
+			scheme: "file",
+		},
+		relativeLocation,
+		metadata: {
+			...(isObjectRecord(existingEntry) && isObjectRecord(existingEntry.metadata) ? existingEntry.metadata : {}),
+			installedTimestamp:
+				isObjectRecord(existingEntry) &&
+				isObjectRecord(existingEntry.metadata) &&
+				typeof existingEntry.metadata.installedTimestamp === "number"
+					? existingEntry.metadata.installedTimestamp
+					: Date.now(),
+		},
+	}
+
+	const nextEntries = extensionEntries.filter(
+		(entry) => !matchesExtensionRegistryEntry(entry, normalizedExtensionId, installPrefix),
+	)
+	nextEntries.push(nextEntry)
+
+	await fs.writeFile(extensionsRegistryPath, `${JSON.stringify(nextEntries, null, "\t")}\n`)
+	log(`Registered ${extensionId}@${version} in ${extensionsRegistryPath}`)
+}
 
 async function ensureBuildRoot() {
 	await fs.mkdir(buildRoot, { recursive: true })
@@ -409,6 +494,7 @@ async function installVsix(vsixPath, installTarget) {
 		const installedDir = path.join(installTarget.extensionsDir, `${installPrefix}${version}`)
 		await fs.rm(installedDir, { recursive: true, force: true })
 		await fs.cp(extensionDir, installedDir, { recursive: true })
+		await updateExtensionsRegistry(installTarget.extensionsDir, extensionId, version, installedDir)
 
 		log(`Installed ${publisher}.${name}@${version}`)
 		log(`  VSIX: ${vsixPath}`)

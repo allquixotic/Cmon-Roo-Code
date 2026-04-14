@@ -1,8 +1,9 @@
-import { ClineMessage, HistoryItem } from "@roo-code/types"
+import type { ClineMessage, HistoryItem, QueuedMessage } from "@roo-code/types"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 interface UsePromptHistoryProps {
 	clineMessages: ClineMessage[] | undefined
+	messageQueue: QueuedMessage[] | undefined
 	taskHistory: HistoryItem[] | undefined
 	cwd: string | undefined
 	inputValue: string
@@ -26,6 +27,7 @@ export interface UsePromptHistoryReturn {
 
 export const usePromptHistory = ({
 	clineMessages,
+	messageQueue,
 	taskHistory,
 	cwd,
 	inputValue,
@@ -45,10 +47,12 @@ export const usePromptHistory = ({
 		const conversationPrompts = clineMessages
 			?.filter((message) => message.type === "say" && message.say === "user_feedback" && message.text?.trim())
 			.map((message) => message.text!)
+		const queuedPrompts = messageQueue?.filter((message) => message.text?.trim()).map((message) => message.text)
 
-		// If we have conversation messages, use those (newest first when navigating up)
-		if (conversationPrompts?.length) {
-			return conversationPrompts.slice(-MAX_PROMPT_HISTORY_SIZE).reverse()
+		// Queued follow-up messages are still part of the user's prompt history even before they
+		// are committed to clineMessages. Include them so ArrowUp can always recover what the user typed.
+		if (conversationPrompts?.length || queuedPrompts?.length) {
+			return [...(conversationPrompts ?? []), ...(queuedPrompts ?? [])].slice(-MAX_PROMPT_HISTORY_SIZE).reverse()
 		}
 
 		// If we have clineMessages array (meaning we're in an active task), don't fall back to task history
@@ -67,7 +71,7 @@ export const usePromptHistory = ({
 			.filter((item) => item.task?.trim() && (!item.workspace || item.workspace === cwd))
 			.map((item) => item.task)
 			.slice(0, MAX_PROMPT_HISTORY_SIZE)
-	}, [clineMessages, taskHistory, cwd])
+	}, [clineMessages, messageQueue, taskHistory, cwd])
 
 	// Update prompt history when filtered history changes and reset navigation
 	useEffect(() => {

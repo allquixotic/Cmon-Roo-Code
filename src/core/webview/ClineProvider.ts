@@ -441,6 +441,9 @@ export class ClineProvider
 				const queuedMessages = Array.isArray((task as any).queuedMessages)
 					? (task as any).queuedMessages
 					: ((task as any).messageQueueService?.messages ?? [])
+				const steerMessageCount = queuedMessages.filter(
+					(message: any) => message.deliveryMode === "steer",
+				).length
 
 				return {
 					rootTaskId,
@@ -451,6 +454,7 @@ export class ClineProvider
 					status: task.taskStatus ?? "running",
 					parentTaskId: task.parentTaskId,
 					queuedMessageCount: queuedMessages.length,
+					steerMessageCount,
 				} satisfies ActiveConversationSummary
 			})
 			.sort((a, b) => {
@@ -1333,13 +1337,16 @@ export class ClineProvider
 					oldTask.emit(RooCodeEventName.TaskUnfocused)
 					this.visibleTaskId = undefined
 				}
-
-				try {
-					await oldTask.abortTask(true)
-				} catch (e) {
-					this.log(
-						`[createTaskWithHistoryItem] abortTask() failed for old task ${oldTask.taskId}.${oldTask.instanceId}: ${e.message}`,
-					)
+				if (!oldTask.abandoned) {
+					try {
+						await oldTask.abortTask(true)
+					} catch (error) {
+						this.log(
+							`[createTaskWithHistoryItem] abortTask() failed for old task ${oldTask.taskId}.${oldTask.instanceId}: ${
+								error instanceof Error ? error.message : String(error)
+							}`,
+						)
+					}
 				}
 
 				const cleanupFunctions = this.taskEventListeners.get(oldTask)
@@ -2295,9 +2302,9 @@ export class ClineProvider
 	}
 
 	async postStateToWebview() {
+		const taskStateSeq = ++this.clineMessagesSeq
 		const state = await this.getStateToPostToWebview()
-		this.clineMessagesSeq++
-		state.clineMessagesSeq = this.clineMessagesSeq
+		state.clineMessagesSeq = taskStateSeq
 		this.postMessageToWebview({ type: "state", state })
 
 		// Check MDM compliance and send user to account tab if not compliant
@@ -2316,9 +2323,9 @@ export class ClineProvider
 	 *   `taskHistoryUpdated` / `taskHistoryItemUpdated`.
 	 */
 	async postStateToWebviewWithoutTaskHistory(): Promise<void> {
+		const taskStateSeq = ++this.clineMessagesSeq
 		const state = await this.getStateToPostToWebview()
-		this.clineMessagesSeq++
-		state.clineMessagesSeq = this.clineMessagesSeq
+		state.clineMessagesSeq = taskStateSeq
 		const { taskHistory: _omit, ...rest } = state
 		this.postMessageToWebview({ type: "state", state: rest })
 
@@ -2340,7 +2347,9 @@ export class ClineProvider
 	 *   (cloud auth, org settings, profiles, etc.) without interfering with task message streaming.
 	 */
 	async postStateToWebviewWithoutClineMessages(): Promise<void> {
+		const taskStateSeq = ++this.clineMessagesSeq
 		const state = await this.getStateToPostToWebview()
+		state.clineMessagesSeq = taskStateSeq
 		const { clineMessages: _omitMessages, taskHistory: _omitHistory, ...rest } = state
 		this.postMessageToWebview({ type: "state", state: rest })
 
@@ -3349,6 +3358,26 @@ export class ClineProvider
 		}
 
 		console.log(`[cancelTask] cancelling task ${task.taskId}.${task.instanceId}`)
+		const preservedQueuedMessages = task.messageQueueService.messages.map((message) => ({
+			...message,
+			images: message.images ? [...message.images] : undefined,
+		}))
+		const rootTask = task.rootTask
+		const parentTask = task.parentTask
+		task.abortReason = "user_cancelled"
+		task.abort = true
+		task.cancelCurrentRequest()
+		task.cancelAutoApprovalTimeout()
+		task.supersedePendingAsk()
+		try {
+			task.terminalProcess?.abort()
+		} catch (error) {
+			this.log(
+				`[cancelTask] Failed to abort terminal process for ${task.taskId}.${task.instanceId}: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			)
+		}
 
 		let historyItem: HistoryItem | undefined
 		try {
@@ -3365,68 +3394,29 @@ export class ClineProvider
 			}
 		}
 
-		// Preserve parent and root task information for history item.
-		const rootTask = task.rootTask
-		const parentTask = task.parentTask
-
-		// Mark this as a user-initiated cancellation so provider-only rehydration can occur
-		task.abortReason = "user_cancelled"
-
-		// Capture the current instance to detect if rehydrate already occurred elsewhere
-		const originalInstanceId = task.instanceId
-
-		// Immediately cancel the underlying HTTP request if one is in progress
-		// This ensures the stream fails quickly rather than waiting for network timeout
-		task.cancelCurrentRequest()
-
-		// Begin abort (non-blocking)
-		task.abortTask()
-
-		// Immediately mark the original instance as abandoned to prevent any residual activity
-		task.abandoned = true
-
-		await pWaitFor(
-			() =>
-				this.getCurrentTask()! === undefined ||
-				this.getCurrentTask()!.isStreaming === false ||
-				this.getCurrentTask()!.didFinishAbortingStream ||
-				// If only the first chunk is processed, then there's no
-				// need to wait for graceful abort (closes edits, browser,
-				// etc).
-				this.getCurrentTask()!.isWaitingForFirstChunk,
-			{
-				timeout: 3_000,
-			},
-		).catch(() => {
-			console.error("Failed to abort task")
-		})
-
-		// Defensive safeguard: if current instance already changed, skip rehydrate
-		const current = this.getCurrentTask()
-		if (current && current.instanceId !== originalInstanceId) {
+		try {
+			await task.abortTask(true)
+		} catch (error) {
 			this.log(
-				`[cancelTask] Skipping rehydrate: current instance ${current.instanceId} != original ${originalInstanceId}`,
+				`[cancelTask] abortTask() failed for ${task.taskId}.${task.instanceId}: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
 			)
-			return
-		}
-
-		// Final race check before rehydrate to avoid duplicate rehydration
-		{
-			const currentAfterCheck = this.getCurrentTask()
-			if (currentAfterCheck && currentAfterCheck.instanceId !== originalInstanceId) {
-				this.log(
-					`[cancelTask] Skipping rehydrate after final check: current instance ${currentAfterCheck.instanceId} != original ${originalInstanceId}`,
-				)
-				return
-			}
 		}
 
 		if (!historyItem) {
+			await this.removeClineFromStack({ taskId: task.taskId })
 			return
 		}
+		const replacementTask = await this.createTaskWithHistoryItem(
+			{ ...historyItem, rootTask, parentTask },
+			{ replaceExistingTask: true },
+		)
 
-		// Clears task again, so we need to abortTask manually above.
-		await this.createTaskWithHistoryItem({ ...historyItem, rootTask, parentTask })
+		if (replacementTask && preservedQueuedMessages.length > 0) {
+			replacementTask.messageQueueService.restoreMessages(preservedQueuedMessages)
+			replacementTask.setDeferQueuedMessageDrainUntilResume(true)
+		}
 	}
 
 	// Clear the current task without treating it as a subtask.

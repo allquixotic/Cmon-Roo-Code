@@ -1,7 +1,7 @@
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import DynamicTextArea from "react-textarea-autosize"
-import { VolumeX, Image, WandSparkles, SendHorizontal, X, ListEnd, Square } from "lucide-react"
+import { VolumeX, Image, WandSparkles, SendHorizontal, X, Square } from "lucide-react"
 
 import type { ExtensionMessage } from "@roo-code/types"
 
@@ -57,7 +57,6 @@ interface ChatTextAreaProps {
 	// Stop/Queue functionality
 	isStreaming?: boolean
 	onStop?: () => void
-	onEnqueueMessage?: () => void
 }
 
 export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
@@ -82,7 +81,6 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			onCancel,
 			isStreaming = false,
 			onStop,
-			onEnqueueMessage,
 		},
 		ref,
 	) => {
@@ -99,6 +97,7 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			togglePinnedApiConfig,
 			taskHistory,
 			clineMessages,
+			messageQueue,
 			commands,
 			cloudUserInfo,
 			enterBehavior,
@@ -231,6 +230,7 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// Use custom hook for prompt history navigation
 		const { handleHistoryNavigation, resetHistoryNavigation, resetOnInputChange } = usePromptHistory({
 			clineMessages,
+			messageQueue,
 			taskHistory,
 			cwd,
 			inputValue,
@@ -276,15 +276,15 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			// Default: Enter sends
 			return "Enter"
 		}, [enterBehavior])
-		const showSendButton = isEditMode || isStreaming || hasInputContent || submissionDisabled
-		const sendButtonDisabled = submissionDisabled && !isStreaming
+		const showSendButton = isEditMode || hasInputContent || submissionDisabled
+		const sendButtonDisabled = submissionDisabled
 		const sendButtonTooltip =
-			!isEditMode && !isStreaming && submissionDisabled && submissionDisabledReason
+			!isEditMode && submissionDisabled && submissionDisabledReason
 				? submissionDisabledReason
 				: isEditMode
 					? t("chat:pressToSend", { keyCombination: sendKeyCombination })
 					: isStreaming
-						? t("chat:stop.title")
+						? t("chat:enqueueMessage")
 						: t("chat:pressToSend", { keyCombination: sendKeyCombination })
 
 		const queryItems = useMemo(() => {
@@ -1218,59 +1218,50 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										</button>
 									</StandardTooltip>
 								)}
-								{/* Queue button - shown when streaming and user has typed content */}
-								{!isEditMode && isStreaming && hasInputContent && onEnqueueMessage && (
-									<StandardTooltip content={t("chat:enqueueMessage")}>
+								{!isEditMode && isStreaming && onStop && (
+									<StandardTooltip content={t("chat:stop.tooltip")}>
 										<button
-											aria-label={t("chat:enqueueMessage")}
+											aria-label={t("chat:stop.title")}
 											disabled={false}
-											onClick={onEnqueueMessage}
+											onClick={onStop}
 											className={cn(
 												"relative inline-flex items-center justify-center",
-												"bg-transparent border-none p-1.5",
-												"rounded-md min-w-[28px] min-h-[28px]",
-												"text-vscode-descriptionForeground hover:text-vscode-foreground",
+												"bg-vscode-button-background border-none p-1.5",
+												"rounded-full min-w-[28px] min-h-[28px]",
+												"text-vscode-button-foreground",
 												"transition-all duration-200",
 												"opacity-100 hover:opacity-100 pointer-events-auto",
-												"hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)]",
+												"hover:bg-vscode-button-background active:brightness-95",
 												"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
-												"active:bg-[rgba(255,255,255,0.1)]",
 												"cursor-pointer",
 											)}>
-											<ListEnd className="w-4 h-4" />
+											<Square className="size-4 stroke-none fill-vscode-button-foreground" />
 										</button>
 									</StandardTooltip>
 								)}
-								{/* Send/Stop button - morphs based on streaming state, always visible in edit mode */}
-						<StandardTooltip content={sendButtonTooltip}>
-							<span className="inline-flex">
-								<button
-									aria-label={sendButtonTooltip}
-									disabled={sendButtonDisabled}
-									onClick={isStreaming ? onStop : onSend}
-									className={cn(
-										"relative inline-flex items-center justify-center",
-										"bg-transparent border-none p-1.5",
-										"rounded-full min-w-[28px] min-h-[28px]",
-										"text-vscode-descriptionForeground hover:text-vscode-foreground",
-										"transition-all duration-200",
-										showSendButton ? "opacity-100" : "opacity-0 pointer-events-none",
-										!sendButtonDisabled &&
-											showSendButton &&
-											"hover:opacity-100 pointer-events-auto hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)] active:bg-[rgba(255,255,255,0.1)] cursor-pointer",
-										"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
-										sendButtonDisabled &&
-											"text-vscode-disabledForeground opacity-50 cursor-not-allowed",
-										isStreaming &&
-											"bg-vscode-button-background hover:bg-vscode-button-background",
-									)}>
-									{isStreaming ? (
-										<Square className="size-4 stroke-none fill-vscode-button-foreground" />
-									) : (
-										<SendHorizontal className="size-4" />
-									)}
-								</button>
-							</span>
+								<StandardTooltip content={sendButtonTooltip}>
+									<span className="inline-flex">
+										<button
+											aria-label={sendButtonTooltip}
+											disabled={sendButtonDisabled}
+											onClick={onSend}
+											className={cn(
+												"relative inline-flex items-center justify-center",
+												"bg-transparent border-none p-1.5",
+												"rounded-full min-w-[28px] min-h-[28px]",
+												"text-vscode-descriptionForeground hover:text-vscode-foreground",
+												"transition-all duration-200",
+												showSendButton ? "opacity-100" : "opacity-0 pointer-events-none",
+												!sendButtonDisabled &&
+													showSendButton &&
+													"hover:opacity-100 pointer-events-auto hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)] active:bg-[rgba(255,255,255,0.1)] cursor-pointer",
+												"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
+												sendButtonDisabled &&
+													"text-vscode-disabledForeground opacity-50 cursor-not-allowed",
+											)}>
+											<SendHorizontal className="size-4" />
+										</button>
+									</span>
 								</StandardTooltip>
 							</div>
 

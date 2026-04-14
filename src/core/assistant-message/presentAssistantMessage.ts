@@ -638,7 +638,6 @@ export async function presentAssistantMessage(cline: Task) {
 						await cline.say("user_feedback", text, images)
 					}
 
-
 					// Return tool result message about the repetition
 					pushToolResult(
 						formatResponse.toolError(
@@ -905,6 +904,22 @@ export async function presentAssistantMessage(cline: Task) {
 	// cline.presentAssistantMessage below would fail (sometimes) since it's
 	// locked.
 	cline.presentAssistantMessageLocked = false
+
+	const completedToolBoundary =
+		(block.type === "tool_use" || block.type === "mcp_tool_use") &&
+		!block.partial &&
+		!cline.didRejectTool &&
+		!cline.didAlreadyUseTool
+
+	if (completedToolBoundary) {
+		const didInterruptForSteer = await cline.maybeInterruptForPendingSteerAtToolBoundary(
+			cline.currentStreamingContentIndex,
+		)
+
+		if (didInterruptForSteer) {
+			return
+		}
+	}
 
 	// NOTE: When tool is rejected, iterator stream is interrupted and it waits
 	// for `userMessageContentReady` to be true. Future calls to present will

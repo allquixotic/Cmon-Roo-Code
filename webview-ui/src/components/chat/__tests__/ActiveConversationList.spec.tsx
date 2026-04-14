@@ -12,6 +12,7 @@ describe("ActiveConversationList", () => {
 		ts: Date.now(),
 		status: "idle",
 		queuedMessageCount: 0,
+		steerMessageCount: 0,
 	}
 
 	const draftConversation: ConversationListItem = {
@@ -23,6 +24,7 @@ describe("ActiveConversationList", () => {
 		ts: Date.now() - 1000,
 		status: "none",
 		queuedMessageCount: 0,
+		steerMessageCount: 0,
 	}
 
 	it("calls onCreateConversation when the New button is clicked", () => {

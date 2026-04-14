@@ -134,6 +134,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 						ts: draft.ts,
 						status: "none",
 						queuedMessageCount: 0,
+						steerMessageCount: 0,
 					}) satisfies ConversationListItem,
 			)
 
@@ -493,6 +494,13 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							setSecondaryButtonText(undefined)
 							setDidClickCancel(false)
 							break
+						case "auto_approval_max_req_reached":
+							setSendingDisabled(isPartial)
+							setClineAsk("auto_approval_max_req_reached")
+							setEnableButtons(!isPartial)
+							setPrimaryButtonText(t("chat:ask.autoApprovedRequestLimitReached.button"))
+							setSecondaryButtonText(undefined)
+							break
 					}
 					break
 				case "say":
@@ -685,20 +693,15 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					return
 				}
 
-				// Queue message if:
-				// - Task is busy (sendingDisabled)
-				// - API request in progress (isStreaming)
-				// - Queue has items (preserve message order during drain)
-				// - Command is running (command_output) - user's message should be queued for AI, not sent to terminal
-				if (
-					sendingDisabled ||
+				const shouldQueueMessage =
 					isStreaming ||
-					messageQueue.length > 0 ||
-					clineAskRef.current === "command_output"
-				) {
+					isCondensing ||
+					clineAskRef.current === "command_output" ||
+					(!clineAskRef.current && sendingDisabled)
+
+				if (shouldQueueMessage) {
 					try {
-						console.log("queueMessage", text, images)
-						vscode.postMessage({ type: "queueMessage", text, images })
+						vscode.postMessage({ type: "queueMessage", text, images, deliveryMode: "queue" })
 						setInputValue("")
 						setSelectedImages([])
 					} catch (error) {
@@ -728,10 +731,12 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 						case "tool":
 						case "command": // User can provide feedback to a tool or command use.
 						case "use_mcp_server":
+						case "api_req_failed":
 						case "completion_result": // If this happens then the user has feedback for the completion result.
 						case "resume_task":
 						case "resume_completed_task":
 						case "mistake_limit_reached":
+						case "auto_approval_max_req_reached":
 							vscode.postMessage({
 								type: "askResponse",
 								askResponse: "messageResponse",
@@ -754,7 +759,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			markFollowUpAsAnswered,
 			sendingDisabled,
 			isStreaming,
-			messageQueue.length,
+			isCondensing,
 			apiConfiguration?.apiProvider,
 			submissionDisabled,
 			selectedDraftId,
@@ -826,20 +831,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		setDidClickCancel(true)
 	}, [setDidClickCancel])
 
-	// Handle enqueue button click from textarea
-	const handleEnqueueCurrentMessage = useCallback(() => {
-		const text = inputValue.trim()
-		if (text || selectedImages.length > 0) {
-			vscode.postMessage({
-				type: "queueMessage",
-				text,
-				images: selectedImages,
-			})
-			setInputValue("")
-			setSelectedImages([])
-		}
-	}, [inputValue, selectedImages])
-
 	// This logic depends on the useEffect[messages] above to set clineAsk,
 	// after which buttons are shown and we then send an askResponse to the
 	// extension.
@@ -856,6 +847,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				case "tool":
 				case "use_mcp_server":
 				case "mistake_limit_reached":
+				case "auto_approval_max_req_reached":
 					// Only send text/images if they exist
 					if (trimmedInput || (images && images.length > 0)) {
 						vscode.postMessage({
@@ -1623,7 +1615,12 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			// Special case: during command_output, queue the message instead of
 			// triggering the primary button action (which would lose the message)
 			if (clineAskRef.current === "command_output" && hasInput) {
-				vscode.postMessage({ type: "queueMessage", text: inputValue.trim(), images: selectedImages })
+				vscode.postMessage({
+					type: "queueMessage",
+					text: inputValue.trim(),
+					images: selectedImages,
+					deliveryMode: "queue",
+				})
 				setInputValue("")
 				setSelectedImages([])
 				return
@@ -1631,7 +1628,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 			if (enableButtons && !shouldHideAutoDecisionButtons && primaryButtonText) {
 				handlePrimaryButtonClick(inputValue, selectedImages)
-			} else if (!sendingDisabled && !submissionDisabled && hasInput) {
+			} else if (!submissionDisabled && hasInput && (isStreaming || isCondensing || !sendingDisabled)) {
 				handleSendMessage(inputValue, selectedImages)
 			}
 		},
@@ -1853,22 +1850,19 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 					<QueuedMessages
 						queue={messageQueue}
-						onRemove={(index) => {
-							if (messageQueue[index]) {
-								vscode.postMessage({ type: "removeQueuedMessage", text: messageQueue[index].id })
-							}
+						onRemove={(messageId) => {
+							vscode.postMessage({ type: "removeQueuedMessage", text: messageId })
 						}}
-						onUpdate={(index, newText) => {
-							if (messageQueue[index]) {
-								vscode.postMessage({
-									type: "editQueuedMessage",
-									payload: {
-										id: messageQueue[index].id,
-										text: newText,
-										images: messageQueue[index].images,
-									},
-								})
-							}
+						onUpdate={(message, updates) => {
+							vscode.postMessage({
+								type: "editQueuedMessage",
+								payload: {
+									id: message.id,
+									text: updates.text ?? message.text,
+									images: message.images,
+									deliveryMode: updates.deliveryMode ?? message.deliveryMode,
+								},
+							})
 						}}
 					/>
 					{showRetiredProviderWarning && (
@@ -1905,7 +1899,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 						modeShortcutText={modeShortcutText}
 						isStreaming={isStreaming}
 						onStop={handleStopTask}
-						onEnqueueMessage={handleEnqueueCurrentMessage}
 					/>
 
 					{isProfileDisabled && (

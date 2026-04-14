@@ -3,6 +3,8 @@
 	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
+		"predev": "pnpm --dir ../../packages/types build",
+		"prebuild": "pnpm --dir ../../packages/types build",
 		"lint": "eslint src --ext=ts,tsx --max-warnings=0",
 		"check-types": "tsc --noEmit",
 		"dev": "next dev",
@@ -45,11 +47,11 @@
 	"devDependencies": {
 		"@roo-code/config-eslint": "workspace:^",
 		"@roo-code/config-typescript": "workspace:^",
+		"@tailwindcss/postcss": "^4.2.2",
 		"@tailwindcss/typography": "^0.5.19",
 		"@types/node": "~25.5.2",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",
-		"autoprefixer": "^10.4.27",
 		"next-sitemap": "^4.2.3",
 		"postcss": "^8.5.8",
 		"tailwindcss": "^4.2.2",

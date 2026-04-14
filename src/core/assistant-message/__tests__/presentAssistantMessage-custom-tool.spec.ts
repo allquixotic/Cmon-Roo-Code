@@ -68,6 +68,7 @@ describe("presentAssistantMessage - Custom Tool Recording", () => {
 			},
 			say: vi.fn().mockResolvedValue(undefined),
 			ask: vi.fn().mockResolvedValue({ response: "yesButtonClicked" }),
+			maybeInterruptForPendingSteerAtToolBoundary: vi.fn().mockResolvedValue(false),
 		}
 
 		// Add pushToolResultToUserContent method after mockTask is created so it can reference mockTask

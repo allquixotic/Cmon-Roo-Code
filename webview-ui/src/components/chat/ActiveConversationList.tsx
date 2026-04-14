@@ -133,17 +133,30 @@ export default function ActiveConversationList({
 									<div className="min-w-0 text-sm font-medium leading-5">
 										<div className="truncate">{conversation.rootTask}</div>
 									</div>
-									{conversation.queuedMessageCount > 0 && (
-										<span
-											className={cn(
-												"shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-												isActive
-													? "bg-vscode-badge-background text-vscode-badge-foreground"
-													: "bg-vscode-badge-background/80 text-vscode-badge-foreground",
-											)}>
-											{conversation.queuedMessageCount}
-										</span>
-									)}
+									<div className="flex shrink-0 items-center gap-1">
+										{conversation.steerMessageCount > 0 && (
+											<span
+												className={cn(
+													"shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold",
+													isActive
+														? "border-vscode-focusBorder/70 bg-vscode-badge-background text-vscode-badge-foreground"
+														: "border-vscode-focusBorder/40 bg-vscode-badge-background/70 text-vscode-badge-foreground",
+												)}>
+												Steer
+											</span>
+										)}
+										{conversation.queuedMessageCount > 0 && (
+											<span
+												className={cn(
+													"shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+													isActive
+														? "bg-vscode-badge-background text-vscode-badge-foreground"
+														: "bg-vscode-badge-background/80 text-vscode-badge-foreground",
+												)}>
+												{conversation.queuedMessageCount}
+											</span>
+										)}
+									</div>
 								</div>
 								<div className="flex items-center justify-between gap-2">
 									<div

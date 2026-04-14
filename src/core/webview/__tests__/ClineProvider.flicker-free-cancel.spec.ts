@@ -60,7 +60,6 @@ vi.mock("../../../utils/path", () => ({
 	getWorkspacePath: vi.fn().mockReturnValue("/test/workspace"),
 }))
 
-
 // Mock CloudService
 vi.mock("@roo-code/cloud", () => ({
 	CloudService: {
@@ -164,7 +163,15 @@ describe("ClineProvider flicker-free cancel", () => {
 			instanceId: "instance-1",
 			emit: vi.fn(),
 			abortTask: vi.fn().mockResolvedValue(undefined),
+			cancelCurrentRequest: vi.fn(),
+			cancelAutoApprovalTimeout: vi.fn(),
+			supersedePendingAsk: vi.fn(),
+			messageQueueService: { messages: [] },
+			terminalProcess: { abort: vi.fn() },
+			rootTask: undefined,
+			parentTask: undefined,
 			abandoned: false,
+			abort: false,
 			dispose: vi.fn(),
 			on: vi.fn(),
 			off: vi.fn(),
@@ -323,5 +330,58 @@ describe("ClineProvider flicker-free cancel", () => {
 		expect((provider as any).clineStack[1]).toBe(mockTask2)
 		expect(mockTask1.abortTask).toHaveBeenCalledWith(true)
 		expect(cleanup).toHaveBeenCalled()
+	})
+
+	it("hard-stops the current task and restores queued messages on the replacement task", async () => {
+		const queuedMessage = {
+			id: "queued-1",
+			text: "follow-up while streaming",
+			images: ["image-1.png"],
+			timestamp: 123,
+		}
+		const replacementTask = {
+			messageQueueService: {
+				restoreMessages: vi.fn(),
+			},
+			setDeferQueuedMessageDrainUntilResume: vi.fn(),
+		}
+
+		mockTask1.messageQueueService = { messages: [queuedMessage] }
+		mockTask1.rootTask = { taskId: "root-task" }
+		mockTask1.parentTask = { taskId: "parent-task" }
+		;(provider as any).clineStack = [mockTask1]
+
+		const createTaskWithHistoryItemSpy = vi
+			.spyOn(provider, "createTaskWithHistoryItem")
+			.mockResolvedValue(replacementTask as any)
+		const removeClineFromStackSpy = vi.spyOn(provider, "removeClineFromStack").mockResolvedValue(undefined)
+
+		await provider.cancelTask()
+
+		expect(mockTask1.abortReason).toBe("user_cancelled")
+		expect(mockTask1.abort).toBe(true)
+		expect(mockTask1.cancelCurrentRequest).toHaveBeenCalledTimes(1)
+		expect(mockTask1.cancelAutoApprovalTimeout).toHaveBeenCalledTimes(1)
+		expect(mockTask1.supersedePendingAsk).toHaveBeenCalledTimes(1)
+		expect(mockTask1.terminalProcess.abort).toHaveBeenCalledTimes(1)
+		expect(mockTask1.abortTask).toHaveBeenCalledWith(true)
+		expect(createTaskWithHistoryItemSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: "task-1",
+				rootTask: mockTask1.rootTask,
+				parentTask: mockTask1.parentTask,
+			}),
+			{ replaceExistingTask: true },
+		)
+		expect(replacementTask.messageQueueService.restoreMessages).toHaveBeenCalledWith([
+			{
+				id: "queued-1",
+				text: "follow-up while streaming",
+				images: ["image-1.png"],
+				timestamp: 123,
+			},
+		])
+		expect(replacementTask.setDeferQueuedMessageDrainUntilResume).toHaveBeenCalledWith(true)
+		expect(removeClineFromStackSpy).not.toHaveBeenCalled()
 	})
 })

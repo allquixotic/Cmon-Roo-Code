@@ -3,6 +3,8 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"predev": "pnpm --dir ../packages/types build",
+		"prebuild": "pnpm --dir ../packages/types build",
 		"lint": "eslint src --ext=ts,tsx --max-warnings=0",
 		"check-types": "tsc",
 		"pretest": "turbo run bundle --cwd ..",

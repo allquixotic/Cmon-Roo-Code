@@ -89,19 +89,30 @@ vi.mock("../QueuedMessages", () => ({
 		queue = [],
 		onRemove,
 	}: {
-		queue?: Array<{ id: string; text: string; images?: string[] }>
-		onRemove?: (index: number) => void
-		onUpdate?: (index: number, newText: string) => void
+		queue?: Array<{
+			id: string
+			text: string
+			images?: string[]
+			timestamp?: number
+			createdAt?: number
+			updatedAt?: number
+			deliveryMode?: "queue" | "steer"
+		}>
+		onRemove?: (messageId: string) => void
+		onUpdate?: (
+			message: { id: string; text: string; images?: string[] },
+			updates: { text?: string; deliveryMode?: "queue" | "steer" },
+		) => void
 	}) {
 		if (!queue || queue.length === 0) {
 			return null
 		}
 		return (
 			<div data-testid="queued-messages">
-				{queue.map((msg, index) => (
+				{queue.map((msg) => (
 					<div key={msg.id}>
 						<span>{msg.text}</span>
-						<button aria-label="Remove message" onClick={() => onRemove?.(index)}>
+						<button aria-label="Remove message" onClick={() => onRemove?.(msg.id)}>
 							Remove
 						</button>
 					</div>
@@ -293,6 +304,7 @@ describe("ChatView - Conversation Drafts", () => {
 					ts: Date.now(),
 					status: "idle",
 					queuedMessageCount: 0,
+					steerMessageCount: 0,
 				},
 			],
 		})
@@ -326,6 +338,7 @@ describe("ChatView - Conversation Drafts", () => {
 					ts: Date.now(),
 					status: "idle",
 					queuedMessageCount: 0,
+					steerMessageCount: 0,
 				},
 			],
 		})
@@ -362,6 +375,7 @@ describe("ChatView - Conversation Drafts", () => {
 					ts: Date.now(),
 					status: "idle",
 					queuedMessageCount: 0,
+					steerMessageCount: 0,
 				},
 			],
 		})
@@ -915,6 +929,7 @@ describe("ChatView - Message Queueing Tests", () => {
 				type: "queueMessage",
 				text: "follow-up question during spinner",
 				images: [],
+				deliveryMode: "queue",
 			})
 		})
 
@@ -1017,8 +1032,24 @@ describe("ChatView - Message Queueing Tests", () => {
 				},
 			],
 			messageQueue: [
-				{ id: "msg1", text: "queued message 1", images: [] },
-				{ id: "msg2", text: "queued message 2", images: [] },
+				{
+					id: "msg1",
+					text: "queued message 1",
+					images: [],
+					timestamp: 1,
+					createdAt: 1,
+					updatedAt: 1,
+					deliveryMode: "queue",
+				},
+				{
+					id: "msg2",
+					text: "queued message 2",
+					images: [],
+					timestamp: 2,
+					createdAt: 2,
+					updatedAt: 2,
+					deliveryMode: "queue",
+				},
 			],
 		})
 
@@ -1045,6 +1076,7 @@ describe("ChatView - Message Queueing Tests", () => {
 				type: "queueMessage",
 				text: "message during queue drain",
 				images: [],
+				deliveryMode: "queue",
 			})
 		})
 
@@ -1108,6 +1140,7 @@ describe("ChatView - Message Queueing Tests", () => {
 				type: "queueMessage",
 				text: "message during command execution",
 				images: [],
+				deliveryMode: "queue",
 			})
 		})
 

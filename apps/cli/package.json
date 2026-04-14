@@ -9,6 +9,8 @@
 		"roo": "dist/index.js"
 	},
 	"scripts": {
+		"predev": "pnpm --dir ../../packages/types build",
+		"prebuild": "pnpm --dir ../../packages/types build",
 		"format": "prettier --write 'src/**/*.ts'",
 		"lint": "eslint src --ext .ts --max-warnings=0",
 		"check-types": "tsc --noEmit",

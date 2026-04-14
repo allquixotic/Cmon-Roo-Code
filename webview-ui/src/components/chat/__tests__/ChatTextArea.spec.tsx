@@ -182,6 +182,51 @@ describe("ChatTextArea", () => {
 		})
 	})
 
+	describe("prompt history", () => {
+		it("recovers a queued follow-up message with ArrowUp", () => {
+			const setInputValue = vi.fn()
+
+			;(useExtensionState as ReturnType<typeof vi.fn>).mockReturnValue({
+				filePaths: [],
+				openedTabs: [],
+				currentApiConfigName: "default",
+				listApiConfigMeta: [],
+				customModes: [],
+				customModePrompts: {},
+				cwd: "/test/workspace",
+				pinnedApiConfigs: {},
+				togglePinnedApiConfig: vi.fn(),
+				taskHistory: [],
+				clineMessages: [{ ts: 1, type: "say", say: "text", text: "assistant is still streaming" }],
+				messageQueue: [
+					{
+						id: "queued-1",
+						text: "queued follow-up",
+						timestamp: 2,
+						createdAt: 2,
+						updatedAt: 2,
+						deliveryMode: "queue",
+					},
+				],
+				commands: [],
+				cloudUserInfo: null,
+				enterBehavior: "send",
+				lockApiConfigAcrossModes: false,
+			})
+
+			render(<ChatTextArea {...defaultProps} inputValue="" setInputValue={setInputValue} />)
+
+			const textarea = screen.getByPlaceholderText("Type a message...") as HTMLTextAreaElement
+			setInputValue.mockClear()
+			textarea.focus()
+			textarea.setSelectionRange(0, 0)
+
+			fireEvent.keyDown(textarea, { key: "ArrowUp" })
+
+			expect(setInputValue).toHaveBeenCalledWith("queued follow-up")
+		})
+	})
+
 	describe("enhanced prompt response", () => {
 		it("should update input value using native browser methods when receiving enhanced prompt", () => {
 			const setInputValue = vi.fn()

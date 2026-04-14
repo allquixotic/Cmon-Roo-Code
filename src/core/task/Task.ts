@@ -332,6 +332,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	// Message Queue Service
 	public readonly messageQueueService: MessageQueueService
 	private messageQueueStateChangedHandler: (() => void) | undefined
+	private deferQueuedMessageDrainUntilResume = false
+	private didSteerCurrentTurn = false
+	private interruptedAssistantText?: string
 
 	// Streaming
 	isWaitingForFirstChunk = false
@@ -903,8 +906,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			return
 		}
 
-		const { id: _profileId, name: _profileName, ...providerSettings } =
-			await provider.providerSettingsManager.getProfile({ name })
+		const {
+			id: _profileId,
+			name: _profileName,
+			...providerSettings
+		} = await provider.providerSettingsManager.getProfile({ name })
 
 		if (!providerSettings.apiProvider) {
 			return
@@ -1454,11 +1460,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		// The state is mutable if the message is complete and the task will
 		// block (via the `pWaitFor`).
 		const isBlocking = !(this.askResponse !== undefined || this.lastMessageTs !== askTs)
-		const isMessageQueued = !this.messageQueueService.isEmpty()
-		// Keep queued user messages intact during command_output asks. Those asks
-		// are terminal flow-control, not conversational turns.
-		const shouldDrainQueuedMessageForAsk = type !== "command_output"
-		const isStatusMutable = !partial && isBlocking && !isMessageQueued && approval.decision === "ask"
+		const hasDeferredMessage = !this.messageQueueService.isEmpty()
+		const shouldPauseQueuedDrainForAsk = this.deferQueuedMessageDrainUntilResume && isResumableAsk(type)
+		const shouldAutoDispatchDeferredMessageForAsk =
+			this.canAutoDispatchDeferredMessageForAsk(type) && !shouldPauseQueuedDrainForAsk
+		const hasAutoDispatchCandidate = hasDeferredMessage && shouldAutoDispatchDeferredMessageForAsk
+		const isStatusMutable = !partial && isBlocking && !hasAutoDispatchCandidate && approval.decision === "ask"
 
 		if (isStatusMutable) {
 			const statusMutationTimeout = 2_000
@@ -1498,50 +1505,35 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					}, statusMutationTimeout),
 				)
 			}
-		} else if (isMessageQueued && shouldDrainQueuedMessageForAsk) {
-			const message = this.messageQueueService.dequeueMessage()
-
-			if (message) {
-				// Check if this is a tool approval ask that needs to be handled.
-				if (type === "tool" || type === "command" || type === "use_mcp_server") {
-					// For tool approvals, we need to approve first, then send
-					// the message if there's text/images.
-					this.handleWebviewAskResponse("yesButtonClicked", message.text, message.images)
-				} else {
-					// For other ask types (like followup or command_output), fulfill the ask
-					// directly.
-					this.handleWebviewAskResponse("messageResponse", message.text, message.images)
-				}
-			}
+		} else if (hasAutoDispatchCandidate) {
+			this.consumeDeferredMessageForAsk(type)
 		}
 
 		// Wait for askResponse to be set
 		await pWaitFor(
 			() => {
+				if (this.abort) {
+					return true
+				}
 				if (this.askResponse !== undefined || this.lastMessageTs !== askTs) {
 					return true
 				}
 
-				// If a queued message arrives while we're blocked on an ask (e.g. a follow-up
-				// suggestion click that was incorrectly queued due to UI state), consume it
-				// immediately so the task doesn't hang.
-				if (shouldDrainQueuedMessageForAsk && !this.messageQueueService.isEmpty()) {
-					const message = this.messageQueueService.dequeueMessage()
-					if (message) {
-						// If this is a tool approval ask, we need to approve first (yesButtonClicked)
-						// and include any queued text/images.
-						if (type === "tool" || type === "command" || type === "use_mcp_server") {
-							this.handleWebviewAskResponse("yesButtonClicked", message.text, message.images)
-						} else {
-							this.handleWebviewAskResponse("messageResponse", message.text, message.images)
-						}
-					}
+				// If a deferred message arrives while we're blocked on a handoff ask (for example
+				// a follow-up suggestion click that was queued while the agent still owned the turn),
+				// consume it immediately so the task doesn't hang.
+				if (shouldAutoDispatchDeferredMessageForAsk && !this.messageQueueService.isEmpty()) {
+					this.consumeDeferredMessageForAsk(type)
 				}
 
 				return false
 			},
 			{ interval: 100 },
 		)
+
+		if (this.abort) {
+			throw new Error(`[RooCode#ask] task ${this.taskId}.${this.instanceId} aborted`)
+		}
 
 		if (this.lastMessageTs !== askTs) {
 			// Could happen if we send multiple asks in a row i.e. with
@@ -1630,6 +1622,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 	}
 
+	public setDeferQueuedMessageDrainUntilResume(value: boolean): void {
+		this.deferQueuedMessageDrainUntilResume = value
+	}
+
 	public approveAsk({ text, images }: { text?: string; images?: string[] } = {}) {
 		this.handleWebviewAskResponse("yesButtonClicked", text, images)
 	}
@@ -1691,6 +1687,152 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		} catch (error) {
 			console.error("[Task#submitUserMessage] Failed to submit user message:", error)
 		}
+	}
+
+	private canAutoDispatchDeferredMessageForAsk(type: ClineAsk): boolean {
+		return type === "followup" || isIdleAsk(type)
+	}
+
+	private dequeueNextDeferredMessageForHandoff(): QueuedMessage | undefined {
+		return this.messageQueueService.dequeueNextMessage(["steer", "queue"])
+	}
+
+	private createUserMessageBlocks(
+		text?: string,
+		images?: string[],
+	): Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> {
+		const blocks: Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> = []
+
+		if (text) {
+			blocks.push({
+				type: "text",
+				text: `<user_message>\n${text}\n</user_message>`,
+			})
+		}
+
+		if (images?.length) {
+			blocks.push(...formatResponse.imageBlocks(images))
+		}
+
+		return blocks
+	}
+
+	private appendDeferredMessageToUserContent(message: Pick<QueuedMessage, "text" | "images">): void {
+		this.userMessageContent.push(...this.createUserMessageBlocks(message.text, message.images))
+	}
+
+	private consumeDeferredMessageForAsk(type: ClineAsk): boolean {
+		if (!this.canAutoDispatchDeferredMessageForAsk(type)) {
+			return false
+		}
+
+		const message = this.dequeueNextDeferredMessageForHandoff()
+
+		if (!message) {
+			return false
+		}
+
+		this.handleWebviewAskResponse("messageResponse", message.text, message.images)
+		return true
+	}
+
+	private getAssistantTextUpToContentIndex(contentIndex: number): string {
+		let interruptedAssistantText = ""
+
+		for (let index = 0; index <= Math.min(contentIndex, this.assistantMessageContent.length - 1); index++) {
+			const block = this.assistantMessageContent[index]
+
+			if (block?.type === "text" && typeof block.content === "string") {
+				interruptedAssistantText = block.content
+			}
+		}
+
+		return interruptedAssistantText
+	}
+
+	private appendSyntheticToolResultsForSkippedBlocks(startingAfterIndex: number): void {
+		for (const block of this.assistantMessageContent.slice(startingAfterIndex + 1)) {
+			if ((block.type === "tool_use" || block.type === "mcp_tool_use") && !block.partial && "id" in block) {
+				const toolCallId = block.id
+
+				if (toolCallId) {
+					this.pushToolResultToUserContent({
+						type: "tool_result",
+						tool_use_id: sanitizeToolUseId(toolCallId),
+						content: "Task was interrupted before this tool call could be completed.",
+					})
+				}
+			}
+		}
+	}
+
+	private async appendUserFeedbackToLatestUserMessage(text?: string, images?: string[]): Promise<void> {
+		const feedbackBlocks = this.createUserMessageBlocks(text, images)
+
+		if (feedbackBlocks.length === 0) {
+			return
+		}
+
+		const lastUserMessageIndex = findLastIndex(
+			this.apiConversationHistory,
+			(message) => !message.isSummary && message.role === "user",
+		)
+
+		if (lastUserMessageIndex === -1) {
+			await this.addToApiConversationHistory({ role: "user", content: feedbackBlocks })
+			return
+		}
+
+		const lastUserMessage = this.apiConversationHistory[lastUserMessageIndex]
+		const currentContent: Anthropic.Messages.ContentBlockParam[] = Array.isArray(lastUserMessage.content)
+			? [...lastUserMessage.content]
+			: [{ type: "text", text: lastUserMessage.content }]
+
+		const environmentDetailsIndex = currentContent.findIndex(
+			(block) =>
+				block.type === "text" &&
+				block.text.trim().startsWith("<environment_details>") &&
+				block.text.trim().endsWith("</environment_details>"),
+		)
+
+		if (environmentDetailsIndex === -1) {
+			currentContent.push(...feedbackBlocks)
+		} else {
+			currentContent.splice(environmentDetailsIndex, 0, ...feedbackBlocks)
+		}
+
+		lastUserMessage.content = currentContent
+		await this.saveApiConversationHistory()
+	}
+
+	public async maybeInterruptForPendingSteerAtToolBoundary(completedContentIndex: number): Promise<boolean> {
+		const message = this.messageQueueService.dequeueMessageByMode("steer")
+
+		if (!message) {
+			return false
+		}
+
+		await this.say("user_feedback", message.text, message.images)
+		this.interruptedAssistantText = this.getAssistantTextUpToContentIndex(completedContentIndex)
+		this.appendSyntheticToolResultsForSkippedBlocks(completedContentIndex)
+		this.appendDeferredMessageToUserContent(message)
+		this.currentStreamingContentIndex = this.assistantMessageContent.length
+		this.userMessageContentReady = true
+		this.didSteerCurrentTurn = true
+
+		return true
+	}
+
+	public async consumePendingSteerAtApiBoundary(): Promise<boolean> {
+		const message = this.messageQueueService.dequeueMessageByMode("steer")
+
+		if (!message) {
+			return false
+		}
+
+		await this.say("user_feedback", message.text, message.images)
+		this.appendDeferredMessageToUserContent(message)
+		return true
 	}
 
 	async handleTerminalOperation(terminalOperation: "continue" | "abort") {
@@ -1812,9 +1954,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			{ isNonInteractive: true } /* options */,
 			contextCondense,
 		)
-
-		// Process any queued messages after condensing completes
-		this.processQueuedMessages()
 	}
 
 	async say(
@@ -2131,14 +2270,32 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			this.isInitialized = true
 
 			const { response, text, images } = await this.ask(askType) // Calls `postStateToWebview`.
+			const shouldUseQueuedMessageOnResume = this.deferQueuedMessageDrainUntilResume
+			this.deferQueuedMessageDrainUntilResume = false
 
-			let responseText: string | undefined
-			let responseImages: string[] | undefined
+			let responseText: string | undefined =
+				response === "messageResponse" || response === "yesButtonClicked" ? text : undefined
+			let responseImages: string[] | undefined =
+				response === "messageResponse" || response === "yesButtonClicked" ? images : undefined
 
-			if (response === "messageResponse") {
-				await this.say("user_feedback", text, images)
-				responseText = text
-				responseImages = images
+			if (
+				shouldUseQueuedMessageOnResume &&
+				response === "yesButtonClicked" &&
+				!responseText &&
+				(responseImages?.length ?? 0) === 0
+			) {
+				const queuedMessage = this.dequeueNextDeferredMessageForHandoff()
+				if (queuedMessage) {
+					responseText = queuedMessage.text || undefined
+					responseImages = queuedMessage.images
+				}
+			}
+
+			if (
+				(response === "messageResponse" || response === "yesButtonClicked") &&
+				(responseText || responseImages?.length)
+			) {
+				await this.say("user_feedback", responseText, responseImages)
 			}
 
 			// Make sure that the api conversation history can be resumed by the API,
@@ -2332,6 +2489,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		// Reset consecutive error counters on abort (manual intervention)
 		this.consecutiveNoToolUseCount = 0
 		this.consecutiveNoAssistantMessagesCount = 0
+		this.cancelAutoApprovalTimeout()
+		this.supersedePendingAsk()
+		this.idleAsk = undefined
+		this.resumableAsk = undefined
+		this.interactiveAsk = undefined
 
 		// Force final token usage update before abort event
 		this.emitFinalTokenUsageUpdate()
@@ -2361,6 +2523,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			this.cancelCurrentRequest()
 		} catch (error) {
 			console.error("Error cancelling current request:", error)
+		}
+
+		// Forcefully stop any active terminal process so it cannot outlive the task.
+		try {
+			this.terminalProcess?.abort()
+			this.terminalProcess = undefined
+		} catch (error) {
+			console.error("Error aborting terminal process:", error)
 		}
 
 		// Remove provider profile change listener
@@ -2591,7 +2761,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			}
 
 			if (this.consecutiveMistakeLimit > 0 && this.consecutiveMistakeCount >= this.consecutiveMistakeLimit) {
-
 				const { response, text, images } = await this.ask(
 					"mistake_limit_reached",
 					t("common:errors.mistake_limit_guidance"),
@@ -2808,6 +2977,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				this.userMessageContent = []
 				this.userMessageContentReady = false
 				this.didRejectTool = false
+				this.didSteerCurrentTurn = false
+				this.interruptedAssistantText = undefined
 				this.didAlreadyUseTool = false
 				this.assistantMessageSavedToHistory = false
 				// Reset tool failure flag for each new assistant turn - this ensures that tool failures
@@ -3104,6 +3275,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							// this.userMessageContentReady = true
 							break
 						}
+						if (this.didSteerCurrentTurn) {
+							break
+						}
 
 						if (this.didAlreadyUseTool) {
 							assistantMessage +=
@@ -3166,7 +3340,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 								if (apiReqMessage) {
 									await this.updateClineMessage(apiReqMessage)
 								}
-
 							}
 						}
 
@@ -3422,8 +3595,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				// the assistant message is already in history. Otherwise, tool_result blocks would appear
 				// BEFORE their corresponding tool_use blocks, causing API errors.
 
+				const assistantTextForHistory = this.interruptedAssistantText ?? assistantMessage
+
 				// Check if we have any content to process (text or tool uses)
-				const hasTextContent = assistantMessage.length > 0
+				const hasTextContent = assistantTextForHistory.length > 0
 
 				const hasToolUses = this.assistantMessageContent.some(
 					(block) => block.type === "tool_use" || block.type === "mcp_tool_use",
@@ -3446,10 +3621,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					const assistantContent: Array<Anthropic.TextBlockParam | Anthropic.ToolUseBlockParam> = []
 
 					// Add text content if present
-					if (assistantMessage) {
+					if (assistantTextForHistory) {
 						assistantContent.push({
 							type: "text" as const,
-							text: assistantMessage,
+							text: assistantTextForHistory,
 						})
 					}
 
@@ -3624,6 +3799,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						this.consecutiveNoToolUseCount = 0
 					}
 
+					await this.consumePendingSteerAtApiBoundary()
+
 					// Push to stack if there's content OR if we're paused waiting for a subtask.
 					// When paused, we push an empty item so the loop continues to the pause check.
 					if (this.userMessageContent.length > 0 || this.isPaused) {
@@ -3776,7 +3953,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		const rooIgnoreInstructions = this.rooIgnoreController?.getInstructions()
-
 
 		const {
 			mode,
@@ -4215,6 +4391,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			throw new Error("Auto-approval limit reached and user did not approve continuation")
 		}
 
+		if (approvalResult.feedbackText || approvalResult.feedbackImages?.length) {
+			await this.say("user_feedback", approvalResult.feedbackText ?? "", approvalResult.feedbackImages)
+			await this.appendUserFeedbackToLatestUserMessage(approvalResult.feedbackText, approvalResult.feedbackImages)
+		}
+
 		// Whether we include tools is determined by whether we have any tools to send.
 		const modelInfo = this.api.getModel().info
 
@@ -4349,12 +4530,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 				return
 			} else {
-				const { response } = await this.ask(
+				const { response, text, images } = await this.ask(
 					"api_req_failed",
 					error.message ?? JSON.stringify(serializeError(error), null, 2),
 				)
-
-				if (response !== "yesButtonClicked") {
+				if (response === "messageResponse") {
+					await this.say("user_feedback", text ?? "", images)
+					await this.appendUserFeedbackToLatestUserMessage(text, images)
+				} else if (response !== "yesButtonClicked") {
 					// This will never happen since if noButtonClicked, we will
 					// clear current task, aborting this instance.
 					throw new Error("API request failed")
@@ -4709,26 +4892,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	/**
-	 * Process any queued messages by dequeuing and submitting them.
-	 * This ensures that queued user messages are sent when appropriate,
-	 * preventing them from getting stuck in the queue.
-	 *
-	 * @param context - Context string for logging (e.g., the calling tool name)
+	 * Legacy no-op kept for compatibility with older call sites and tests.
+	 * Deferred messages are now dispatched only through the explicit
+	 * queue/steer handoff and safe-boundary helpers.
 	 */
 	public processQueuedMessages(): void {
-		try {
-			if (!this.messageQueueService.isEmpty()) {
-				const queued = this.messageQueueService.dequeueMessage()
-				if (queued) {
-					setTimeout(() => {
-						this.submitUserMessage(queued.text, queued.images).catch((err) =>
-							console.error(`[Task] Failed to submit queued message:`, err),
-						)
-					}, 0)
-				}
-			}
-		} catch (e) {
-			console.error(`[Task] Queue processing error:`, e)
-		}
+		return
 	}
 }

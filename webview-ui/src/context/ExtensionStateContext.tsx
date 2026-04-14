@@ -158,11 +158,12 @@ export const mergeExtensionState = (prevState: ExtensionState, newState: Partial
 	const experiments = { ...prevExperiments, ...(newExperiments ?? {}) }
 	const rest = { ...prevRest, ...newRest }
 
-	// Protect clineMessages from stale state pushes using sequence numbering.
+	// Protect task-scoped state from stale state pushes using sequence numbering.
 	// Multiple async event sources (cloud auth, settings, task streaming) can trigger
 	// concurrent state pushes. If a stale push arrives after a newer one, its clineMessages
-	// would overwrite the newer messages. The sequence number prevents this by only applying
-	// clineMessages when the incoming seq is strictly greater than the last applied seq.
+	// and related task-scoped fields would overwrite the newer task state. The sequence
+	// number prevents this by only applying task-scoped fields when the incoming seq is
+	// strictly greater than the last applied seq.
 	if (
 		newState.clineMessagesSeq !== undefined &&
 		prevState.clineMessagesSeq !== undefined &&
@@ -170,6 +171,12 @@ export const mergeExtensionState = (prevState: ExtensionState, newState: Partial
 		newState.clineMessages !== undefined
 	) {
 		rest.clineMessages = prevState.clineMessages
+		rest.currentTaskId = prevState.currentTaskId
+		rest.currentTaskItem = prevState.currentTaskItem
+		rest.currentTaskTodos = prevState.currentTaskTodos
+		rest.activeConversations = prevState.activeConversations
+		rest.messageQueue = prevState.messageQueue
+		rest.currentAskDecision = prevState.currentAskDecision
 		rest.clineMessagesSeq = prevState.clineMessagesSeq
 	}
 

@@ -326,6 +326,89 @@ describe("mergeExtensionState", () => {
 			expect(result.clineMessagesSeq).toBe(5)
 		})
 
+		it("preserves task-scoped state when a stale task push arrives", () => {
+			const currentMessages = [makeMessage(1, "hello"), makeMessage(2, "world")]
+			const staleMessages = [makeMessage(1, "hello")]
+			const currentTaskItem = {
+				id: "task-current",
+				number: 2,
+				task: "current task",
+				ts: 2,
+				tokensIn: 0,
+				tokensOut: 0,
+				totalCost: 0,
+				workspace: "/workspace",
+			}
+			const staleTaskItem = {
+				id: "task-stale",
+				number: 1,
+				task: "stale task",
+				ts: 1,
+				tokensIn: 0,
+				tokensOut: 0,
+				totalCost: 0,
+				workspace: "/workspace",
+			}
+			const currentTodos = [{ id: "todo-current", content: "current todo", status: "pending" }] as any
+			const staleTodos = [{ id: "todo-stale", content: "stale todo", status: "completed" }] as any
+			const currentQueue = [{ id: "queue-current", text: "queued message", timestamp: 2 }] as any
+			const staleQueue = [{ id: "queue-stale", text: "stale message", timestamp: 1 }] as any
+			const currentConversations = [
+				{
+					rootTaskId: "task-current",
+					activeTaskId: "task-current",
+					rootTask: "current task",
+					activeTask: "current task",
+					ts: 2,
+					status: "running",
+					queuedMessageCount: 1,
+				},
+			] as any
+			const staleConversations = [
+				{
+					rootTaskId: "task-stale",
+					activeTaskId: "task-stale",
+					rootTask: "stale task",
+					activeTask: "stale task",
+					ts: 1,
+					status: "idle",
+					queuedMessageCount: 0,
+				},
+			] as any
+
+			const prevState: ExtensionState = {
+				...baseState,
+				clineMessages: currentMessages,
+				clineMessagesSeq: 5,
+				currentTaskId: "task-current",
+				currentTaskItem: currentTaskItem as any,
+				currentTaskTodos: currentTodos,
+				messageQueue: currentQueue,
+				activeConversations: currentConversations,
+				currentAskDecision: "approve",
+			}
+
+			const result = mergeExtensionState(prevState, {
+				clineMessages: staleMessages,
+				clineMessagesSeq: 4,
+				currentTaskId: "task-stale",
+				currentTaskItem: staleTaskItem as any,
+				currentTaskTodos: staleTodos,
+				messageQueue: staleQueue,
+				activeConversations: staleConversations,
+				currentAskDecision: "deny",
+			})
+
+			expect(result.clineMessages).toBe(currentMessages)
+			expect(result.currentTaskId).toBe("task-current")
+			expect(result.currentTaskItem).toBe(currentTaskItem)
+			expect(result.currentTaskTodos).toBe(currentTodos)
+			expect(result.messageQueue).toBe(currentQueue)
+			expect(result.activeConversations).toBe(currentConversations)
+			expect(result.currentAskDecision).toBe("approve")
+			expect(result.clineMessagesSeq).toBe(5)
+		})
+
 		it("accepts clineMessages when seq is strictly greater", () => {
 			const oldMessages = [makeMessage(1, "hello")]
 			const newMessages = [makeMessage(1, "hello"), makeMessage(2, "world")]
