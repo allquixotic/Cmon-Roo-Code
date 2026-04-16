@@ -705,9 +705,9 @@ describe("AwsBedrockHandler", () => {
 			expect(model.info.outputPrice).toBe(22.5)
 		})
 
-		it("should treat Claude 4.6 Bedrock models as 1M context by default", () => {
+		it("should NOT auto-enable 1M context for Claude 4.6 when awsBedrock1MContext is false (dropdown split provides explicit choice now)", () => {
 			const handler = new AwsBedrockHandler({
-				apiModelId: BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS[0],
+				apiModelId: "anthropic.claude-sonnet-4-6",
 				awsAccessKey: "test",
 				awsSecretKey: "test",
 				awsRegion: "us-east-1",
@@ -715,7 +715,11 @@ describe("AwsBedrockHandler", () => {
 			})
 
 			const model = handler.getModel()
-			expect(model.info.contextWindow).toBe(1_000_000)
+			// Previously BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS forced 1M here; the new dual
+			// dropdown (base + `:1m` variant) means users pick explicitly, so the default
+			// context window stays at 200K unless the user opts in.
+			expect(model.info.contextWindow).toBe(200_000)
+			expect(BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS.length).toBe(0)
 		})
 
 		it("should use default context window when awsBedrock1MContext is false for Claude Sonnet 4", () => {
@@ -863,7 +867,7 @@ describe("AwsBedrockHandler", () => {
 			expect(model.id).toBe(`us.${BEDROCK_1M_CONTEXT_MODEL_IDS[0]}`)
 		})
 
-		it("should invoke an explicitly discovered Bedrock profile without adding another routing prefix", () => {
+		it("should strip synthetic :1m suffix from the outbound model id while still resolving a 1M context window", () => {
 			const handler = new AwsBedrockHandler({
 				apiModelId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
 				awsBedrockInvokeTarget: "us.anthropic.claude-sonnet-4-5-20250929-v1:0:1m",
@@ -875,8 +879,89 @@ describe("AwsBedrockHandler", () => {
 			})
 
 			const model = handler.getModel()
-			expect(model.id).toBe("us.anthropic.claude-sonnet-4-5-20250929-v1:0:1m")
+			// `:1m` is a UI-only marker and must not leak into the id sent to AWS, but the
+			// suffix still drives the 1M context window via hasBedrock1MContextIndicator.
+			expect(model.id).toBe("us.anthropic.claude-sonnet-4-5-20250929-v1:0")
 			expect(model.info.contextWindow).toBe(1_000_000)
+		})
+
+		it("should strip the :1m suffix before writing it into the Bedrock payload", async () => {
+			const handler = new AwsBedrockHandler({
+				apiModelId: "anthropic.claude-opus-4-6-v1",
+				awsBedrockInvokeTarget: "us.anthropic.claude-opus-4-6-v1:1m",
+				awsBedrockTargetKind: "system-profile",
+				awsAccessKey: "test",
+				awsSecretKey: "test",
+				awsRegion: "us-east-1",
+			})
+
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "hi" }]
+			const generator = handler.createMessage("", messages)
+			await generator.next()
+
+			expect(mockConverseStreamCommand).toHaveBeenCalled()
+			const commandArg = mockConverseStreamCommand.mock.calls[
+				mockConverseStreamCommand.mock.calls.length - 1
+			][0] as any
+
+			// The `:1m` suffix must be absent from the id sent to AWS...
+			expect(commandArg.modelId).toBe("us.anthropic.claude-opus-4-6-v1")
+			// ...while the 1M beta header is still included because the indicator was present.
+			expect(commandArg.additionalModelRequestFields?.anthropic_beta).toContain("context-1m-2025-08-07")
+		})
+
+		it("should NOT send any anthropic_beta flags for Opus 4.7 (native 1M, Bedrock rejects them)", async () => {
+			// Opus 4.7 on AWS Bedrock Converse rejects Anthropic beta flags with
+			// invalid_request_error: "invalid beta flag" - see continuedev/continue#11969.
+			const handler = new AwsBedrockHandler({
+				apiModelId: "anthropic.claude-opus-4-7",
+				awsBedrockInvokeTarget: "us.anthropic.claude-opus-4-7",
+				awsBedrockTargetKind: "system-profile",
+				awsAccessKey: "test",
+				awsSecretKey: "test",
+				awsRegion: "us-east-1",
+				// Even if the user toggles the 1M opt-in, we must still NOT send the 1M beta.
+				awsBedrock1MContext: true,
+			})
+
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "hi" }]
+			const generator = handler.createMessage("", messages)
+			await generator.next()
+
+			expect(mockConverseStreamCommand).toHaveBeenCalled()
+			const commandArg = mockConverseStreamCommand.mock.calls[
+				mockConverseStreamCommand.mock.calls.length - 1
+			][0] as any
+
+			expect(commandArg.modelId).toBe("us.anthropic.claude-opus-4-7")
+			// Either anthropic_beta is absent entirely, or explicitly empty - both are fine.
+			const beta = commandArg.additionalModelRequestFields?.anthropic_beta
+			expect(beta === undefined || beta.length === 0).toBe(true)
+		})
+
+		it("should also skip anthropic_beta flags when the :1m variant of Opus 4.7 is selected", async () => {
+			const handler = new AwsBedrockHandler({
+				apiModelId: "anthropic.claude-opus-4-7",
+				awsBedrockInvokeTarget: "us.anthropic.claude-opus-4-7:1m",
+				awsBedrockTargetKind: "system-profile",
+				awsAccessKey: "test",
+				awsSecretKey: "test",
+				awsRegion: "us-east-1",
+			})
+
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "hi" }]
+			const generator = handler.createMessage("", messages)
+			await generator.next()
+
+			expect(mockConverseStreamCommand).toHaveBeenCalled()
+			const commandArg = mockConverseStreamCommand.mock.calls[
+				mockConverseStreamCommand.mock.calls.length - 1
+			][0] as any
+
+			// `:1m` suffix still stripped before sending to AWS.
+			expect(commandArg.modelId).toBe("us.anthropic.claude-opus-4-7")
+			const beta = commandArg.additionalModelRequestFields?.anthropic_beta
+			expect(beta === undefined || beta.length === 0).toBe(true)
 		})
 
 		it("should include anthropic_beta parameter with cross-region inference for Claude Sonnet 4", async () => {

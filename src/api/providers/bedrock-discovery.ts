@@ -11,6 +11,7 @@ import { fromIni } from "@aws-sdk/credential-providers"
 import {
 	type BedrockDiscoveredTarget,
 	type ProviderSettings,
+	expandBedrockTargetsWith1MVariants,
 	inferBedrockInvokeTargetKind,
 	parseBedrockArn,
 	parseBedrockBaseModelId,
@@ -160,7 +161,7 @@ export const discoverBedrockTargets = async (options: ProviderSettings): Promise
 
 	const dedupedTargets = Array.from(new Map(targets.map((target) => [target.id, target])).values())
 
-	return dedupedTargets.sort((a, b) => {
+	const sortedTargets = dedupedTargets.sort((a, b) => {
 		const kindOrder = { "foundation-model": 0, "system-profile": 1, "application-profile": 2 }
 		const kindCompare = kindOrder[a.targetKind] - kindOrder[b.targetKind]
 		if (kindCompare !== 0) {
@@ -173,4 +174,9 @@ export const discoverBedrockTargets = async (options: ProviderSettings): Promise
 
 		return a.label.localeCompare(b.label)
 	})
+
+	// AWS often returns a single inference profile id for models that support both 128K
+	// and 1M context windows. Expand those into two dropdown entries so users can pick
+	// the context tier explicitly; the `:1m` suffix is round-tripped through the runtime.
+	return expandBedrockTargetsWith1MVariants(sortedTargets)
 }

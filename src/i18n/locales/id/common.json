@@ -45,6 +45,7 @@
 		"save_api_config": "Gagal menyimpan konfigurasi api",
 		"create_api_config": "Gagal membuat konfigurasi api",
 		"rename_api_config": "Gagal mengganti nama konfigurasi api",
+		"rename_api_config_stale": "Could not rename the configuration profile - it may have been renamed or deleted in another VS Code window. Please reopen the settings panel and try again.",
 		"load_api_config": "Gagal memuat konfigurasi api",
 		"delete_api_config": "Gagal menghapus konfigurasi api",
 		"list_api_config": "Gagal mendapatkan daftar konfigurasi api",

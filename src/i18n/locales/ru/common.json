@@ -45,6 +45,7 @@
 		"save_api_config": "Не удалось сохранить конфигурацию API",
 		"create_api_config": "Не удалось создать конфигурацию API",
 		"rename_api_config": "Не удалось переименовать конфигурацию API",
+		"rename_api_config_stale": "Could not rename the configuration profile - it may have been renamed or deleted in another VS Code window. Please reopen the settings panel and try again.",
 		"load_api_config": "Не удалось загрузить конфигурацию API",
 		"delete_api_config": "Не удалось удалить конфигурацию API",
 		"list_api_config": "Не удалось получить список конфигураций API",

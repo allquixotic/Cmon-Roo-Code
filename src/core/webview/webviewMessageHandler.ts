@@ -1880,21 +1880,66 @@ export const webviewMessageHandler = async (
 			break
 		case "renameApiConfiguration":
 			if (message.values && message.apiConfiguration) {
+				const { oldName, newName } = message.values
+
+				if (oldName === newName) {
+					break
+				}
+
+				// The webview always sends the full apiConfiguration object, which includes the
+				// stable profile `id` field (see webview-ui/src/components/settings/SettingsView.tsx).
+				// Prefer looking up the profile by id, because the webview's listApiConfigMeta can
+				// be stale in multi-window setups (e.g. Remote SSH + local) where the profile was
+				// already renamed in another window. The name in storage may no longer match oldName.
+				const incomingId = (message.apiConfiguration as { id?: string }).id
+
+				let resolvedId: string | undefined
+				let resolvedCurrentName: string | undefined
+				let staleData = false
+
 				try {
-					const { oldName, newName } = message.values
-
-					if (oldName === newName) {
-						break
+					if (incomingId) {
+						const profile = await provider.providerSettingsManager.getProfile({ id: incomingId })
+						resolvedId = profile.id
+						resolvedCurrentName = profile.name
+					} else {
+						const profile = await provider.providerSettingsManager.getProfile({ name: oldName })
+						resolvedId = profile.id
+						resolvedCurrentName = oldName
 					}
+				} catch (lookupError) {
+					staleData = true
+					provider.log(
+						`Stale rename request: profile ${incomingId ? `id=${incomingId}` : `name='${oldName}'`} ` +
+							`not found in storage; the profile may have been renamed or deleted in another window. ` +
+							`Error: ${lookupError instanceof Error ? lookupError.message : String(lookupError)}`,
+					)
+				}
 
-					// Load the old configuration to get its ID.
-					const { id } = await provider.providerSettingsManager.getProfile({ name: oldName })
+				if (staleData || !resolvedCurrentName) {
+					vscode.window.showErrorMessage(t("common:errors.rename_api_config_stale"))
+					// Push fresh state so the webview's stale listApiConfigMeta catches up.
+					await provider.postStateToWebview()
+					break
+				}
 
-					// Create a new configuration with the new name and old ID.
-					await provider.providerSettingsManager.saveConfig(newName, { ...message.apiConfiguration, id })
+				// If storage already reflects the desired name (e.g. another window renamed to the
+				// same target), just refresh and exit.
+				if (resolvedCurrentName === newName) {
+					await provider.activateProviderProfile({ name: newName })
+					break
+				}
 
-					// Delete the old configuration.
-					await provider.providerSettingsManager.deleteConfig(oldName)
+				try {
+					// Save under the new name, preserving the stable id.
+					await provider.providerSettingsManager.saveConfig(newName, {
+						...message.apiConfiguration,
+						id: resolvedId,
+					})
+
+					// Delete the profile's CURRENT name in storage (which may differ from `oldName`
+					// when another window renamed it first).
+					await provider.providerSettingsManager.deleteConfig(resolvedCurrentName)
 
 					// Re-activate to update the global settings related to the
 					// currently activated provider profile.

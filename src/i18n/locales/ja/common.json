@@ -45,6 +45,7 @@
 		"save_api_config": "API設定の保存に失敗しました",
 		"create_api_config": "API設定の作成に失敗しました",
 		"rename_api_config": "API設定の名前変更に失敗しました",
+		"rename_api_config_stale": "Could not rename the configuration profile - it may have been renamed or deleted in another VS Code window. Please reopen the settings panel and try again.",
 		"load_api_config": "API設定の読み込みに失敗しました",
 		"delete_api_config": "API設定の削除に失敗しました",
 		"list_api_config": "API設定リストの取得に失敗しました",

@@ -26,11 +26,14 @@ import {
 	AWS_INFERENCE_PROFILE_MAPPING,
 	BEDROCK_1M_CONTEXT_MODEL_IDS,
 	BEDROCK_GLOBAL_INFERENCE_MODEL_IDS,
+	BEDROCK_NATIVE_1M_CONTEXT_MODEL_IDS,
 	BEDROCK_SERVICE_TIER_MODEL_IDS,
 	BEDROCK_SERVICE_TIER_PRICING,
 	inferBedrockInvokeTargetKind,
 	parseBedrockBaseModelId,
 	resolveBedrockModelInfo,
+	shouldUseBedrock1MContext,
+	stripBedrock1MContextSuffix,
 } from "@roo-code/types"
 
 import { ApiStream } from "../transform/stream"
@@ -349,11 +352,30 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			temperature: modelConfig.temperature ?? (this.options.modelTemperature as number),
 		}
 
-		// Check if 1M context is enabled for supported Claude 4 models
-		// Use parseBaseModelId to handle cross-region inference prefixes
+		// Check if 1M context is enabled for supported Claude 4 models.
+		// 1M is enabled when ANY of:
+		//   - the configured target id contains the `:1m` / `[1m]` indicator (user picked the
+		//     1M variant from the dropdown), OR
+		//   - the awsBedrock1MContext opt-in toggle is set by the user.
+		// Use parseBaseModelId to handle cross-region inference prefixes.
 		const baseModelId = this.parseBaseModelId(modelConfig.id)
+		const configuredTargetForIndicator =
+			this.options.awsBedrockInvokeTarget || this.options.awsCustomArn || modelConfig.id
 		const is1MContextEnabled =
-			BEDROCK_1M_CONTEXT_MODEL_IDS.includes(baseModelId as any) && this.options.awsBedrock1MContext
+			BEDROCK_1M_CONTEXT_MODEL_IDS.includes(baseModelId as any) &&
+			shouldUseBedrock1MContext({
+				targetId: configuredTargetForIndicator,
+				baseModelId,
+				optIn1MContext: this.options.awsBedrock1MContext,
+			}).enabled
+
+		// AWS Bedrock Converse validates anthropic_beta against a per-model allow list
+		// and returns `invalid_request_error: invalid beta flag` for unknown values.
+		// Newer Claudes (Opus 4.7) have native 1M context and reject BOTH the 1M beta and
+		// the fine-grained-tool-streaming beta, so we must omit anthropic_beta entirely
+		// for those models. Older Claudes silently accept (and effectively ignore) them,
+		// so we keep the current behavior for them.
+		const skipAnthropicBetaFlags = BEDROCK_NATIVE_1M_CONTEXT_MODEL_IDS.includes(baseModelId as any)
 
 		// Determine if service tier should be applied (checked later when building payload)
 		const useServiceTier =
@@ -370,15 +392,17 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		// Start with an empty array and add betas as needed
 		const anthropicBetas: string[] = []
 
-		// Add 1M context beta if enabled
-		if (is1MContextEnabled) {
-			anthropicBetas.push("context-1m-2025-08-07")
-		}
+		if (!skipAnthropicBetaFlags) {
+			// Add 1M context beta if enabled
+			if (is1MContextEnabled) {
+				anthropicBetas.push("context-1m-2025-08-07")
+			}
 
-		// Add fine-grained tool streaming beta for Claude models
-		// This enables proper tool use streaming for Anthropic models on Bedrock
-		if (baseModelId.includes("claude")) {
-			anthropicBetas.push("fine-grained-tool-streaming-2025-05-14")
+			// Add fine-grained tool streaming beta for Claude models.
+			// This enables proper tool use streaming for Anthropic models on Bedrock.
+			if (baseModelId.includes("claude")) {
+				anthropicBetas.push("fine-grained-tool-streaming-2025-05-14")
+			}
 		}
 
 		// Apply anthropic_beta to additionalModelRequestFields if any betas are needed
@@ -995,7 +1019,12 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 				explicitTargetKind === "prompt-router"
 			) {
 				modelConfig = this.getModelById(configuredTargetId)
-				modelConfig.id = configuredTargetId
+				// Strip any synthetic `:1m` (or `[1m]`) suffix before sending to AWS.
+				// The suffix is purely a UI marker for the 1M-context variant and is not
+				// a real part of the AWS inference profile / foundation model id.
+				// The 1M context-window and `context-1m-2025-08-07` beta header have
+				// already been applied inside getModelById via resolveBedrockModelInfo.
+				modelConfig.id = stripBedrock1MContextSuffix(configuredTargetId)
 			} else {
 				// A foundation model was selected, so optional routing toggles still apply.
 				modelConfig = this.getModelById(configuredTargetId)

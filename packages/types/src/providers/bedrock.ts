@@ -167,6 +167,36 @@ export const bedrockModels = {
 			},
 		],
 	},
+	"anthropic.claude-opus-4-7": {
+		maxTokens: 8192,
+		// Opus 4.7 natively supports 1M context (no beta flag required) with FLAT $5/$25
+		// pricing at any context length. We still keep a tier entry so the dropdown can
+		// show a "128K" vs "1M" choice - the tier just toggles the context window the UI
+		// budgets for; pricing is identical. The runtime must NOT send any anthropic_beta
+		// flag for this model (see BEDROCK_NATIVE_1M_CONTEXT_MODEL_IDS below).
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoningBudget: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		minTokensPerCachePoint: 1024,
+		maxCachePoints: 4,
+		cachableFields: ["system", "messages", "tools"],
+		description: "Claude Opus 4.7 - most capable Opus model for agentic coding (native 1M context)",
+		tiers: [
+			{
+				contextWindow: 1_000_000,
+				// Opus 4.7 pricing is flat, so the tier mirrors the base rates.
+				inputPrice: 5.0,
+				outputPrice: 25.0,
+				cacheWritesPrice: 6.25,
+				cacheReadsPrice: 0.5,
+			},
+		],
+	},
 	"anthropic.claude-opus-4-5-20251101-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -525,22 +555,26 @@ export const BEDROCK_1M_CONTEXT_MODEL_IDS = [
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",
 	"anthropic.claude-sonnet-4-6",
 	"anthropic.claude-opus-4-6-v1",
+	"anthropic.claude-opus-4-7",
 ] as const
 
-// Claude 4.6 model cards currently advertise a 1M context window directly,
-// while older Claude 4 variants still require selecting a dedicated 1M path.
-export const BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS = [
-	"anthropic.claude-sonnet-4-6",
-	"anthropic.claude-opus-4-6-v1",
-] as const
+// Models whose 1M context window is NATIVE (no opt-in beta flag required). AWS Bedrock
+// Converse rejects unknown anthropic_beta values for these models with "invalid beta
+// flag", so we must never send `context-1m-2025-08-07` — nor other Anthropic-direct
+// betas like `fine-grained-tool-streaming-2025-05-14` — when invoking them.
+// See: https://github.com/continuedev/continue/pull/11969 for the Bedrock validation
+// behavior that surfaced this issue.
+export const BEDROCK_NATIVE_1M_CONTEXT_MODEL_IDS = ["anthropic.claude-opus-4-7"] as const
+
+// Previously Claude 4.6 Sonnet/Opus auto-advertised 1M. With the new dual dropdown
+// (default-context + `:1m` variant) the UI always exposes both tiers explicitly, so
+// we no longer auto-flip any model to 1M at resolve time. The opt-in toggle + `:1m`
+// suffix remain the only triggers, keeping behavior predictable.
+export const BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS = [] as const
 
 export const BEDROCK_1M_CONTEXT_OPT_IN_MODEL_IDS = BEDROCK_1M_CONTEXT_MODEL_IDS.filter(
-	(modelId) =>
-		!BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS.includes(
-			modelId as (typeof BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS)[number],
-		),
+	(modelId) => !(BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS as readonly string[]).includes(modelId),
 )
-
 export type BedrockInvokeTargetKind =
 	| "foundation-model"
 	| "system-profile"
@@ -601,6 +635,50 @@ export const hasBedrock1MContextIndicator = (targetId?: string) => {
 
 	const normalized = targetId.trim().toLowerCase()
 	return BEDROCK_1M_SUFFIX_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
+/**
+ * Given a list of Bedrock targets, expand each 1M-capable entry into two dropdown
+ * choices: the original (default context) and a synthetic twin with `:1m` appended
+ * to its id, a (1M context) label suffix, and context-window/pricing from the 1M tier.
+ *
+ * The runtime recognizes `:1m` via {@link hasBedrock1MContextIndicator} and strips it
+ * via {@link stripBedrock1MContextSuffix}, so the synthetic id round-trips correctly.
+ *
+ * Used by both the static `fallbackTargets` in the webview and by `discoverBedrockTargets`
+ * on the extension side, so AWS discovery producing a single profile still yields two
+ * dropdown choices (since the inference profile id is identical for 128K and 1M).
+ */
+export const expandBedrockTargetsWith1MVariants = (targets: BedrockDiscoveredTarget[]): BedrockDiscoveredTarget[] => {
+	const oneMillionCapable = new Set<string>(BEDROCK_1M_CONTEXT_MODEL_IDS as readonly string[])
+	const result: BedrockDiscoveredTarget[] = []
+
+	for (const target of targets) {
+		result.push(target)
+
+		if (!oneMillionCapable.has(target.baseModelId)) {
+			continue
+		}
+
+		// Skip if the incoming target ALREADY represents a 1M variant (avoid double-adding).
+		if (hasBedrock1MContextIndicator(target.id) || target.contextWindow >= 1_000_000) {
+			continue
+		}
+
+		const modelInfo = bedrockModels[target.baseModelId as keyof typeof bedrockModels] as ModelInfo | undefined
+		const tier = modelInfo?.tiers?.[0]
+		const oneMContextWindow = tier?.contextWindow ?? 1_000_000
+
+		result.push({
+			...target,
+			id: `${target.id}:1m`,
+			label: `${target.label} (1M context)`,
+			contextWindow: oneMContextWindow,
+			contextSource: "profile-id",
+		})
+	}
+
+	return result
 }
 
 export const parseBedrockArn = (targetId?: string): ParsedBedrockArn => {
@@ -834,13 +912,14 @@ export const resolveBedrockModelInfo = ({
 }
 
 // Amazon Bedrock models that support Global Inference profiles
-// As of Nov 2025, AWS supports Global Inference for:
+// As of Apr 2026, AWS supports Global Inference for:
 // - Claude Sonnet 4
 // - Claude Sonnet 4.5
 // - Claude Sonnet 4.6
 // - Claude Haiku 4.5
 // - Claude Opus 4.5
 // - Claude Opus 4.6
+// - Claude Opus 4.7
 export const BEDROCK_GLOBAL_INFERENCE_MODEL_IDS = [
 	"anthropic.claude-sonnet-4-20250514-v1:0",
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -848,6 +927,7 @@ export const BEDROCK_GLOBAL_INFERENCE_MODEL_IDS = [
 	"anthropic.claude-haiku-4-5-20251001-v1:0",
 	"anthropic.claude-opus-4-5-20251101-v1:0",
 	"anthropic.claude-opus-4-6-v1",
+	"anthropic.claude-opus-4-7",
 ] as const
 
 // Amazon Bedrock Service Tier types

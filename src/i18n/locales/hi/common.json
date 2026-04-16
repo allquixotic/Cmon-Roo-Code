@@ -45,6 +45,7 @@
 		"save_api_config": "API कॉन्फ़िगरेशन सहेजने में विफल",
 		"create_api_config": "API कॉन्फ़िगरेशन बनाने में विफल",
 		"rename_api_config": "API कॉन्फ़िगरेशन का नाम बदलने में विफल",
+		"rename_api_config_stale": "Could not rename the configuration profile - it may have been renamed or deleted in another VS Code window. Please reopen the settings panel and try again.",
 		"load_api_config": "API कॉन्फ़िगरेशन लोड करने में विफल",
 		"delete_api_config": "API कॉन्फ़िगरेशन हटाने में विफल",
 		"list_api_config": "API कॉन्फ़िगरेशन की सूची प्राप्त करने में विफल",

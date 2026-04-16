@@ -49,6 +49,7 @@
 		"save_api_config": "Ha fallat el desament de la configuració de l'API",
 		"create_api_config": "Ha fallat la creació de la configuració de l'API",
 		"rename_api_config": "Ha fallat el canvi de nom de la configuració de l'API",
+		"rename_api_config_stale": "Could not rename the configuration profile - it may have been renamed or deleted in another VS Code window. Please reopen the settings panel and try again.",
 		"load_api_config": "Ha fallat la càrrega de la configuració de l'API",
 		"delete_api_config": "Ha fallat l'eliminació de la configuració de l'API",
 		"list_api_config": "Ha fallat l'obtenció de la llista de configuracions de l'API",

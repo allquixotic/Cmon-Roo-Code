@@ -7,13 +7,13 @@ import {
 	type BedrockServiceTier,
 	type ModelInfo,
 	type ProviderSettings,
-	BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS,
 	BEDROCK_1M_CONTEXT_OPT_IN_MODEL_IDS,
 	BEDROCK_GLOBAL_INFERENCE_MODEL_IDS,
 	BEDROCK_REGIONS,
 	BEDROCK_SERVICE_TIER_MODEL_IDS,
 	bedrockDefaultModelId,
 	bedrockModels,
+	expandBedrockTargetsWith1MVariants,
 	inferBedrockInvokeTargetKind,
 	parseBedrockBaseModelId,
 } from "@roo-code/types"
@@ -103,12 +103,6 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 			selectedBaseModelId as (typeof BEDROCK_1M_CONTEXT_OPT_IN_MODEL_IDS)[number],
 		)
 
-	const usesDefault1MContext =
-		!!selectedBaseModelId &&
-		BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS.includes(
-			selectedBaseModelId as (typeof BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS)[number],
-		)
-
 	const supportsGlobalInference =
 		!!selectedBaseModelId &&
 		BEDROCK_GLOBAL_INFERENCE_MODEL_IDS.includes(
@@ -121,24 +115,32 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 
 	const fallbackTargets = useMemo<BedrockDiscoveredTarget[]>(
 		() =>
-			Object.entries(bedrockModels).map(([modelId, modelInfo]) => {
-				const typedModelInfo = modelInfo as ModelInfo
-				return {
-					id: modelId,
-					label: typedModelInfo.description ? `${modelId} - ${typedModelInfo.description}` : modelId,
-					baseModelId: modelId,
-					targetKind: "foundation-model" as const,
-					contextWindow: typedModelInfo.contextWindow,
-					contextSource: "base" as const,
-					description: typedModelInfo.description,
-					supportsImages: typedModelInfo.supportsImages,
-					supportsPromptCache: typedModelInfo.supportsPromptCache,
-				}
-			}),
+			expandBedrockTargetsWith1MVariants(
+				Object.entries(bedrockModels).map(([modelId, modelInfo]) => {
+					const typedModelInfo = modelInfo as ModelInfo
+					return {
+						id: modelId,
+						label: typedModelInfo.description ? `${modelId} - ${typedModelInfo.description}` : modelId,
+						baseModelId: modelId,
+						targetKind: "foundation-model" as const,
+						contextWindow: typedModelInfo.contextWindow,
+						contextSource: "base" as const,
+						description: typedModelInfo.description,
+						supportsImages: typedModelInfo.supportsImages,
+						supportsPromptCache: typedModelInfo.supportsPromptCache,
+					}
+				}),
+			),
 		[],
 	)
 
-	const availableTargets = discoveredTargets.length > 0 ? discoveredTargets : fallbackTargets
+	// Discovered targets from AWS may or may not include separate 1M profiles. Run them through
+	// the same helper so the dropdown always offers both context-window variants side-by-side.
+	const availableTargets = useMemo(() => {
+		const base = discoveredTargets.length > 0 ? discoveredTargets : fallbackTargets
+		return discoveredTargets.length > 0 ? expandBedrockTargetsWith1MVariants(base) : base
+	}, [discoveredTargets, fallbackTargets])
+
 	const selectedTargetValue =
 		apiConfiguration.awsCustomArn || selectedTargetKind === "custom-arn"
 			? MANUAL_ARN_TARGET
@@ -489,12 +491,6 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 					<div className="text-sm text-vscode-descriptionForeground mt-1 ml-6">
 						{t("settings:providers.awsBedrock1MContextBetaDescription")}
 					</div>
-				</div>
-			)}
-			{usesDefault1MContext && (
-				<div className="text-sm text-vscode-descriptionForeground">
-					Claude 4.6 Bedrock targets are treated as 1M-context targets automatically. If AWS exposes a
-					dedicated `1m` profile ID, CRC will also recognize that explicitly.
 				</div>
 			)}
 			<Checkbox

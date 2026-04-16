@@ -50,6 +50,7 @@
 		"save_api_config": "保存API配置失败",
 		"create_api_config": "创建API配置失败",
 		"rename_api_config": "重命名API配置失败",
+		"rename_api_config_stale": "Could not rename the configuration profile - it may have been renamed or deleted in another VS Code window. Please reopen the settings panel and try again.",
 		"load_api_config": "加载API配置失败",
 		"delete_api_config": "删除API配置失败",
 		"list_api_config": "获取API配置列表失败",

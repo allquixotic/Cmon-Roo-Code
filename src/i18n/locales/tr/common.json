@@ -45,6 +45,7 @@
 		"save_api_config": "API yapılandırması kaydedilemedi",
 		"create_api_config": "API yapılandırması oluşturulamadı",
 		"rename_api_config": "API yapılandırmasının adı değiştirilemedi",
+		"rename_api_config_stale": "Could not rename the configuration profile - it may have been renamed or deleted in another VS Code window. Please reopen the settings panel and try again.",
 		"load_api_config": "API yapılandırması yüklenemedi",
 		"delete_api_config": "API yapılandırması silinemedi",
 		"list_api_config": "API yapılandırma listesi alınamadı",

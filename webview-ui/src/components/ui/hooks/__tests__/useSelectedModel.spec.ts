@@ -498,18 +498,21 @@ describe("useSelectedModel", () => {
 			expect(result.current.info?.contextWindow).toBe(200_000)
 		})
 
-		it("should treat Claude 4.6 Bedrock models as 1M context by default", () => {
+		it("should NOT auto-enable 1M context for Claude 4.6 Bedrock models (dropdown split means users pick explicitly)", () => {
 			const apiConfiguration: ProviderSettings = {
 				apiProvider: "bedrock",
-				apiModelId: BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS[0],
+				apiModelId: "anthropic.claude-sonnet-4-6",
 				awsBedrock1MContext: false,
 			}
 
 			const wrapper = createWrapper()
 			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
 
-			expect(result.current.id).toBe(BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS[0])
-			expect(result.current.info?.contextWindow).toBe(1_000_000)
+			expect(result.current.id).toBe("anthropic.claude-sonnet-4-6")
+			// BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS is now empty; the dropdown offers an explicit
+			// `:1m` variant alongside the 200K base, so no model auto-flips to 1M anymore.
+			expect(result.current.info?.contextWindow).toBe(200_000)
+			expect(BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS.length).toBe(0)
 		})
 
 		it("should infer 1M context from an explicit Bedrock invoke target id", () => {
@@ -547,7 +550,7 @@ describe("useSelectedModel", () => {
 			} as any)
 		})
 
-		it("should use parsed model metadata for a custom ARN", () => {
+		it("should use parsed model metadata for a custom ARN (base 200K context unless opted in)", () => {
 			const apiConfiguration: ProviderSettings = {
 				apiProvider: "bedrock",
 				apiModelId: "anthropic.claude-sonnet-4-6",
@@ -560,7 +563,9 @@ describe("useSelectedModel", () => {
 			expect(result.current.id).toBe("anthropic.claude-sonnet-4-6")
 			expect(result.current.info?.supportsPromptCache).toBe(true)
 			expect(result.current.info?.supportsImages).toBe(true)
-			expect(result.current.info?.contextWindow).toBe(1_000_000)
+			// No longer auto-flipped to 1M: Claude 4.6 was removed from BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS
+			// so ARN-based resolution falls back to the base 200K context window.
+			expect(result.current.info?.contextWindow).toBe(200_000)
 		})
 	})
 

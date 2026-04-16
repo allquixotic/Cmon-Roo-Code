@@ -45,6 +45,7 @@
 		"save_api_config": "Không thể lưu cấu hình API",
 		"create_api_config": "Không thể tạo cấu hình API",
 		"rename_api_config": "Không thể đổi tên cấu hình API",
+		"rename_api_config_stale": "Could not rename the configuration profile - it may have been renamed or deleted in another VS Code window. Please reopen the settings panel and try again.",
 		"load_api_config": "Không thể tải cấu hình API",
 		"delete_api_config": "Không thể xóa cấu hình API",
 		"list_api_config": "Không thể lấy danh sách cấu hình API",

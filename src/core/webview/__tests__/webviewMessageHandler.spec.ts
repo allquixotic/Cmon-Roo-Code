@@ -1132,3 +1132,98 @@ describe("webviewMessageHandler - downloadErrorDiagnostics", () => {
 		expect(generateErrorDiagnostics).not.toHaveBeenCalled()
 	})
 })
+
+describe("webviewMessageHandler - renameApiConfiguration (cross-window stale-data handling)", () => {
+	const getProfile = vi.fn()
+	const saveConfig = vi.fn()
+	const deleteConfig = vi.fn()
+	const activateProviderProfile = vi.fn()
+	const postStateToWebview = vi.fn()
+
+	beforeEach(() => {
+		vi.clearAllMocks()
+		;(mockClineProvider as any).providerSettingsManager = {
+			getProfile,
+			saveConfig,
+			deleteConfig,
+		}
+		;(mockClineProvider as any).activateProviderProfile = activateProviderProfile
+		;(mockClineProvider as any).postStateToWebview = postStateToWebview
+	})
+
+	it("resolves the profile by id so stale oldName still succeeds", async () => {
+		// Simulate storage: the profile was renamed from `foo` to `foo_ssh` in another
+		// VS Code window. The current window still has `foo` in its listApiConfigMeta.
+		getProfile.mockImplementation(async (params: any) => {
+			if (params.id === "stable-id-123") {
+				return { id: "stable-id-123", name: "foo_ssh", apiProvider: "anthropic" }
+			}
+			throw new Error(`Config with name '${params.name}' not found`)
+		})
+		saveConfig.mockResolvedValue("stable-id-123")
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "renameApiConfiguration",
+			values: { oldName: "foo", newName: "foo_local" },
+			apiConfiguration: { id: "stable-id-123", apiProvider: "anthropic" },
+		} as any)
+
+		// Save under the new name with the same stable id.
+		expect(saveConfig).toHaveBeenCalledWith("foo_local", expect.objectContaining({ id: "stable-id-123" }))
+		// Delete the profile under its *current* storage name (foo_ssh), not the stale oldName.
+		expect(deleteConfig).toHaveBeenCalledWith("foo_ssh")
+		expect(activateProviderProfile).toHaveBeenCalledWith({ name: "foo_local" })
+		expect(vscode.window.showErrorMessage).not.toHaveBeenCalled()
+	})
+
+	it("short-circuits when storage already reflects the target name", async () => {
+		getProfile.mockResolvedValue({ id: "stable-id-123", name: "foo_local", apiProvider: "anthropic" })
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "renameApiConfiguration",
+			values: { oldName: "foo", newName: "foo_local" },
+			apiConfiguration: { id: "stable-id-123", apiProvider: "anthropic" },
+		} as any)
+
+		// No save/delete because the profile is already at the desired name.
+		expect(saveConfig).not.toHaveBeenCalled()
+		expect(deleteConfig).not.toHaveBeenCalled()
+		expect(activateProviderProfile).toHaveBeenCalledWith({ name: "foo_local" })
+	})
+
+	it("shows the stale-data error and pushes fresh state when the profile id is gone", async () => {
+		getProfile.mockRejectedValue(new Error("Config with ID 'missing' not found"))
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "renameApiConfiguration",
+			values: { oldName: "foo", newName: "foo_local" },
+			apiConfiguration: { id: "missing", apiProvider: "anthropic" },
+		} as any)
+
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("common:errors.rename_api_config_stale")
+		expect(postStateToWebview).toHaveBeenCalled()
+		expect(saveConfig).not.toHaveBeenCalled()
+		expect(deleteConfig).not.toHaveBeenCalled()
+		expect(activateProviderProfile).not.toHaveBeenCalled()
+	})
+
+	it("falls back to name lookup when the incoming apiConfiguration has no id", async () => {
+		getProfile.mockImplementation(async (params: any) => {
+			if (params.name === "foo") {
+				return { id: "legacy-id", name: "foo", apiProvider: "anthropic" }
+			}
+			throw new Error("not found")
+		})
+		saveConfig.mockResolvedValue("legacy-id")
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "renameApiConfiguration",
+			values: { oldName: "foo", newName: "bar" },
+			apiConfiguration: { apiProvider: "anthropic" }, // no id
+		} as any)
+
+		expect(getProfile).toHaveBeenCalledWith({ name: "foo" })
+		expect(saveConfig).toHaveBeenCalledWith("bar", expect.objectContaining({ id: "legacy-id" }))
+		expect(deleteConfig).toHaveBeenCalledWith("foo")
+	})
+})

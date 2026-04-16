@@ -45,6 +45,7 @@
 		"save_api_config": "Fehler beim Speichern der API-Konfiguration",
 		"create_api_config": "Fehler beim Erstellen der API-Konfiguration",
 		"rename_api_config": "Fehler beim Umbenennen der API-Konfiguration",
+		"rename_api_config_stale": "Could not rename the configuration profile - it may have been renamed or deleted in another VS Code window. Please reopen the settings panel and try again.",
 		"load_api_config": "Fehler beim Laden der API-Konfiguration",
 		"delete_api_config": "Fehler beim Löschen der API-Konfiguration",
 		"list_api_config": "Fehler beim Abrufen der API-Konfigurationsliste",
