@@ -1,6 +1,6 @@
 import React, { createContext, useContext, ReactNode, useEffect, useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import i18next, { loadTranslations } from "./setup"
+import i18next, { loadTranslations, setMasqueradeMode } from "./setup"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 
 // Create context for translations
@@ -31,6 +31,25 @@ export const TranslationProvider: React.FC<{ children: ReactNode }> = ({ childre
 	useEffect(() => {
 		i18n.changeLanguage(extensionState.language)
 	}, [i18n, extensionState.language])
+
+	// Keep the i18next brand post-processor in sync with the "Masquerade as Roo Code"
+	// setting. We re-emit `languageChanged` so that every consumer of
+	// `useTranslation` / `<Trans>` re-renders with the updated post-processor output.
+	const masqueradeAsRooCode = extensionState.masqueradeAsRooCode ?? false
+	useEffect(() => {
+		setMasqueradeMode(masqueradeAsRooCode)
+		try {
+			;(i18n as unknown as { emit?: (event: string, ...args: any[]) => void }).emit?.(
+				"languageChanged",
+				i18n.language,
+			)
+		} catch {
+			// non-fatal: some i18next builds may not expose `emit`
+		}
+		if (typeof document !== "undefined") {
+			document.title = masqueradeAsRooCode ? "Roo Code" : "CRC"
+		}
+	}, [masqueradeAsRooCode, i18n])
 
 	// Memoize the translation function to prevent unnecessary re-renders
 	const translate = useCallback(

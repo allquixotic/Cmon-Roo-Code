@@ -32,6 +32,49 @@ let sidebarPanel: vscode.WebviewView | undefined = undefined
 let tabPanel: vscode.WebviewPanel | undefined = undefined
 
 /**
+ * Returns the title string that should be used for the editor-tab webview
+ * panel, honoring the "Masquerade as Roo Code" setting.
+ */
+function getTabPanelTitle(contextProxy: ContextProxy): string {
+	const masquerade = contextProxy.getValue("masqueradeAsRooCode") ?? false
+	return masquerade ? "Roo Code" : "CRC"
+}
+
+/**
+ * Returns the `WebviewPanel.iconPath` that should be used for the editor-tab
+ * webview panel, honoring the "Masquerade as Roo Code" setting.
+ */
+function getTabPanelIconPath(
+	extensionUri: vscode.Uri,
+	contextProxy: ContextProxy,
+): { light: vscode.Uri; dark: vscode.Uri } {
+	const masquerade = contextProxy.getValue("masqueradeAsRooCode") ?? false
+	const lightIcon = masquerade ? "panel-light-roo.svg" : "panel-light.svg"
+	const darkIcon = masquerade ? "panel-dark-roo.svg" : "panel-dark.svg"
+	return {
+		light: vscode.Uri.joinPath(extensionUri, "assets", "icons", lightIcon),
+		dark: vscode.Uri.joinPath(extensionUri, "assets", "icons", darkIcon),
+	}
+}
+
+/**
+ * Refresh the editor-tab panel title + icon to match the current value of the
+ * "Masquerade as Roo Code" setting. Safe to call any number of times and a
+ * no-op when no tab panel is currently open.
+ */
+export function refreshTabPanelBrandAssets(extensionUri: vscode.Uri, contextProxy: ContextProxy): void {
+	if (!tabPanel) {
+		return
+	}
+	try {
+		tabPanel.title = getTabPanelTitle(contextProxy)
+		tabPanel.iconPath = getTabPanelIconPath(extensionUri, contextProxy)
+	} catch {
+		// Panel may have just been disposed; ignore.
+	}
+}
+
+/**
  * Get the currently active panel
  * @returns WebviewPanel或WebviewView
  */
@@ -218,19 +261,21 @@ export const openClineInNewTab = async ({ context, outputChannel }: Omit<Registe
 
 	const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
 
-	const newPanel = vscode.window.createWebviewPanel(ClineProvider.tabPanelId, "CRC", targetCol, {
-		enableScripts: true,
-		retainContextWhenHidden: true,
-		localResourceRoots: [context.extensionUri],
-	})
+	const newPanel = vscode.window.createWebviewPanel(
+		ClineProvider.tabPanelId,
+		getTabPanelTitle(contextProxy),
+		targetCol,
+		{
+			enableScripts: true,
+			retainContextWhenHidden: true,
+			localResourceRoots: [context.extensionUri],
+		},
+	)
 
 	// Save as tab type panel.
 	setPanel(newPanel, "tab")
 
-	newPanel.iconPath = {
-		light: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "panel-light.svg"),
-		dark: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "panel-dark.svg"),
-	}
+	newPanel.iconPath = getTabPanelIconPath(context.extensionUri, contextProxy)
 
 	await tabProvider.resolveWebviewView(newPanel)
 

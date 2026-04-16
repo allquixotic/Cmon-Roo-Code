@@ -19,6 +19,20 @@ vi.mock("react-i18next", () => ({
 			return translations[key] || key
 		},
 	}),
+	initReactI18next: { type: "3rdParty", init: () => {} },
+	Trans: ({ children, i18nKey }: { children?: React.ReactNode; i18nKey: string }) => {
+		return <>{children || i18nKey}</>
+	},
+}))
+
+// RooHero now reads masqueradeAsRooCode from the ExtensionStateContext and renders
+// translated alt text. Stub both dependencies so this dialog-focused test keeps a
+// minimal render tree.
+vi.mock("@/context/ExtensionStateContext", () => ({
+	useExtensionState: () => ({ masqueradeAsRooCode: false }),
+}))
+vi.mock("@/i18n/TranslationContext", () => ({
+	useAppTranslation: () => ({ t: (key: string) => key, i18n: {} }),
 }))
 
 describe("CloudUpsellDialog", () => {

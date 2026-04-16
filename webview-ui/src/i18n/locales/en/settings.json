@@ -181,6 +181,10 @@
 				"sidebar": "Sidebar",
 				"editor": "Editor"
 			}
+		},
+		"masqueradeAsRooCode": {
+			"label": "Masquerade as Roo Code",
+			"description": "When enabled, runtime-rendered UI surfaces (webview translations, logos, editor-tab panel title and icon) display the upstream Roo Code branding instead of CRC. This is purely cosmetic and does not change behavior. Note: the activity-bar icon, the VS Code Extensions list entry, and command-palette categories are read from the static extension manifest at activation time and will continue to show CRC."
 		}
 	},
 	"prompts": {
@@ -560,7 +564,16 @@
 		},
 		"roo": {
 			"authenticatedMessage": "Securely authenticated through your CRC Cloud account.",
-			"connectButton": "Connect to CRC Cloud"
+			"connectButton": "Connect to CRC Cloud",
+			"serviceName": "CRC Router",
+			"providerLabel": "CRC Router"
+		},
+		"bedrock": {
+			"discoveryDescription": "CRC probes Bedrock control-plane APIs for foundation models and inference profiles in the selected account and region.",
+			"discoveryDescriptionNoRegion": "Select an AWS region to discover Bedrock models and inference profiles."
+		},
+		"imageGeneration": {
+			"rooCloudOption": "CRC Cloud"
 		},
 		"openRouter": {
 			"providerRouting": {

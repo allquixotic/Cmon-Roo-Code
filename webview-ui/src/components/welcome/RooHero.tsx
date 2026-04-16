@@ -1,4 +1,6 @@
 import { useState } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useAppTranslation } from "@/i18n/TranslationContext"
 
 const RooHero = () => {
 	const [imagesBaseUri] = useState(() => {
@@ -6,6 +8,10 @@ const RooHero = () => {
 		return w.IMAGES_BASE_URI || ""
 	})
 	const [isHovered, setIsHovered] = useState(false)
+	const { masqueradeAsRooCode } = useExtensionState()
+	const { t } = useAppTranslation()
+	const logoFilename = masqueradeAsRooCode ? "roo-code-logo.svg" : "roo-logo.svg"
+	const logoUrl = `${imagesBaseUri}/${logoFilename}`
 
 	return (
 		<div
@@ -15,16 +21,16 @@ const RooHero = () => {
 			<div
 				style={{
 					backgroundColor: "var(--vscode-foreground)",
-					WebkitMaskImage: `url('${imagesBaseUri}/roo-logo.svg')`,
+					WebkitMaskImage: `url('${logoUrl}')`,
 					WebkitMaskRepeat: "no-repeat",
 					WebkitMaskSize: "contain",
-					maskImage: `url('${imagesBaseUri}/roo-logo.svg')`,
+					maskImage: `url('${logoUrl}')`,
 					maskRepeat: "no-repeat",
 					maskSize: "contain",
 					animation: isHovered ? "smooth-bounce 1s ease-in-out infinite" : "none",
 				}}
 				className="z-5 mr-auto translate-y-0 transition-transform duration-500">
-				<img src={imagesBaseUri + "/roo-logo.svg"} alt="CRC logo" className="h-8 opacity-0" />
+				<img src={logoUrl} alt={t("welcome:rooLogoAlt")} className="h-8 opacity-0" />
 			</div>
 			<div
 				className="w-[200%] -mt-0.25 h-0.5 overflow-hidden opacity-0 group-hover:opacity-70 transition-opacity duration-300"

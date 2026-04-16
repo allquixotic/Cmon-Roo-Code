@@ -44,5 +44,6 @@
 	},
 	"startRouter": "We recommend using an LLM Router:",
 	"startCustom": "Or you can bring your provider API key:",
-	"importSettings": "Import Settings"
+	"importSettings": "Import Settings",
+	"rooLogoAlt": "CRC logo"
 }

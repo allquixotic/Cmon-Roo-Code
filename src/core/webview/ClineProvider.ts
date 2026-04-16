@@ -82,9 +82,9 @@ import {
 	shouldRedirectSidebarToEditor,
 } from "../../utils/renderContext"
 
-import { setPanel } from "../../activate/registerCommands"
+import { setPanel, refreshTabPanelBrandAssets } from "../../activate/registerCommands"
 
-import { t } from "../../i18n"
+import { t, setMasqueradeMode as setHostMasqueradeMode } from "../../i18n"
 
 import { buildApiHandler } from "../../api"
 import { forceFullModelDetailsLoad, hasLoadedFullDetails } from "../../api/providers/fetchers/lmstudio"
@@ -1485,6 +1485,7 @@ export class ClineProvider
 
 		const file = "src/index.tsx"
 		const scriptUri = `http://${localServerUrl}/${file}`
+		const docTitle = (this.contextProxy.getValue("masqueradeAsRooCode") ?? false) ? "Roo Code" : "CRC"
 
 		const reactRefresh = /*html*/ `
 			<script nonce="${nonce}" type="module">
@@ -1520,7 +1521,7 @@ export class ClineProvider
 						window.AUDIO_BASE_URI = "${audioUri}"
 						window.MATERIAL_ICONS_BASE_URI = "${materialIconsUri}"
 					</script>
-					<title>CRC</title>
+					<title>${docTitle}</title>
 				</head>
 				<body>
 					<div id="root"></div>
@@ -1563,6 +1564,7 @@ export class ClineProvider
 		])
 		const imagesUri = getUri(webview, this.contextProxy.extensionUri, ["assets", "images"])
 		const audioUri = getUri(webview, this.contextProxy.extensionUri, ["webview-ui", "audio"])
+		const docTitle = (this.contextProxy.getValue("masqueradeAsRooCode") ?? false) ? "Roo Code" : "CRC"
 
 		// Use a nonce to only allow a specific script to be run.
 		/*
@@ -1599,7 +1601,7 @@ export class ClineProvider
 				window.AUDIO_BASE_URI = "${audioUri}"
 				window.MATERIAL_ICONS_BASE_URI = "${materialIconsUri}"
 			</script>
-            <title>CRC</title>
+            <title>${docTitle}</title>
           </head>
           <body>
             <noscript>You need to enable JavaScript to run this app.</noscript>
@@ -2305,6 +2307,12 @@ export class ClineProvider
 		const taskStateSeq = ++this.clineMessagesSeq
 		const state = await this.getStateToPostToWebview()
 		state.clineMessagesSeq = taskStateSeq
+		// Keep the extension-host i18n post-processor in sync with the user's
+		// "Masquerade as Roo Code" setting so that any t(...) calls executed in
+		// the host (VS Code notifications, error toasts, etc.) render with the
+		// user's chosen branding.
+		setHostMasqueradeMode(state.masqueradeAsRooCode ?? false)
+		refreshTabPanelBrandAssets(this.context.extensionUri, this.contextProxy)
 		this.postMessageToWebview({ type: "state", state })
 
 		// Check MDM compliance and send user to account tab if not compliant
@@ -2545,6 +2553,7 @@ export class ClineProvider
 			openRouterImageApiKey,
 			openRouterImageGenerationSelectedModel,
 			defaultRenderContext,
+			masqueradeAsRooCode,
 			lockApiConfigAcrossModes,
 		} = await this.getState()
 
@@ -2675,6 +2684,7 @@ export class ClineProvider
 			historyPreviewCollapsed: historyPreviewCollapsed ?? false,
 			reasoningBlockCollapsed: reasoningBlockCollapsed ?? true,
 			enterBehavior: enterBehavior ?? "send",
+			masqueradeAsRooCode: masqueradeAsRooCode ?? false,
 			cloudUserInfo,
 			cloudIsAuthenticated: cloudIsAuthenticated ?? false,
 			cloudAuthSkipModel: this.context.globalState.get<boolean>("roo-auth-skip-model") ?? false,
@@ -2896,6 +2906,7 @@ export class ClineProvider
 			reasoningBlockCollapsed: stateValues.reasoningBlockCollapsed ?? true,
 			enterBehavior: stateValues.enterBehavior ?? "send",
 			defaultRenderContext: stateValues.defaultRenderContext ?? "editor",
+			masqueradeAsRooCode: stateValues.masqueradeAsRooCode ?? false,
 			cloudUserInfo,
 			cloudIsAuthenticated,
 			sharingEnabled,

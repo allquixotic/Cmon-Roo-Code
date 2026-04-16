@@ -206,6 +206,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		maxGitStatusFiles,
 		autoImportSettingsOnStartup,
 		defaultRenderContext,
+		masqueradeAsRooCode,
 	} = cachedState
 
 	const apiConfiguration = useMemo(() => cachedState.apiConfiguration ?? {}, [cachedState.apiConfiguration])
@@ -419,6 +420,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 					reasoningBlockCollapsed: reasoningBlockCollapsed ?? true,
 					enterBehavior: enterBehavior ?? "send",
 					defaultRenderContext: defaultRenderContext ?? "editor",
+					masqueradeAsRooCode: masqueradeAsRooCode ?? false,
 					includeCurrentTime: includeCurrentTime ?? true,
 					includeCurrentCost: includeCurrentCost ?? true,
 					maxGitStatusFiles: maxGitStatusFiles ?? 0,
@@ -907,6 +909,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								reasoningBlockCollapsed={reasoningBlockCollapsed ?? true}
 								enterBehavior={enterBehavior ?? "send"}
 								defaultRenderContext={defaultRenderContext ?? "editor"}
+								masqueradeAsRooCode={masqueradeAsRooCode ?? false}
 								setCachedStateField={setCachedStateField}
 							/>
 						)}

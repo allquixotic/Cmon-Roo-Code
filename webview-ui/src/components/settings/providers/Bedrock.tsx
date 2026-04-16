@@ -394,8 +394,8 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 				/>
 				<div className="text-sm text-vscode-descriptionForeground mt-1">
 					{apiConfiguration.awsRegion
-						? "CRC probes Bedrock control-plane APIs for foundation models and inference profiles in the selected account and region."
-						: "Select an AWS region to discover Bedrock models and inference profiles."}
+						? t("settings:providers.bedrock.discoveryDescription")
+						: t("settings:providers.bedrock.discoveryDescriptionNoRegion")}
 				</div>
 				{isLoading && (
 					<div className="text-sm text-vscode-descriptionForeground mt-1">Discovering Bedrock targets...</div>

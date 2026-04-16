@@ -1,6 +1,49 @@
 import i18next from "i18next"
 import { initReactI18next } from "react-i18next"
 
+/**
+ * "Masquerade as Roo Code" runtime flag.
+ *
+ * When enabled, the `brand` post-processor replaces any standalone "CRC" token
+ * in a translated string with "Roo Code". The flag is module-local so that the
+ * post-processor itself remains a pure string transformer; the value is kept in
+ * sync with the global setting by `TranslationContext`, which calls
+ * `setMasqueradeMode(...)` whenever the user toggles the checkbox.
+ */
+let masqueradeMode = false
+
+export function setMasqueradeMode(enabled: boolean): void {
+	masqueradeMode = enabled
+}
+
+export function isMasqueradeMode(): boolean {
+	return masqueradeMode
+}
+
+/**
+ * Pure transformer used by both the i18next post-processor and any
+ * non-translation code paths (e.g. labels pulled from `constants.ts`).
+ */
+export function applyBrandMasquerade(value: string, enabled: boolean = masqueradeMode): string {
+	if (!enabled || typeof value !== "string" || value.length === 0) {
+		return value
+	}
+	// Replace the standalone "CRC" token only. `\b` keeps embedded occurrences
+	// (e.g. "CRCStorage" in example paths) untouched and leaves other words alone.
+	return value.replace(/\bCRC\b/g, "Roo Code")
+}
+
+i18next.use({
+	type: "postProcessor",
+	name: "brand",
+	process: (value: unknown) => {
+		if (typeof value !== "string") {
+			return value as any
+		}
+		return applyBrandMasquerade(value)
+	},
+} as any)
+
 // Build translations object
 const translations: Record<string, Record<string, any>> = {}
 
@@ -37,6 +80,7 @@ i18next.use(initReactI18next).init({
 	interpolation: {
 		escapeValue: false, // React already escapes by default
 	},
+	postProcess: ["brand"],
 })
 
 export function loadTranslations() {
