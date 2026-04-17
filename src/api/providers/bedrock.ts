@@ -25,6 +25,7 @@ import {
 	BEDROCK_DEFAULT_TEMPERATURE,
 	AWS_INFERENCE_PROFILE_MAPPING,
 	BEDROCK_1M_CONTEXT_MODEL_IDS,
+	BEDROCK_ADAPTIVE_THINKING_MODEL_IDS,
 	BEDROCK_GLOBAL_INFERENCE_MODEL_IDS,
 	BEDROCK_NATIVE_1M_CONTEXT_MODEL_IDS,
 	BEDROCK_SERVICE_TIER_MODEL_IDS,
@@ -62,11 +63,13 @@ interface BedrockInferenceConfig {
 
 // Define interface for Bedrock additional model request fields
 // This includes thinking configuration, 1M context beta, and other model-specific parameters
+//
+// Two shapes are supported for the `thinking` field:
+//   - Legacy (Claude Sonnet/Opus 4.x, Claude 3.7): { type: "enabled", budget_tokens: N }
+//   - Adaptive (Claude Opus 4.7+):                 { type: "adaptive" } paired with a
+//     top-level `output_config.effort` string on the payload itself.
 interface BedrockAdditionalModelFields {
-	thinking?: {
-		type: "enabled"
-		budget_tokens: number
-	}
+	thinking?: { type: "enabled"; budget_tokens: number } | { type: "adaptive" }
 	anthropic_beta?: string[]
 	[key: string]: any // Add index signature to be compatible with DocumentType
 }
@@ -80,6 +83,39 @@ interface BedrockPayload {
 	anthropic_version?: string
 	additionalModelRequestFields?: BedrockAdditionalModelFields
 	toolConfig?: ToolConfiguration
+	// Adaptive-thinking models (e.g. Claude Opus 4.7 on Bedrock) use this top-level
+	// `output_config.effort` knob instead of the legacy `thinking.budget_tokens` number.
+	output_config?: { effort: "low" | "medium" | "high" }
+}
+
+/**
+ * Map a reasoning budget (in tokens) to a coarse effort bucket for the adaptive
+ * thinking payload. Used only when invoking Bedrock models that require the newer
+ * `thinking: { type: "adaptive" }` + `output_config.effort` shape.
+ *
+ * The thresholds mirror the historical budget ranges exposed by the reasoning UI:
+ *   <=  4096 tokens → "low"
+ *   <= 16384 tokens → "medium"
+ *    > 16384 tokens → "high"
+ */
+function mapReasoningBudgetToBedrockEffort(budget: number | undefined): "low" | "medium" | "high" {
+	const b = typeof budget === "number" && Number.isFinite(budget) && budget > 0 ? budget : 0
+	if (b <= 4096) return "low"
+	if (b <= 16384) return "medium"
+	return "high"
+}
+
+/**
+ * Normalize a freeform reasoning-effort setting string to the three buckets Bedrock
+ * accepts on `output_config.effort`. Unknown or disabled values return undefined so
+ * the caller can fall back to the budget-derived mapping.
+ */
+function normalizeReasoningEffortForBedrock(value: unknown): "low" | "medium" | "high" | undefined {
+	if (typeof value !== "string") return undefined
+	const v = value.toLowerCase()
+	if (v === "low" || v === "medium" || v === "high") return v
+	if (v === "minimal") return "low"
+	return undefined
 }
 
 // Extended payload type that includes service_tier as a top-level parameter
@@ -322,6 +358,14 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 
 		let additionalModelRequestFields: BedrockAdditionalModelFields | undefined
 		let thinkingEnabled = false
+		let adaptiveThinkingEffort: "low" | "medium" | "high" | undefined
+
+		// Resolve the base model id first so the thinking branch can decide between the
+		// legacy budget_tokens payload and the newer adaptive + output_config.effort payload.
+		// parseBaseModelId strips cross-region inference prefixes (e.g. `us.`, `eu.`) and the
+		// synthetic `:1m` dropdown suffix.
+		const baseModelId = this.parseBaseModelId(modelConfig.id)
+		const requiresAdaptiveThinking = BEDROCK_ADAPTIVE_THINKING_MODEL_IDS.includes(baseModelId as any)
 
 		// Determine if thinking should be enabled
 		// metadata?.thinking?.enabled: Explicitly enabled through API metadata (direct request)
@@ -334,17 +378,42 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 
 		if ((isThinkingExplicitlyEnabled || isThinkingEnabledBySettings) && modelConfig.info.supportsReasoningBudget) {
 			thinkingEnabled = true
-			additionalModelRequestFields = {
-				thinking: {
-					type: "enabled",
-					budget_tokens: metadata?.thinking?.maxThinkingTokens || modelConfig.reasoningBudget || 4096,
-				},
+			const effectiveBudget = metadata?.thinking?.maxThinkingTokens || modelConfig.reasoningBudget || 4096
+
+			if (requiresAdaptiveThinking) {
+				// Newer Claude models on Bedrock (e.g. Opus 4.7) reject the legacy
+				// `thinking: { type: "enabled", budget_tokens: N }` shape with:
+				//   invalid_request_error: "thinking.type.enabled" is not supported for this model.
+				//   Use "thinking.type.adaptive" and "output_config.effort" to control thinking behavior.
+				// Honor that by emitting `thinking: { type: "adaptive" }` plus a top-level
+				// `output_config.effort`. Effort comes from the user's reasoningEffort setting
+				// when present, otherwise we derive it from the token budget.
+				adaptiveThinkingEffort =
+					normalizeReasoningEffortForBedrock(
+						(this.options as ProviderSettings & { reasoningEffort?: unknown }).reasoningEffort,
+					) ?? mapReasoningBudgetToBedrockEffort(effectiveBudget)
+				additionalModelRequestFields = {
+					thinking: { type: "adaptive" },
+				}
+				logger.info("Adaptive thinking enabled for Bedrock request", {
+					ctx: "bedrock",
+					modelId: modelConfig.id,
+					thinking: additionalModelRequestFields.thinking,
+					effort: adaptiveThinkingEffort,
+				})
+			} else {
+				additionalModelRequestFields = {
+					thinking: {
+						type: "enabled",
+						budget_tokens: effectiveBudget,
+					},
+				}
+				logger.info("Extended thinking enabled for Bedrock request", {
+					ctx: "bedrock",
+					modelId: modelConfig.id,
+					thinking: additionalModelRequestFields.thinking,
+				})
 			}
-			logger.info("Extended thinking enabled for Bedrock request", {
-				ctx: "bedrock",
-				modelId: modelConfig.id,
-				thinking: additionalModelRequestFields.thinking,
-			})
 		}
 
 		const inferenceConfig: BedrockInferenceConfig = {
@@ -357,8 +426,6 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		//   - the configured target id contains the `:1m` / `[1m]` indicator (user picked the
 		//     1M variant from the dropdown), OR
 		//   - the awsBedrock1MContext opt-in toggle is set by the user.
-		// Use parseBaseModelId to handle cross-region inference prefixes.
-		const baseModelId = this.parseBaseModelId(modelConfig.id)
 		const configuredTargetForIndicator =
 			this.options.awsBedrockInvokeTarget || this.options.awsCustomArn || modelConfig.id
 		const is1MContextEnabled =
@@ -429,6 +496,9 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			...(additionalModelRequestFields && { additionalModelRequestFields }),
 			// Add anthropic_version at top level when using thinking features
 			...(thinkingEnabled && { anthropic_version: "bedrock-2023-05-31" }),
+			// Adaptive-thinking models require the effort knob at the top level alongside
+			// `thinking: { type: "adaptive" }` inside additionalModelRequestFields.
+			...(adaptiveThinkingEffort && { output_config: { effort: adaptiveThinkingEffort } }),
 			toolConfig,
 			// Add service_tier as a top-level parameter (not inside additionalModelRequestFields)
 			...(useServiceTier && { service_tier: this.options.awsBedrockServiceTier }),

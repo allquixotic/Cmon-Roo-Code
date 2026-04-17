@@ -566,6 +566,16 @@ export const BEDROCK_1M_CONTEXT_MODEL_IDS = [
 // behavior that surfaced this issue.
 export const BEDROCK_NATIVE_1M_CONTEXT_MODEL_IDS = ["anthropic.claude-opus-4-7"] as const
 
+// Models that REJECT the legacy `thinking: { type: "enabled", budget_tokens: N }` payload
+// on the Bedrock Converse API and instead require the newer adaptive thinking format:
+//   additionalModelRequestFields.thinking       = { type: "adaptive" }
+//   payload.output_config                       = { effort: "low" | "medium" | "high" }
+//
+// Attempting to send the legacy shape results in:
+//   invalid_request_error: "thinking.type.enabled" is not supported for this model.
+//   Use "thinking.type.adaptive" and "output_config.effort" to control thinking behavior.
+export const BEDROCK_ADAPTIVE_THINKING_MODEL_IDS = ["anthropic.claude-opus-4-7"] as const
+
 // Previously Claude 4.6 Sonnet/Opus auto-advertised 1M. With the new dual dropdown
 // (default-context + `:1m` variant) the UI always exposes both tiers explicitly, so
 // we no longer auto-flip any model to 1M at resolve time. The opt-in toggle + `:1m`
