@@ -961,7 +961,12 @@ export class ClineProvider
 				await vscode.commands.executeCommand(getCommand("openInNewTab"))
 			}
 
-			await vscode.commands.executeCommand("workbench.view.explorer")
+			// When the user's preferred render context is "editor", close the primary
+			// sidebar that VS Code reflexively opened to host the sidebar webview view.
+			// This keeps the workspace focused on the editor surface where CRC is now
+			// rendered, instead of leaving the Explorer (or any other sidebar view)
+			// visible on the left.
+			await vscode.commands.executeCommand("workbench.action.closeSidebar")
 			await vscode.commands.executeCommand("workbench.action.focusActiveEditorGroup")
 		} catch (error) {
 			this.log(
