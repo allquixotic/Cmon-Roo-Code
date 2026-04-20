@@ -228,6 +228,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	)
 	const autoApproveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 	const userRespondedRef = useRef<boolean>(false)
+	const pendingPostCompactRef = useRef<{ text: string; images: string[] } | null>(null)
 	const [currentFollowUpTs, setCurrentFollowUpTs] = useState<number | null>(null)
 	const [aggregatedCostsMap, setAggregatedCostsMap] = useState<
 		Map<
@@ -667,6 +668,18 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		// setSecondaryButtonText(undefined)
 	}, [])
 
+	const handleCondenseContext = useCallback(
+		(taskId: string) => {
+			if (isCondensing || sendingDisabled) {
+				return
+			}
+			setIsCondensing(true)
+			setSendingDisabled(true)
+			vscode.postMessage({ type: "condenseTaskContextRequest", text: taskId })
+		},
+		[isCondensing, sendingDisabled],
+	)
+
 	/**
 	 * Handles sending messages to the extension
 	 * @param text - The message text to send
@@ -678,6 +691,30 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 			if (text || images.length > 0) {
 				if (submissionDisabled) {
+					return
+				}
+
+				// Intercept /compact and /compact-and before any other processing.
+				// /compact triggers the same context-condensing used by auto-condense.
+				// /compact-and <msg> condenses, then sends <msg> once condensing completes.
+				const compactMatch = /^\/compact(-and)?(?:\s+([\s\S]+))?$/.exec(text)
+				if (compactMatch) {
+					const taskId = currentTaskItem?.id
+					if (!taskId || messagesRef.current.length === 0 || isCondensing || sendingDisabled) {
+						// Nothing to condense, or a condense is already in flight.
+						setInputValue("")
+						setSelectedImages([])
+						return
+					}
+					const followUp = (compactMatch[2] ?? "").trim()
+					if (compactMatch[1] && followUp) {
+						pendingPostCompactRef.current = { text: followUp, images }
+					}
+					setIsCondensing(true)
+					setSendingDisabled(true)
+					vscode.postMessage({ type: "condenseTaskContextRequest", text: taskId })
+					setInputValue("")
+					setSelectedImages([])
 					return
 				}
 				// Intercept when the active provider is retired — show a
@@ -757,8 +794,23 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			apiConfiguration?.apiProvider,
 			submissionDisabled,
 			selectedDraftId,
+			currentTaskItem?.id,
 		], // messagesRef and clineAskRef are stable
 	)
+
+	// After /compact-and completes, dispatch the follow-up message stashed
+	// when the user submitted the command.
+	useEffect(() => {
+		if (isCondensing || sendingDisabled) {
+			return
+		}
+		const pending = pendingPostCompactRef.current
+		if (!pending) {
+			return
+		}
+		pendingPostCompactRef.current = null
+		handleSendMessage(pending.text, pending.images)
+	}, [isCondensing, sendingDisabled, handleSendMessage])
 
 	const handleSetChatBoxMessage = useCallback(
 		(text: string, images: string[]) => {
@@ -1628,14 +1680,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		},
 	}))
 
-	const handleCondenseContext = (taskId: string) => {
-		if (isCondensing || sendingDisabled) {
-			return
-		}
-		setIsCondensing(true)
-		setSendingDisabled(true)
-		vscode.postMessage({ type: "condenseTaskContextRequest", text: taskId })
-	}
 	const areButtonsVisible = showScrollToBottom || displayedPrimaryButtonText || displayedSecondaryButtonText
 
 	return (
