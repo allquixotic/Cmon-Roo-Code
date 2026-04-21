@@ -80,6 +80,7 @@ const mockClineProvider = {
 	log: vi.fn(),
 	postStateToWebview: vi.fn(),
 	getCurrentTask: vi.fn(),
+	resolveMessageTask: vi.fn(),
 	getTaskWithId: vi.fn(),
 	createTaskWithHistoryItem: vi.fn(),
 	getSkillsManager: vi.fn(),
@@ -221,11 +222,14 @@ describe("webviewMessageHandler - image mentions", () => {
 
 	it("should resolve image mentions for askResponse payloads", async () => {
 		const mockHandleWebviewAskResponse = vi.fn()
-		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue({
+		const mockTask = {
+			taskId: "task-1",
 			cwd: "/mock/workspace",
 			rooIgnoreController: undefined,
 			handleWebviewAskResponse: mockHandleWebviewAskResponse,
-		} as any)
+		} as any
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(mockTask)
+		vi.mocked(mockClineProvider.resolveMessageTask).mockReturnValue(mockTask)
 
 		await webviewMessageHandler(mockClineProvider, {
 			type: "askResponse",
