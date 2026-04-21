@@ -39,6 +39,7 @@ export const CommandExecution = ({ executionId, text, icon, title }: CommandExec
 		deniedCommands = [],
 		setAllowedCommands,
 		setDeniedCommands,
+		currentTaskId: commandExecutionTaskId,
 	} = useExtensionState()
 
 	const { command, output: parsedOutput } = useMemo(() => parseCommandAndOutput(text), [text])
@@ -178,6 +179,7 @@ export const CommandExecution = ({ executionId, text, icon, title }: CommandExec
 											vscode.postMessage({
 												type: "terminalOperation",
 												terminalOperation: "abort",
+												taskId: commandExecutionTaskId,
 											})
 										}>
 										<OctagonX className="size-4" />

@@ -636,10 +636,21 @@ export const webviewMessageHandler = async (
 
 		case "askResponse":
 			{
+				const targetTask = provider.resolveMessageTask(message.taskId)
+				if (!targetTask) {
+					provider.log(
+						`[askResponse] dropped — target task ${message.taskId ?? "(current)"} no longer active`,
+					)
+					break
+				}
+				const expectedTaskId = targetTask.taskId
 				const resolved = await resolveIncomingImages({ text: message.text, images: message.images })
-				provider
-					.getCurrentTask()
-					?.handleWebviewAskResponse(message.askResponse!, resolved.text, resolved.images)
+				const stillActive = provider.resolveMessageTask(expectedTaskId)
+				if (!stillActive || stillActive.taskId !== expectedTaskId) {
+					provider.log(`[askResponse] dropped after image resolve — task ${expectedTaskId} no longer active`)
+					break
+				}
+				stillActive.handleWebviewAskResponse(message.askResponse!, resolved.text, resolved.images)
 			}
 			break
 
@@ -743,7 +754,7 @@ export const webviewMessageHandler = async (
 
 		case "terminalOperation":
 			if (message.terminalOperation) {
-				provider.getCurrentTask()?.handleTerminalOperation(message.terminalOperation)
+				provider.resolveMessageTask(message.taskId)?.handleTerminalOperation(message.terminalOperation)
 			}
 			break
 		case "clearTask":
@@ -1310,7 +1321,7 @@ export const webviewMessageHandler = async (
 			const result = checkoutDiffPayloadSchema.safeParse(message.payload)
 
 			if (result.success) {
-				await provider.getCurrentTask()?.checkpointDiff(result.data)
+				await provider.resolveMessageTask(message.taskId)?.checkpointDiff(result.data)
 			}
 
 			break
@@ -1339,8 +1350,8 @@ export const webviewMessageHandler = async (
 			await provider.cancelTask()
 			break
 		case "cancelAutoApproval":
-			// Cancel any pending auto-approval timeout for the current task
-			provider.getCurrentTask()?.cancelAutoApprovalTimeout()
+			// Cancel any pending auto-approval timeout for the target task
+			provider.resolveMessageTask(message.taskId)?.cancelAutoApprovalTimeout()
 			break
 		case "allowedCommands": {
 			// Validate and sanitize the commands array
@@ -3225,20 +3236,31 @@ export const webviewMessageHandler = async (
 		 */
 
 		case "queueMessage": {
+			const targetTask = provider.resolveMessageTask(message.taskId)
+			if (!targetTask) {
+				provider.log(`[queueMessage] dropped — target task ${message.taskId ?? "(current)"} no longer active`)
+				break
+			}
+			const expectedTaskId = targetTask.taskId
 			const resolved = await resolveIncomingImages({ text: message.text, images: message.images })
-			provider
-				.getCurrentTask()
-				?.messageQueueService.addMessage(resolved.text, resolved.images, message.deliveryMode ?? "queue")
+			const stillActive = provider.resolveMessageTask(expectedTaskId)
+			if (!stillActive || stillActive.taskId !== expectedTaskId) {
+				provider.log(`[queueMessage] dropped after image resolve — task ${expectedTaskId} no longer active`)
+				break
+			}
+			stillActive.messageQueueService.addMessage(resolved.text, resolved.images, message.deliveryMode ?? "queue")
 			break
 		}
 		case "removeQueuedMessage": {
-			provider.getCurrentTask()?.messageQueueService.removeMessage(message.text ?? "")
+			provider.resolveMessageTask(message.taskId)?.messageQueueService.removeMessage(message.text ?? "")
 			break
 		}
 		case "editQueuedMessage": {
 			if (message.payload) {
 				const { id, text, images, deliveryMode } = message.payload as EditQueuedMessagePayload
-				provider.getCurrentTask()?.messageQueueService.updateMessage(id, text, images, deliveryMode)
+				provider
+					.resolveMessageTask(message.taskId)
+					?.messageQueueService.updateMessage(id, text, images, deliveryMode)
 			}
 
 			break

@@ -278,9 +278,9 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		// Only send cancel if there's actual input (user is typing)
 		// and we have a pending follow-up question
 		if (isFollowUpAutoApprovalPaused) {
-			vscode.postMessage({ type: "cancelAutoApproval" })
+			vscode.postMessage({ type: "cancelAutoApproval", taskId: currentTaskId })
 		}
-	}, [isFollowUpAutoApprovalPaused])
+	}, [isFollowUpAutoApprovalPaused, currentTaskId])
 
 	const isProfileDisabled = useMemo(
 		() => !!apiConfiguration && !ProfileValidator.isProfileAllowed(apiConfiguration, organizationAllowList),
@@ -732,7 +732,13 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 				if (shouldQueueMessage) {
 					try {
-						vscode.postMessage({ type: "queueMessage", text, images, deliveryMode: "queue" })
+						vscode.postMessage({
+							type: "queueMessage",
+							text,
+							images,
+							deliveryMode: "queue",
+							taskId: currentTaskId,
+						})
 						setInputValue("")
 						setSelectedImages([])
 					} catch (error) {
@@ -773,13 +779,20 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 								askResponse: "messageResponse",
 								text,
 								images,
+								taskId: currentTaskId,
 							})
 							break
 						// There is no other case that a textfield should be enabled.
 					}
 				} else {
 					// This is a new message in an ongoing task.
-					vscode.postMessage({ type: "askResponse", askResponse: "messageResponse", text, images })
+					vscode.postMessage({
+						type: "askResponse",
+						askResponse: "messageResponse",
+						text,
+						images,
+						taskId: currentTaskId,
+					})
 				}
 
 				handleChatReset()
@@ -795,6 +808,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			submissionDisabled,
 			selectedDraftId,
 			currentTaskItem?.id,
+			currentTaskId,
 		], // messagesRef and clineAskRef are stable
 	)
 
@@ -901,12 +915,17 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							askResponse: "yesButtonClicked",
 							text: trimmedInput,
 							images: images,
+							taskId: currentTaskId,
 						})
 						// Clear input state after sending
 						setInputValue("")
 						setSelectedImages([])
 					} else {
-						vscode.postMessage({ type: "askResponse", askResponse: "yesButtonClicked" })
+						vscode.postMessage({
+							type: "askResponse",
+							askResponse: "yesButtonClicked",
+							taskId: currentTaskId,
+						})
 					}
 					break
 				case "resume_task":
@@ -927,12 +946,17 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 								askResponse: "yesButtonClicked",
 								text: trimmedInput,
 								images: images,
+								taskId: currentTaskId,
 							})
 							// Clear input state after sending
 							setInputValue("")
 							setSelectedImages([])
 						} else {
-							vscode.postMessage({ type: "askResponse", askResponse: "yesButtonClicked" })
+							vscode.postMessage({
+								type: "askResponse",
+								askResponse: "yesButtonClicked",
+								taskId: currentTaskId,
+							})
 						}
 					}
 					break
@@ -942,7 +966,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					startNewTask()
 					break
 				case "command_output":
-					vscode.postMessage({ type: "terminalOperation", terminalOperation: "continue" })
+					vscode.postMessage({
+						type: "terminalOperation",
+						terminalOperation: "continue",
+						taskId: currentTaskId,
+					})
 					break
 			}
 
@@ -952,7 +980,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			setPrimaryButtonText(undefined)
 			setSecondaryButtonText(undefined)
 		},
-		[clineAsk, startNewTask, currentTaskItem?.parentTaskId],
+		[clineAsk, startNewTask, currentTaskItem?.parentTaskId, currentTaskId],
 	)
 
 	const handleSecondaryButtonClick = useCallback(
@@ -984,24 +1012,33 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							askResponse: "noButtonClicked",
 							text: trimmedInput,
 							images: images,
+							taskId: currentTaskId,
 						})
 						// Clear input state after sending
 						setInputValue("")
 						setSelectedImages([])
 					} else {
 						// Responds to the API with a "This operation failed" and lets it try again
-						vscode.postMessage({ type: "askResponse", askResponse: "noButtonClicked" })
+						vscode.postMessage({
+							type: "askResponse",
+							askResponse: "noButtonClicked",
+							taskId: currentTaskId,
+						})
 					}
 					break
 				case "command_output":
-					vscode.postMessage({ type: "terminalOperation", terminalOperation: "abort" })
+					vscode.postMessage({
+						type: "terminalOperation",
+						terminalOperation: "abort",
+						taskId: currentTaskId,
+					})
 					break
 			}
 			setSendingDisabled(true)
 			setClineAsk(undefined)
 			setEnableButtons(false)
 		},
-		[clineAsk, startNewTask, isStreaming, setDidClickCancel],
+		[clineAsk, startNewTask, isStreaming, setDidClickCancel, currentTaskId],
 	)
 
 	const { info: model } = useSelectedModel(apiConfiguration)
@@ -1556,16 +1593,24 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		[handleSendMessage, setInputValue, switchToMode, alwaysAllowModeSwitch, clineAsk, markFollowUpAsAnswered],
 	)
 
-	const handleBatchFileResponse = useCallback((response: { [key: string]: boolean }) => {
-		// Handle batch file response, e.g., for file uploads
-		vscode.postMessage({ type: "askResponse", askResponse: "objectResponse", text: JSON.stringify(response) })
-	}, [])
+	const handleBatchFileResponse = useCallback(
+		(response: { [key: string]: boolean }) => {
+			// Handle batch file response, e.g., for file uploads
+			vscode.postMessage({
+				type: "askResponse",
+				askResponse: "objectResponse",
+				text: JSON.stringify(response),
+				taskId: currentTaskId,
+			})
+		},
+		[currentTaskId],
+	)
 
 	// Cancel backend auto-approval timeout when FollowUpSuggest's countdown effect cleans up.
 	// This is called when auto-approve is toggled off, a suggestion is clicked, or the component unmounts.
 	const handleFollowUpUnmount = useCallback(() => {
-		vscode.postMessage({ type: "cancelAutoApproval" })
-	}, [])
+		vscode.postMessage({ type: "cancelAutoApproval", taskId: currentTaskId })
+	}, [currentTaskId])
 
 	const handleScrollToBottomAndResetCheckpointCursor = useCallback(() => {
 		checkpointJumpCursorRef.current = null
@@ -1707,6 +1752,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					type: "queueMessage",
 					text: inputValue.trim(),
 					images: selectedImages,
+					taskId: currentTaskId,
 					deliveryMode: "queue",
 				})
 				setInputValue("")
@@ -1928,11 +1974,16 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					<QueuedMessages
 						queue={messageQueue}
 						onRemove={(messageId) => {
-							vscode.postMessage({ type: "removeQueuedMessage", text: messageId })
+							vscode.postMessage({
+								type: "removeQueuedMessage",
+								text: messageId,
+								taskId: currentTaskId,
+							})
 						}}
 						onUpdate={(message, updates) => {
 							vscode.postMessage({
 								type: "editQueuedMessage",
+								taskId: currentTaskId,
 								payload: {
 									id: message.id,
 									text: updates.text ?? message.text,

@@ -3229,6 +3229,25 @@ export class ClineProvider
 		return this.clineStack[this.clineStack.length - 1]
 	}
 
+	/**
+	 * Resolve which task a webview message targets. If the webview supplied
+	 * `message.taskId`, look that task up directly — this is the safe path
+	 * because it survives task switches between the postMessage call and the
+	 * handler awaiting async work. If the task with that id is no longer in
+	 * the stack (finished, archived) we return undefined rather than silently
+	 * falling through to getCurrentTask(), which could misroute user input
+	 * to an unrelated concurrent task.
+	 *
+	 * If `message.taskId` is absent we preserve legacy behavior and fall back
+	 * to the currently visible task.
+	 */
+	public resolveMessageTask(taskId?: string): Task | undefined {
+		if (taskId !== undefined && taskId !== "") {
+			return this.getTaskById(taskId)
+		}
+		return this.getCurrentTask()
+	}
+
 	public getRecentTasks(): string[] {
 		if (this.recentTasksCache) {
 			return this.recentTasksCache

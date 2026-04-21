@@ -6,6 +6,7 @@ import { Button, Popover, PopoverContent, PopoverTrigger, StandardTooltip } from
 import { useRooPortal } from "@/components/ui/hooks"
 
 import { vscode } from "@src/utils/vscode"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { Checkpoint } from "./schema"
 
 type CheckpointMenuBaseProps = {
@@ -30,6 +31,7 @@ export const CheckpointMenu = ({
 	onJumpToPreviousCheckpoint,
 }: CheckpointMenuProps) => {
 	const { t } = useTranslation()
+	const { currentTaskId } = useExtensionState()
 	const [internalRestoreOpen, setInternalRestoreOpen] = useState(false)
 	const [restoreConfirming, setRestoreConfirming] = useState(false)
 	const [internalMoreOpen, setInternalMoreOpen] = useState(false)
@@ -62,33 +64,44 @@ export const CheckpointMenu = ({
 	const onCheckpointDiff = useCallback(() => {
 		vscode.postMessage({
 			type: "checkpointDiff",
+			taskId: currentTaskId,
 			payload: { ts, previousCommitHash, commitHash, mode: "checkpoint" },
 		})
-	}, [ts, previousCommitHash, commitHash])
+	}, [ts, previousCommitHash, commitHash, currentTaskId])
 
 	const onDiffFromInit = useCallback(() => {
 		vscode.postMessage({
 			type: "checkpointDiff",
+			taskId: currentTaskId,
 			payload: { ts, commitHash, mode: "from-init" },
 		})
-	}, [ts, commitHash])
+	}, [ts, commitHash, currentTaskId])
 
 	const onDiffWithCurrent = useCallback(() => {
 		vscode.postMessage({
 			type: "checkpointDiff",
+			taskId: currentTaskId,
 			payload: { ts, commitHash, mode: "to-current" },
 		})
-	}, [ts, commitHash])
+	}, [ts, commitHash, currentTaskId])
 
 	const onPreview = useCallback(() => {
-		vscode.postMessage({ type: "checkpointRestore", payload: { ts, commitHash, mode: "preview" } })
+		vscode.postMessage({
+			type: "checkpointRestore",
+			taskId: currentTaskId,
+			payload: { ts, commitHash, mode: "preview" },
+		})
 		setRestoreOpen(false)
-	}, [ts, commitHash, setRestoreOpen])
+	}, [ts, commitHash, setRestoreOpen, currentTaskId])
 
 	const onRestore = useCallback(() => {
-		vscode.postMessage({ type: "checkpointRestore", payload: { ts, commitHash, mode: "restore" } })
+		vscode.postMessage({
+			type: "checkpointRestore",
+			taskId: currentTaskId,
+			payload: { ts, commitHash, mode: "restore" },
+		})
 		setRestoreOpen(false)
-	}, [ts, commitHash, setRestoreOpen])
+	}, [ts, commitHash, setRestoreOpen, currentTaskId])
 
 	const handleOpenChange = useCallback(
 		(open: boolean) => {
