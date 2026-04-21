@@ -3,6 +3,10 @@
 // Capture onOpenChange from Popover to control open/close in tests
 let lastOnOpenChange: ((open: boolean) => void) | undefined
 
+vi.mock("@src/context/ExtensionStateContext", () => ({
+	useExtensionState: () => ({ currentTaskId: "test-task-id" }),
+}))
+
 vi.mock("@/components/ui", () => {
 	// Minimal UI primitives to ensure deterministic behavior in tests
 	return {
