@@ -53,13 +53,6 @@ vi.mock("../AutoApproveMenu", () => ({
 	default: () => null,
 }))
 
-// Mock DismissibleUpsell component
-vi.mock("@/components/common/DismissibleUpsell", () => ({
-	default: function MockDismissibleUpsell({ children }: { children: React.ReactNode }) {
-		return <div data-testid="dismissible-upsell">{children}</div>
-	},
-}))
-
 // Mock QueuedMessages component
 vi.mock("../QueuedMessages", () => ({
 	QueuedMessages: function MockQueuedMessages({
@@ -101,7 +94,6 @@ vi.mock("@src/components/welcome/RooHero", () => ({
 		return <div data-testid="roo-hero">Hero content</div>
 	},
 }))
-
 
 // Mock i18n
 vi.mock("react-i18next", () => ({

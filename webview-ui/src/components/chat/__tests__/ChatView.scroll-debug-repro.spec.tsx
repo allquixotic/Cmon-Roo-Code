@@ -88,7 +88,6 @@ vi.mock("@src/components/welcome/RooHero", nullDefaultModule)
 vi.mock("@src/components/welcome/RooTips", nullDefaultModule)
 vi.mock("./TaskHeader", () => ({ default: () => <div data-testid="task-header" /> }))
 vi.mock("./ProfileViolationWarning", nullDefaultModule)
-vi.mock("../common/DismissibleUpsell", nullDefaultModule)
 
 vi.mock("./CheckpointWarning", () => ({ CheckpointWarning: () => null }))
 vi.mock("./QueuedMessages", () => ({ QueuedMessages: () => null }))

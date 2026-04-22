@@ -26,7 +26,6 @@
 	"switchAccount": "Switch CRC Cloud Account",
 	"createTeamAccount": "Create Team Account",
 	"upsell": {
-		"autoApprovePowerUser": "Giving CRC some independence? Control it from anywhere with CRC Cloud. <learnMoreLink>Learn more</learnMoreLink>.",
-		"longRunningTask": "This might take a while. Continue from anywhere with Cloud."
+		"autoApprovePowerUser": "Giving CRC some independence? Control it from anywhere with CRC Cloud. <learnMoreLink>Learn more</learnMoreLink>."
 	}
 }
