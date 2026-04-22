@@ -1100,7 +1100,6 @@ describe("OpenAiNativeHandler", () => {
 			}
 		})
 	})
-
 })
 
 // Additional tests for GPT-5 streaming event coverage

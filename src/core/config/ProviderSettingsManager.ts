@@ -622,7 +622,6 @@ export class ProviderSettingsManager {
 				),
 			}
 		} catch (error) {
-
 			throw new Error(`Failed to read provider profiles from secrets: ${error}`)
 		}
 	}

@@ -77,7 +77,6 @@ export const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({ item, 
 	const isInstalled = isInstalledGlobally || isInstalledInProject
 
 	const handleInstallClick = () => {
-
 		// Show modal for all item types (MCP and modes)
 		setShowInstallModal(true)
 	}

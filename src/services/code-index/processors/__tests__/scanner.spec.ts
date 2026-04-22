@@ -3,7 +3,6 @@
 import { DirectoryScanner } from "../scanner"
 import { stat } from "fs/promises"
 
-
 vi.mock("fs/promises", () => ({
 	default: {
 		readFile: vi.fn(),

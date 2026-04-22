@@ -19,7 +19,6 @@ vi.mock("@roo-code/cloud", () => ({
 // Mock axios
 vi.mock("axios")
 
-
 // Mock vscode first
 vi.mock("vscode", () => ({
 	workspace: {

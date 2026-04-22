@@ -56,8 +56,7 @@ const mockApiHandler = new MockApiHandler()
 const taskId = "test-task-id"
 
 describe("Condense", () => {
-	beforeEach(() => {
-	})
+	beforeEach(() => {})
 
 	describe("extractCommandBlocks", () => {
 		it("should extract command blocks from string content", () => {

@@ -1,4 +1,3 @@
-
 // Mock BedrockRuntimeClient and commands
 const mockSend = vi.fn()
 

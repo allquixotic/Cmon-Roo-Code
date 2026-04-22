@@ -62,7 +62,6 @@ export type TruncationResult = {
  * @returns {TruncationResult} Object containing the tagged messages, truncation ID, and count of messages removed.
  */
 export function truncateConversation(messages: ApiMessage[], fracToRemove: number, _taskId: string): TruncationResult {
-
 	const truncationId = crypto.randomUUID()
 
 	// Filter to only visible messages (those not already truncated)

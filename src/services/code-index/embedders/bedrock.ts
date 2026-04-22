@@ -156,7 +156,6 @@ export class BedrockEmbedder implements IEmbedder {
 					continue
 				}
 
-
 				// Log the error for debugging
 				console.error(`Bedrock embedder error (attempt ${attempts + 1}/${MAX_RETRIES}):`, error)
 

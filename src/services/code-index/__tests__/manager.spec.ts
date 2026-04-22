@@ -96,7 +96,6 @@ vi.mock("../state-manager", () => ({
 	})),
 }))
 
-
 vi.mock("../service-factory")
 const MockedCodeIndexServiceFactory = CodeIndexServiceFactory as MockedClass<typeof CodeIndexServiceFactory>
 

@@ -762,7 +762,6 @@ describe("validateAndFixToolResultIds", () => {
 		})
 	})
 
-
 	describe("ToolResultIdMismatchError", () => {
 		it("should create error with correct properties", () => {
 			const error = new ToolResultIdMismatchError(

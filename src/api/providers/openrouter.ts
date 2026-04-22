@@ -45,7 +45,6 @@ type OpenRouterChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
 	reasoning?: OpenRouterReasoningParams
 }
 
-
 // Direct error object structure (for streaming errors passed directly)
 interface OpenRouterError {
 	message?: string
@@ -168,7 +167,6 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 		const rawString = error?.metadata?.raw
 		const parsedError = extractErrorFromMetadataRaw(rawString)
 		const rawErrorMessage = parsedError || error?.message || "Unknown error"
-
 
 		throw new Error(`OpenRouter API Error ${error?.code}: ${rawErrorMessage}`)
 	}

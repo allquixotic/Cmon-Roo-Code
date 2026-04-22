@@ -87,7 +87,6 @@ export interface ExtensionMessage {
 		| "showEditMessageDialog"
 		| "commands"
 		| "insertTextIntoTextarea"
-		| "dismissedUpsells"
 		| "organizationSwitchResult"
 		| "interactionRequired"
 		| "customToolsResult"
@@ -178,7 +177,6 @@ export interface ExtensionMessage {
 	context?: string
 	commands?: Command[]
 	queuedMessages?: QueuedMessage[]
-	list?: string[] // For dismissedUpsells
 	organizationId?: string | null // For organizationSwitchResult
 	tools?: SerializedCustomToolDefinition[] // For customToolsResult
 	skills?: SkillMetadata[] // For skills response
@@ -266,7 +264,6 @@ export type ExtensionState = Pick<
 	| "listApiConfigMeta"
 	| "pinnedApiConfigs"
 	| "customInstructions"
-	| "dismissedUpsells"
 	| "autoApprovalEnabled"
 	| "yoloMode"
 	| "alwaysAllowReadOnly"
@@ -562,8 +559,6 @@ export interface WebviewMessage {
 		| "queueMessage"
 		| "removeQueuedMessage"
 		| "editQueuedMessage"
-		| "dismissUpsell"
-		| "getDismissedUpsells"
 		| "openMarkdownPreview"
 		| "updateSettings"
 		| "allowedCommands"
@@ -659,8 +654,6 @@ export interface WebviewMessage {
 	visibility?: ShareVisibility // For share visibility
 	hasContent?: boolean // For checkRulesDirectoryResult
 	checkOnly?: boolean // For deleteCustomMode check
-	upsellId?: string // For dismissUpsell
-	list?: string[] // For dismissedUpsells response
 	organizationId?: string | null // For organization switching
 	useProviderSignup?: boolean // For rooCloudSignIn to use provider signup flow
 	codeIndexSettings?: {

@@ -9,12 +9,7 @@ import {
 } from "@google/genai"
 import type { JWTInput } from "google-auth-library"
 
-import {
-	type ModelInfo,
-	type GeminiModelId,
-	geminiDefaultModelId,
-	geminiModels,
-} from "@roo-code/types"
+import { type ModelInfo, type GeminiModelId, geminiDefaultModelId, geminiModels } from "@roo-code/types"
 import { safeJsonParse } from "@roo-code/core"
 
 import type { ApiHandlerOptions } from "../../shared/api"
@@ -331,7 +326,6 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 				}
 			}
 		} catch (error) {
-
 			if (error instanceof Error) {
 				throw new Error(t("common:errors.gemini.generate_stream", { error: error.message }))
 			}
@@ -437,7 +431,6 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 
 			return text
 		} catch (error) {
-
 			if (error instanceof Error) {
 				throw new Error(t("common:errors.gemini.generate_complete_prompt", { error: error.message }))
 			}

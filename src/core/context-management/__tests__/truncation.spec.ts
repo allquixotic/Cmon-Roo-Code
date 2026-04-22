@@ -7,7 +7,6 @@ describe("Non-Destructive Sliding Window Truncation", () => {
 	let messages: ApiMessage[]
 
 	beforeEach(() => {
-
 		// Create a sample conversation with 11 messages (1 initial + 10 conversation messages)
 		messages = [
 			{ role: "user", content: "Initial task", ts: 1000 },

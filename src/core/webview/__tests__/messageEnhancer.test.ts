@@ -247,7 +247,6 @@ describe("MessageEnhancer", () => {
 		})
 	})
 
-
 	describe("extractTaskHistory", () => {
 		it("should filter and format messages correctly", () => {
 			const messages: ClineMessage[] = [

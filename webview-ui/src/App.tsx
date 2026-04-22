@@ -162,7 +162,6 @@ const App = () => {
 
 	useEvent("message", onMessage)
 
-
 	// Tell the extension that we are ready to receive messages.
 	useEffect(() => vscode.postMessage({ type: "webviewDidLaunch" }), [])
 

@@ -117,7 +117,6 @@ export class CodeIndexServiceFactory {
 		try {
 			return await embedder.validateConfiguration()
 		} catch (error) {
-
 			// If validation throws an exception, preserve the original error message
 			return {
 				valid: false,

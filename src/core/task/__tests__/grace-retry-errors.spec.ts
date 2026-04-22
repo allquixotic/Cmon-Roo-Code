@@ -146,7 +146,6 @@ describe("Grace Retry Error Handling", () => {
 	let mockExtensionContext: vscode.ExtensionContext
 
 	beforeEach(() => {
-
 		const storageUri = {
 			fsPath: path.join(os.tmpdir(), "test-storage"),
 		}

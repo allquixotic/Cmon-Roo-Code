@@ -21,7 +21,6 @@ vi.mock("../../../api", () => ({
 	})),
 }))
 
-
 describe("Task dispose method", () => {
 	let mockProvider: any
 	let mockApiConfiguration: ProviderSettings

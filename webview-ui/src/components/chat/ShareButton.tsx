@@ -95,7 +95,6 @@ export const ShareButton = ({ item, disabled = false }: ShareButtonProps) => {
 	}
 
 	const handleShareButtonClick = () => {
-
 		if (!cloudIsAuthenticated) {
 			// Show modal for unauthenticated users
 			openUpsell()

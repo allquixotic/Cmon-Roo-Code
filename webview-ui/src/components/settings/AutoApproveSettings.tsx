@@ -194,7 +194,10 @@ export const AutoApproveSettings = ({
 						</div>
 					</SearchableSetting>
 
-					<div className={autoApproveControlsDisabled ? "space-y-4 pointer-events-none opacity-50" : "space-y-4"}>
+					<div
+						className={
+							autoApproveControlsDisabled ? "space-y-4 pointer-events-none opacity-50" : "space-y-4"
+						}>
 						<AutoApproveToggle
 							alwaysAllowReadOnly={alwaysAllowReadOnly}
 							alwaysAllowWrite={alwaysAllowWrite}

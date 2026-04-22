@@ -29,7 +29,6 @@ vitest.mock("vscode", () => ({
 // Mock debounce to execute immediately
 vitest.mock("lodash.debounce", () => ({ default: vitest.fn((fn) => fn) }))
 
-
 describe("CacheManager", () => {
 	let mockContext: vscode.ExtensionContext
 	let mockWorkspacePath: string

@@ -7,7 +7,6 @@ import { getModelDimension, getDefaultModelId } from "../../../../shared/embeddi
 // Mock the OpenAI SDK
 vi.mock("openai")
 
-
 // Mock i18n
 vi.mock("../../../../i18n", () => ({
 	t: (key: string, params?: Record<string, any>) => {

@@ -1,4 +1,3 @@
-
 // Mock Mistral client - must come before other imports
 const mockCreate = vi.fn()
 const mockComplete = vi.fn()

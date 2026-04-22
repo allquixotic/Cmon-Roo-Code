@@ -6,7 +6,6 @@ import { parseMarkdown } from "../../../tree-sitter/markdownParser"
 import { readFile } from "fs/promises"
 import { Node } from "web-tree-sitter"
 
-
 // Override Jest-based fs/promises mock with vitest-compatible version
 vi.mock("fs/promises", () => ({
 	default: {

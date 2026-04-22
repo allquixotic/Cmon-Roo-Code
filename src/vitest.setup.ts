@@ -37,7 +37,7 @@ function wrapConstructableImplementation<T>(implementation: T): T {
 }
 function patchMockMethods<T extends ReturnType<typeof vi.fn>>(mock: T): T {
 	for (const methodName of ["mockImplementation", "mockImplementationOnce"] as const) {
-		const originalMethod = mock[methodName] as typeof mock[typeof methodName] & {
+		const originalMethod = mock[methodName] as (typeof mock)[typeof methodName] & {
 			__ozConstructablePatched?: boolean
 		}
 		if (originalMethod?.__ozConstructablePatched) {
@@ -45,16 +45,19 @@ function patchMockMethods<T extends ReturnType<typeof vi.fn>>(mock: T): T {
 		}
 
 		mock[methodName] = ((implementation: Parameters<typeof originalMethod>[0]) =>
-			originalMethod.call(mock, wrapConstructableImplementation(implementation))) as typeof mock[typeof methodName]
-		;(mock[methodName] as typeof mock[typeof methodName] & { __ozConstructablePatched?: boolean }).__ozConstructablePatched =
-			true
+			originalMethod.call(
+				mock,
+				wrapConstructableImplementation(implementation),
+			)) as (typeof mock)[typeof methodName]
+		;(
+			mock[methodName] as (typeof mock)[typeof methodName] & { __ozConstructablePatched?: boolean }
+		).__ozConstructablePatched = true
 	}
 
 	return mock
 }
 
 function patchMockApi(mockApi: { fn: typeof vi.fn }) {
-
 	if ((mockApi.fn as typeof vi.fn & { __ozConstructablePatched?: boolean }).__ozConstructablePatched) {
 		return
 	}

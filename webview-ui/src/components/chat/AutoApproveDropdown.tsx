@@ -250,8 +250,7 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 										className={cn(
 											"flex items-center gap-2 px-2 py-2 text-sm text-left justify-start h-auto",
 											"transition-all duration-150",
-											quickControlsDisabled &&
-												"opacity-50 cursor-not-allowed hover:opacity-50",
+											quickControlsDisabled && "opacity-50 cursor-not-allowed hover:opacity-50",
 											!isEnabled && "bg-vscode-button-background/15",
 										)}
 										disabled={quickControlsDisabled}

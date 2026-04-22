@@ -28,7 +28,6 @@ vi.mock("vscode", () => {
 	}
 })
 
-
 // Mock i18n translator used in orchestrator messages
 vi.mock("../../i18n", () => ({
 	t: (key: string, params?: any) => {

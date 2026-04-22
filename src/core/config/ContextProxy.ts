@@ -404,7 +404,6 @@ export class ContextProxy {
 		try {
 			return globalSettingsSchema.parse(values)
 		} catch {
-
 			return GLOBAL_SETTINGS_KEYS.reduce((acc, key) => ({ ...acc, [key]: values[key] }), {} as GlobalSettings)
 		}
 	}
@@ -425,7 +424,6 @@ export class ContextProxy {
 		try {
 			return providerSettingsSchema.parse(sanitizedValues)
 		} catch {
-
 			return PROVIDER_SETTINGS_KEYS.reduce(
 				(acc, key) => ({ ...acc, [key]: sanitizedValues[key] }),
 				{} as ProviderSettings,
@@ -530,7 +528,6 @@ export class ContextProxy {
 
 			return Object.fromEntries(Object.entries(globalSettings).filter(([_, value]) => value !== undefined))
 		} catch {
-
 			return undefined
 		}
 	}

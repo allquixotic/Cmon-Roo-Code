@@ -83,7 +83,6 @@ export const globalSettingsSchema = z.object({
 	pinnedApiConfigs: z.record(z.string(), z.boolean()).optional(),
 	customInstructions: z.string().optional(),
 	taskHistory: z.array(historyItemSchema).optional(),
-	dismissedUpsells: z.array(z.string()).optional(),
 
 	// Image generation settings (experimental) - flattened for simplicity
 	imageGenerationProvider: z.enum(["openrouter", "roo"]).optional(),

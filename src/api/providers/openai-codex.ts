@@ -577,7 +577,6 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 
 			yield* this.handleStreamResponse(response.body, model)
 		} catch (error) {
-
 			if (error instanceof Error) {
 				if (error.message.includes("Codex API")) {
 					throw error
@@ -851,7 +850,6 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 				}
 			}
 		} catch (error) {
-
 			if (error instanceof Error) {
 				throw new Error(t("common:errors.openAiCodex.streamProcessingError", { message: error.message }))
 			}
@@ -1235,7 +1233,6 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 
 			return ""
 		} catch (error) {
-
 			if (error instanceof Error) {
 				throw new Error(t("common:errors.openAiCodex.completionError", { message: error.message }))
 			}

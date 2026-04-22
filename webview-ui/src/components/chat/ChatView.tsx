@@ -30,7 +30,6 @@ import { useSelectedModel } from "@src/components/ui/hooks/useSelectedModel"
 import RooHero from "@src/components/welcome/RooHero"
 import RooTips from "@src/components/welcome/RooTips"
 import { StandardTooltip, Button } from "@src/components/ui"
-import { CloudUpsellDialog } from "@src/components/cloud/CloudUpsellDialog"
 
 import HistoryPreview from "../history/HistoryPreview"
 import ActiveConversationList, { type ConversationListItem } from "./ActiveConversationList"
@@ -43,7 +42,6 @@ import { CheckpointWarning } from "./CheckpointWarning"
 import { QueuedMessages } from "./QueuedMessages"
 import { WorktreeSelector } from "./WorktreeSelector"
 import FileChangesPanel from "./FileChangesPanel"
-import { useCloudUpsell } from "@src/hooks/useCloudUpsell"
 import { useScrollLifecycle } from "@src/hooks/useScrollLifecycle"
 
 export interface ChatViewProps {
@@ -245,14 +243,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	useEffect(() => {
 		clineAskRef.current = clineAsk
 	}, [clineAsk])
-
-	const {
-		isOpen: isUpsellOpen,
-		closeUpsell,
-		handleConnect,
-	} = useCloudUpsell({
-		autoOpenOnAuth: false,
-	})
 
 	// Keep inputValueRef in sync with inputValue state
 	useEffect(() => {
@@ -2036,7 +2026,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					)}
 
 					<div id="roo-portal" />
-					<CloudUpsellDialog open={isUpsellOpen} onOpenChange={closeUpsell} onConnect={handleConnect} />
 				</div>
 			</div>
 		</div>

@@ -219,7 +219,6 @@ export class FileWatcher implements IFileWatcher {
 					})
 				}
 			} catch (error: any) {
-
 				// Mark all paths as error
 				overallBatchError = error as Error
 				for (const path of pathsToExplicitlyDelete) {

@@ -212,8 +212,7 @@ describe("foldedFileContext", () => {
 	})
 
 	describe("summarizeConversation with foldedFileContext", () => {
-		beforeEach(() => {
-		})
+		beforeEach(() => {})
 
 		// Mock API handler for testing
 		class MockApiHandler extends BaseProvider {

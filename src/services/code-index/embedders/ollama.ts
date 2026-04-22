@@ -111,7 +111,6 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 				embeddings: embeddings,
 			}
 		} catch (error: any) {
-
 			// Log the original error for debugging purposes
 			console.error("Ollama embedding failed:", error)
 

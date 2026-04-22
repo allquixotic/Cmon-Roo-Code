@@ -13,7 +13,6 @@ describe("GeminiHandler", () => {
 	let handler: GeminiHandler
 
 	beforeEach(() => {
-
 		// Create mock functions
 		const mockGenerateContentStream = vitest.fn()
 		const mockGenerateContent = vitest.fn()
@@ -244,5 +243,4 @@ describe("GeminiHandler", () => {
 			expect(cost).toBeUndefined()
 		})
 	})
-
 })

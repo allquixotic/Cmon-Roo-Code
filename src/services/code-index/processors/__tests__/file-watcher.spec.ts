@@ -4,7 +4,6 @@ import * as vscode from "vscode"
 
 import { FileWatcher } from "../file-watcher"
 
-
 // Mock dependencies
 vi.mock("../../cache-manager")
 vi.mock("../../../core/ignore/RooIgnoreController", () => ({

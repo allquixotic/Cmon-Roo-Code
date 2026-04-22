@@ -50,8 +50,7 @@ const mockApiHandler = new MockApiHandler()
 const taskId = "test-task-id"
 
 describe("Context Management", () => {
-	beforeEach(() => {
-	})
+	beforeEach(() => {})
 	/**
 	 * Tests for the truncateConversation function
 	 */

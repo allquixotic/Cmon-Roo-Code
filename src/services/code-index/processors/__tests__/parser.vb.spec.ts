@@ -1,6 +1,5 @@
 import { CodeParser } from "../parser"
 
-
 import { shouldUseFallbackChunking } from "../../shared/supported-extensions"
 
 describe("CodeParser - VB.NET and Fallback Extensions Support", () => {

@@ -309,7 +309,6 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 					},
 				}
 			} catch (error) {
-
 				const hasMoreAttempts = attempts < MAX_RETRIES - 1
 
 				// Check if it's a rate limit error

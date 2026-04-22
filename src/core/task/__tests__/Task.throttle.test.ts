@@ -22,7 +22,6 @@ vi.mock("../../../api", () => ({
 	})),
 }))
 
-
 // Mock task persistence to avoid disk writes
 vi.mock("../../task-persistence", () => ({
 	readApiMessages: vi.fn().mockResolvedValue([]),

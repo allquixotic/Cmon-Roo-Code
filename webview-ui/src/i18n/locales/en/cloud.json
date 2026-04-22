@@ -24,8 +24,5 @@
 	"startOver": "Start over",
 	"personalAccount": "Personal Account",
 	"switchAccount": "Switch CRC Cloud Account",
-	"createTeamAccount": "Create Team Account",
-	"upsell": {
-		"autoApprovePowerUser": "Giving CRC some independence? Control it from anywhere with CRC Cloud. <learnMoreLink>Learn more</learnMoreLink>."
-	}
+	"createTeamAccount": "Create Team Account"
 }

@@ -8,7 +8,6 @@ vi.mock("safe-stable-stringify", () => ({
 	default: (obj: any) => JSON.stringify(obj),
 }))
 
-
 // vscode mock for Task/Provider imports
 vi.mock("vscode", () => {
 	const window = {
