@@ -479,6 +479,22 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 					</div>
 				</>
 			)}
+			<Checkbox
+				checked={apiConfiguration?.awsBedrockStructuredOutput ?? true}
+				onChange={handleInputChange("awsBedrockStructuredOutput", noTransform)}>
+				<div className="flex items-center gap-1">
+					<span>{t("settings:providers.awsBedrockStructuredOutput")}</span>
+					<StandardTooltip content={t("settings:providers.awsBedrockStructuredOutputTooltip")}>
+						<i
+							className="codicon codicon-info text-vscode-descriptionForeground"
+							style={{ fontSize: "12px" }}
+						/>
+					</StandardTooltip>
+				</div>
+			</Checkbox>
+			<div className="text-sm text-vscode-descriptionForeground ml-6 mt-1">
+				{t("settings:providers.awsBedrockStructuredOutputDescription")}
+			</div>
 			{supportsOptIn1MContext && (
 				<div>
 					<Checkbox

@@ -530,6 +530,9 @@
 		"enablePromptCaching": "Enable prompt caching",
 		"enablePromptCachingTitle": "Enable prompt caching to improve performance and reduce costs for supported models.",
 		"cacheUsageNote": "Note: If you don't see cache usage, try selecting a different model and then selecting your desired model again.",
+		"awsBedrockStructuredOutput": "Attempt strict structured output",
+		"awsBedrockStructuredOutputTooltip": "Asks AWS Bedrock to strictly validate tool-call arguments against their JSON schema (Converse 'strict: true'). Falls back automatically and silently retries without strict mode for models that reject it; unsupported models are remembered for 30 days.",
+		"awsBedrockStructuredOutputDescription": "When enabled, CRC sets 'strict: true' on tool specs in every Bedrock Converse request. If a model rejects strict mode, CRC shows the Bedrock error, disables strict for that model for 30 days, and retries automatically.",
 		"vscodeLmModel": "Language Model",
 		"vscodeLmWarning": "Note: Models accessed via the VS Code Language Model API may be wrapped or fine-tuned by the provider, so behavior can differ from using the same model directly from a typical provider or router. To use a model from the Language Model dropdown, first switch to that model and then click Accept in the Copilot Chat prompt; otherwise you may see an error such as 400 \"The requested model is not supported\".",
 		"googleCloudSetup": {

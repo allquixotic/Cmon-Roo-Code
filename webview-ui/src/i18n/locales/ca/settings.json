@@ -557,7 +557,10 @@
 			"placeholder": "Per defecte: claude",
 			"maxTokensLabel": "Tokens màxims de sortida",
 			"maxTokensDescription": "Nombre màxim de tokens de sortida per a les respostes de Claude Code. El valor per defecte és 8000."
-		}
+		},
+		"awsBedrockStructuredOutput": "Attempt strict structured output",
+		"awsBedrockStructuredOutputTooltip": "Asks AWS Bedrock to strictly validate tool-call arguments against their JSON schema (Converse 'strict: true'). Falls back automatically and silently retries without strict mode for models that reject it; unsupported models are remembered for 30 days.",
+		"awsBedrockStructuredOutputDescription": "When enabled, CRC sets 'strict: true' on tool specs in every Bedrock Converse request. If a model rejects strict mode, CRC shows the Bedrock error, disables strict for that model for 30 days, and retries automatically."
 	},
 	"checkpoints": {
 		"timeout": {

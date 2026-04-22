@@ -557,7 +557,10 @@
 			"placeholder": "Varsayılan: claude",
 			"maxTokensLabel": "Maksimum Çıktı Token sayısı",
 			"maxTokensDescription": "Claude Code yanıtları için maksimum çıktı token sayısı. Varsayılan 8000'dir."
-		}
+		},
+		"awsBedrockStructuredOutput": "Attempt strict structured output",
+		"awsBedrockStructuredOutputTooltip": "Asks AWS Bedrock to strictly validate tool-call arguments against their JSON schema (Converse 'strict: true'). Falls back automatically and silently retries without strict mode for models that reject it; unsupported models are remembered for 30 days.",
+		"awsBedrockStructuredOutputDescription": "When enabled, CRC sets 'strict: true' on tool specs in every Bedrock Converse request. If a model rejects strict mode, CRC shows the Bedrock error, disables strict for that model for 30 days, and retries automatically."
 	},
 	"checkpoints": {
 		"timeout": {

@@ -242,6 +242,15 @@ export const globalSettingsSchema = z.object({
 	 * Tools in this list will be excluded from prompt generation and rejected at execution time.
 	 */
 	disabledTools: z.array(toolNamesSchema).optional(),
+
+	/**
+	 * Hidden per-model cache of AWS Bedrock models observed to reject strict structured output.
+	 * Map key: Bedrock model id / ARN (whatever `getModel().id` returns on AwsBedrockHandler).
+	 * Map value: expiry timestamp (ms since epoch). Entries whose value is <= Date.now() are
+	 * treated as expired and purged on the next write so a model gets re-probed after 30 days.
+	 * Never exposed in the settings UI.
+	 */
+	bedrockStructuredOutputUnsupported: z.record(z.string(), z.number()).optional(),
 })
 
 export type GlobalSettings = z.infer<typeof globalSettingsSchema>
