@@ -57,7 +57,7 @@ import { searchCommits } from "../../utils/git"
 import { exportSettings, importSettingsWithFeedback } from "../config/importExport"
 import { getOpenAiModels } from "../../api/providers/openai"
 import { getVsCodeLmModels } from "../../api/providers/vscode-lm"
-import { discoverBedrockTargets } from "../../api/providers/bedrock-discovery"
+import { discoverBedrockTargets, probeBedrockMaxOutputTokens } from "../../api/providers/bedrock-discovery"
 import { openMention } from "../mentions"
 import { resolveImageMentions } from "../mentions/resolveImageMentions"
 import { RooIgnoreController } from "../ignore/RooIgnoreController"
@@ -1104,6 +1104,39 @@ export const webviewMessageHandler = async (
 				provider.postMessageToWebview({
 					type: "bedrockDiscovery",
 					bedrockDiscovery: [],
+					error: errorMessage,
+					requestId: message.requestId,
+				})
+			}
+			break
+		}
+		case "requestBedrockMaxTokensProbe": {
+			const state = await provider.getState()
+			const apiConfiguration = message.apiConfiguration ?? state.apiConfiguration
+			// Webview passes the model id via `text`. We accept either an explicit
+			// `apiModelId` set on the apiConfiguration or the message text payload.
+			const modelId =
+				(typeof message.text === "string" && message.text.trim().length > 0
+					? message.text
+					: apiConfiguration?.apiModelId) ?? ""
+
+			try {
+				const result = await probeBedrockMaxOutputTokens({
+					options: apiConfiguration,
+					modelId,
+				})
+
+				provider.postMessageToWebview({
+					type: "bedrockMaxTokensProbe",
+					bedrockMaxTokensProbe: { ...result, modelId },
+					requestId: message.requestId,
+				})
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				console.error("Error probing Bedrock max output tokens:", error)
+
+				provider.postMessageToWebview({
+					type: "bedrockMaxTokensProbe",
 					error: errorMessage,
 					requestId: message.requestId,
 				})

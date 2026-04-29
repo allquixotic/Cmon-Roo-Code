@@ -14,7 +14,8 @@ export const bedrockDefaultPromptRouterModelId: BedrockModelId = "anthropic.clau
 // feature.
 export const bedrockModels = {
 	"anthropic.claude-sonnet-4-5-20250929-v1:0": {
-		maxTokens: 8192,
+		// Mirrors anthropic-direct cap; AWS Bedrock accepts the same upstream maximum.
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -28,7 +29,8 @@ export const bedrockModels = {
 		cachableFields: ["system", "messages", "tools"],
 	},
 	"anthropic.claude-sonnet-4-6": {
-		maxTokens: 8192,
+		// Mirrors anthropic-direct cap; AWS Bedrock accepts the same upstream maximum.
+		maxTokens: 64_000,
 		contextWindow: 200_000, // Default 200K, extendable to 1M with beta flag 'context-1m-2025-08-07'
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -116,7 +118,8 @@ export const bedrockModels = {
 		cachableFields: ["system"],
 	},
 	"anthropic.claude-sonnet-4-20250514-v1:0": {
-		maxTokens: 8192,
+		// Mirrors anthropic-direct cap; AWS Bedrock accepts the same upstream maximum.
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -130,7 +133,8 @@ export const bedrockModels = {
 		cachableFields: ["system", "messages", "tools"],
 	},
 	"anthropic.claude-opus-4-1-20250805-v1:0": {
-		maxTokens: 8192,
+		// Mirrors anthropic-direct cap; AWS Bedrock accepts the same upstream maximum.
+		maxTokens: 32_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -144,7 +148,8 @@ export const bedrockModels = {
 		cachableFields: ["system", "messages", "tools"],
 	},
 	"anthropic.claude-opus-4-6-v1": {
-		maxTokens: 8192,
+		// Mirrors anthropic-direct cap; AWS Bedrock accepts the same upstream maximum.
+		maxTokens: 128_000,
 		contextWindow: 200_000, // Default 200K, extendable to 1M with beta flag 'context-1m-2025-08-07'
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -168,7 +173,11 @@ export const bedrockModels = {
 		],
 	},
 	"anthropic.claude-opus-4-7": {
-		maxTokens: 8192,
+		// Opus 4.7 ships with a 128K-token max output on Bedrock
+		// (https://builder.aws.com/content/3Cl90CMMnqzCrkk6mXcmnGo1WTG/claude-opus-47-on-amazon-bedrock-apis-features-and-migration-guide).
+		// We default to that ceiling here so the reasoning-budget slider isn't artificially
+		// clamped to the legacy 8K floor used by older Anthropic-on-Bedrock entries.
+		maxTokens: 128_000,
 		// Opus 4.7 natively supports 1M context (no beta flag required) with FLAT $5/$25
 		// pricing at any context length. We still keep a tier entry so the dropdown can
 		// show a "128K" vs "1M" choice - the tier just toggles the context window the UI
@@ -198,7 +207,8 @@ export const bedrockModels = {
 		],
 	},
 	"anthropic.claude-opus-4-5-20251101-v1:0": {
-		maxTokens: 8192,
+		// Mirrors anthropic-direct cap; AWS Bedrock accepts the same upstream maximum.
+		maxTokens: 32_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -266,7 +276,8 @@ export const bedrockModels = {
 		cachableFields: ["system", "messages", "tools"],
 	},
 	"anthropic.claude-haiku-4-5-20251001-v1:0": {
-		maxTokens: 8192,
+		// Mirrors anthropic-direct cap; AWS Bedrock accepts the same upstream maximum.
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -870,12 +881,18 @@ export const resolveBedrockModelInfo = ({
 	optIn1MContext,
 	modelMaxTokens,
 	contextWindowOverride,
+	maxOutputTokensOverride,
 }: {
 	baseModelId?: string
 	targetId?: string
 	optIn1MContext?: boolean
+	// Request-time "how many tokens to ask for" knob (slider value). Mirrors the historic behaviour.
 	modelMaxTokens?: number
 	contextWindowOverride?: number
+	// Static cap override (e.g. empirically detected by the AWS probe). When set, this widens the
+	// effective `info.maxTokens` ceiling that downstream UI and request builders see, even if the
+	// user has not explicitly bumped the slider.
+	maxOutputTokensOverride?: number
 }): { baseModelId: string; info: ModelInfo; uses1MContext: boolean; contextSource: BedrockContextSource } => {
 	const resolvedBaseModelId = parseBedrockBaseModelId(baseModelId || targetId || bedrockDefaultModelId)
 
@@ -906,6 +923,12 @@ export const resolveBedrockModelInfo = ({
 		}
 	}
 
+	// Apply the static-cap override BEFORE the request-time `modelMaxTokens` so users can
+	// explicitly request fewer tokens than the model's headroom (e.g. cost control) without
+	// having the override silently clobber their slider value.
+	if (maxOutputTokensOverride && maxOutputTokensOverride > 0) {
+		info.maxTokens = maxOutputTokensOverride
+	}
 	if (modelMaxTokens && modelMaxTokens > 0) {
 		info.maxTokens = modelMaxTokens
 	}

@@ -44,6 +44,7 @@ export interface ExtensionMessage {
 		| "listApiConfig"
 		| "routerModels"
 		| "bedrockDiscovery"
+		| "bedrockMaxTokensProbe"
 		| "openAiModels"
 		| "ollamaModels"
 		| "lmStudioModels"
@@ -138,6 +139,13 @@ export interface ExtensionMessage {
 	clineMessage?: ClineMessage
 	routerModels?: RouterModels
 	bedrockDiscovery?: BedrockDiscoveredTarget[]
+	/** Empirically detected cap returned by `requestBedrockMaxTokensProbe`. */
+	bedrockMaxTokensProbe?: {
+		maxOutputTokens: number
+		source: "accepted" | "hint" | "binary-search"
+		attempts: number
+		modelId: string
+	}
 	openAiModels?: string[]
 	ollamaModels?: ModelRecord
 	lmStudioModels?: ModelRecord
@@ -451,6 +459,7 @@ export interface WebviewMessage {
 		| "flushRouterModels"
 		| "requestRouterModels"
 		| "requestBedrockDiscovery"
+		| "requestBedrockMaxTokensProbe"
 		| "requestOpenAiModels"
 		| "requestOllamaModels"
 		| "requestLmStudioModels"

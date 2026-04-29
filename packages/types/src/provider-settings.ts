@@ -234,6 +234,11 @@ const bedrockSchema = apiModelIdProviderModelSchema.extend({
 		.enum(["foundation-model", "system-profile", "application-profile", "custom-arn", "prompt-router", "unknown"])
 		.optional(),
 	awsModelContextWindow: z.number().optional(),
+	// Empirically detected (or manually entered) per-config cap on the model's max output tokens.
+	// Takes precedence over the static `bedrockModels.<id>.maxTokens` table when present and overrides
+	// the static cap inside `resolveBedrockModelInfo`. The user-facing slider also widens to this value
+	// so future Anthropic releases that lift their output ceiling don't require a code change.
+	awsModelMaxOutputTokens: z.number().optional(),
 	awsBedrockEndpointEnabled: z.boolean().optional(),
 	awsBedrockEndpoint: z.string().optional(),
 	awsBedrock1MContext: z.boolean().optional(), // Enable 'context-1m-2025-08-07' beta for 1M context window.

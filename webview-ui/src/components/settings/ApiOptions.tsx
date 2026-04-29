@@ -70,6 +70,7 @@ import {
 	Anthropic,
 	Baseten,
 	Bedrock,
+	BedrockThinkingBudget,
 	DeepSeek,
 	Gemini,
 	LMStudio,
@@ -793,14 +794,23 @@ const ApiOptions = ({
 						</>
 					)}
 
-					{!fromWelcomeView && (
-						<ThinkingBudget
-							key={`${selectedProvider}-${selectedModelId}`}
-							apiConfiguration={apiConfiguration}
-							setApiConfigurationField={setApiConfigurationField}
-							modelInfo={selectedModelInfo}
-						/>
-					)}
+					{!fromWelcomeView &&
+						(selectedProvider === "bedrock" ? (
+							<BedrockThinkingBudget
+								key={`${selectedProvider}-${selectedModelId}`}
+								apiConfiguration={apiConfiguration}
+								setApiConfigurationField={setApiConfigurationField}
+								modelInfo={selectedModelInfo}
+								modelId={selectedModelId}
+							/>
+						) : (
+							<ThinkingBudget
+								key={`${selectedProvider}-${selectedModelId}`}
+								apiConfiguration={apiConfiguration}
+								setApiConfigurationField={setApiConfigurationField}
+								modelInfo={selectedModelInfo}
+							/>
+						))}
 
 					{/* Gate Verbosity UI by capability flag */}
 					{!fromWelcomeView && selectedModelInfo?.supportsVerbosity && (

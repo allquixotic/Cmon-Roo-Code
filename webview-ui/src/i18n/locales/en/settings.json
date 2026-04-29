@@ -573,7 +573,14 @@
 		},
 		"bedrock": {
 			"discoveryDescription": "CRC probes Bedrock control-plane APIs for foundation models and inference profiles in the selected account and region.",
-			"discoveryDescriptionNoRegion": "Select an AWS region to discover Bedrock models and inference profiles."
+			"discoveryDescriptionNoRegion": "Select an AWS region to discover Bedrock models and inference profiles.",
+			"detectMaxTokens": "Detect max output tokens",
+			"detectMaxTokensProbing": "Probing AWS for the model's max output cap…",
+			"detectMaxTokensTooltip": "Sends a single tiny Converse request to AWS Bedrock to discover the largest accepted max_tokens value for the selected model. AWS does not expose this through GetFoundationModel, so we measure it empirically.",
+			"detectMaxTokensSuccess": "Detected cap: {{value}} tokens (source: {{source}}, attempts: {{attempts}}). The slider now extends to this value.",
+			"detectMaxTokensOverrideActive": "Custom cap active: {{value}} tokens. Click \"Reset to default\" to revert to the built-in table.",
+			"detectMaxTokensError": "Detection failed: {{error}}",
+			"detectMaxTokensReset": "Reset to default"
 		},
 		"imageGeneration": {
 			"rooCloudOption": "CRC Cloud"

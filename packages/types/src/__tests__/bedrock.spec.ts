@@ -9,6 +9,7 @@ import {
 	bedrockModels,
 	expandBedrockTargetsWith1MVariants,
 	hasBedrock1MContextIndicator,
+	resolveBedrockModelInfo,
 	stripBedrock1MContextSuffix,
 } from "../providers/bedrock.js"
 
@@ -45,6 +46,47 @@ describe("Bedrock model catalog", () => {
 		// presents both context tiers explicitly, so no model is auto-flipped anymore.
 		expect(BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS.length).toBe(0)
 		expect(BEDROCK_1M_CONTEXT_OPT_IN_MODEL_IDS.length).toBe(BEDROCK_1M_CONTEXT_MODEL_IDS.length)
+	})
+
+	it("matches per-model maxTokens to the documented Bedrock caps for current Anthropic models", () => {
+		// These caps mirror the Anthropic-direct entries in `anthropic.ts`. Bumping them lets the
+		// reasoning-budget slider extend past the legacy 8K cap (the original bug surfaced by Opus 4.7).
+		expect((bedrockModels["anthropic.claude-opus-4-7"] as ModelInfo).maxTokens).toBe(128_000)
+		expect((bedrockModels["anthropic.claude-opus-4-6-v1"] as ModelInfo).maxTokens).toBe(128_000)
+		expect((bedrockModels["anthropic.claude-opus-4-5-20251101-v1:0"] as ModelInfo).maxTokens).toBe(32_000)
+		expect((bedrockModels["anthropic.claude-opus-4-1-20250805-v1:0"] as ModelInfo).maxTokens).toBe(32_000)
+		expect((bedrockModels["anthropic.claude-sonnet-4-6"] as ModelInfo).maxTokens).toBe(64_000)
+		expect((bedrockModels["anthropic.claude-sonnet-4-5-20250929-v1:0"] as ModelInfo).maxTokens).toBe(64_000)
+		expect((bedrockModels["anthropic.claude-haiku-4-5-20251001-v1:0"] as ModelInfo).maxTokens).toBe(64_000)
+	})
+})
+
+describe("resolveBedrockModelInfo", () => {
+	it("prefers the static maxTokens when no override is set", () => {
+		const { info } = resolveBedrockModelInfo({
+			baseModelId: "anthropic.claude-opus-4-7",
+			targetId: "anthropic.claude-opus-4-7",
+		})
+		expect(info.maxTokens).toBe(128_000)
+	})
+
+	it("applies maxOutputTokensOverride above the static cap", () => {
+		const { info } = resolveBedrockModelInfo({
+			baseModelId: "anthropic.claude-opus-4-7",
+			targetId: "anthropic.claude-opus-4-7",
+			maxOutputTokensOverride: 256_000,
+		})
+		expect(info.maxTokens).toBe(256_000)
+	})
+
+	it("lets request-time modelMaxTokens still override (lowering for cost control)", () => {
+		const { info } = resolveBedrockModelInfo({
+			baseModelId: "anthropic.claude-opus-4-7",
+			targetId: "anthropic.claude-opus-4-7",
+			maxOutputTokensOverride: 256_000,
+			modelMaxTokens: 32_000,
+		})
+		expect(info.maxTokens).toBe(32_000)
 	})
 })
 
