@@ -1,6 +1,6 @@
 import { useCallback, type ReactNode } from "react"
 
-import type { ProviderSettings } from "@roo-code/types"
+import { resolveBedrockInvokeTargetId, type ProviderSettings } from "@roo-code/types"
 
 import { Button, StandardTooltip } from "@src/components/ui"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
@@ -16,7 +16,12 @@ interface BedrockMaxTokensProbeButtonProps {
 		value: ProviderSettings[K],
 		isUserAction?: boolean,
 	) => void
-	/** Resolved model id (may differ from `apiConfiguration.apiModelId` for inference-profile targets). */
+	/**
+	 * Optional UI hint of the resolved base model id (only used as a fallback when no AWS-side
+	 * invoke target can be derived from `apiConfiguration`). The probe always sends the actual
+	 * AWS target id (system profile, application profile, ARN, or prefixed foundation model)
+	 * computed via {@link resolveBedrockInvokeTargetId}.
+	 */
 	modelId?: string
 }
 
@@ -80,7 +85,14 @@ export const useBedrockMaxTokensProbeUi = ({
 	const { probe, isProbing, lastResult, lastError } = useBedrockMaxTokensProbe()
 
 	const onDetect = useCallback(async () => {
-		const targetModelId = modelId || apiConfiguration.apiModelId || ""
+		// Mirror the runtime's invoke-target resolution (system/application profile id,
+		// custom ARN, or foundation model with optional cross-region/global prefix) so the
+		// probe hits the same AWS target the actual chat requests would. Without this we'd
+		// send the bare base model id (e.g. `anthropic.claude-opus-4-7`) and AWS rejects
+		// it with "on-demand throughput isn't supported" for models that require an
+		// inference profile.
+		const resolvedTargetId = resolveBedrockInvokeTargetId(apiConfiguration)
+		const targetModelId = resolvedTargetId || modelId || apiConfiguration.apiModelId || ""
 		if (!targetModelId) {
 			return
 		}

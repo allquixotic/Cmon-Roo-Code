@@ -82,29 +82,40 @@ export const MaxOutputTokensControl = ({
 
 	return (
 		<div className="flex flex-col gap-2">
+			{/*
+			 * Row 1: slider + numeric input. Slider gets `flex-1 min-w-0` so it can shrink without
+			 * pushing siblings off-screen; the number field is a fixed-width flex-shrink-0 column.
+			 */}
 			<div className="flex items-center gap-3">
-				<Slider
-					min={min}
-					max={sliderMax}
-					step={step}
-					value={[sliderValue]}
-					onValueChange={handleSliderChange}
-					disabled={disabled}
-					data-testid="max-output-tokens-slider"
-				/>
-				<div className="flex-shrink-0">
+				<div className="flex-1 min-w-0">
+					<Slider
+						min={min}
+						max={sliderMax}
+						step={step}
+						value={[sliderValue]}
+						onValueChange={handleSliderChange}
+						disabled={disabled}
+						data-testid="max-output-tokens-slider"
+					/>
+				</div>
+				<div className="flex-shrink-0" style={{ width: "10ch" }}>
 					<FormattedTextField
 						value={effectiveValue}
 						onValueChange={handleInputChange}
 						formatter={unlimitedIntegerFormatter}
 						disabled={disabled}
 						aria-label={inputAriaLabel}
-						style={{ width: "9ch" }}
+						style={{ width: "100%" }}
 						data-testid="max-output-tokens-input"
 					/>
 				</div>
-				{extraSlot}
 			</div>
+			{/*
+			 * Row 2: provider-specific actions (e.g. the Bedrock probe button). Rendered on its own
+			 * line so wide button labels can't be clipped by the absolutely-positioned focus border
+			 * of the VSCode text field above.
+			 */}
+			{extraSlot ? <div className="flex flex-wrap items-center gap-2">{extraSlot}</div> : null}
 			{helperText ? <div className="text-sm text-vscode-descriptionForeground">{helperText}</div> : null}
 		</div>
 	)

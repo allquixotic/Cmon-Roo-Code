@@ -188,7 +188,13 @@ function getSelectedModel({
 				baseModelId: apiConfiguration.apiModelId,
 				targetId,
 				optIn1MContext: apiConfiguration.awsBedrock1MContext,
-				modelMaxTokens: apiConfiguration.modelMaxTokens,
+				// Intentionally NOT passing `modelMaxTokens` here. That's the user's request-time
+				// slider value; passing it would clamp `info.maxTokens` to the user's current
+				// preference and prevent the slider's upper bound from showing the model's true
+				// ceiling. The runtime path (AwsBedrockHandler.getModelById) still applies it for
+				// the actual API request. The empirical detect-button override is honored via
+				// `maxOutputTokensOverride` so a user-confirmed cap widens the slider as expected.
+				maxOutputTokensOverride: apiConfiguration.awsModelMaxOutputTokens,
 				contextWindowOverride: apiConfiguration.awsModelContextWindow,
 			})
 			const displayId = apiConfiguration.apiModelId ?? resolved.baseModelId

@@ -792,6 +792,80 @@ export const usesBedrockDefault1MContext = (baseModelId?: string) =>
 	!!baseModelId &&
 	BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS.includes(baseModelId as (typeof BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS)[number])
 
+const getBedrockRegionPrefix = (region?: string): string | undefined => {
+	if (!region) return undefined
+	for (const [pattern, prefix] of AWS_INFERENCE_PROFILE_MAPPING) {
+		if (region.startsWith(pattern)) return prefix
+	}
+	return undefined
+}
+
+/**
+ * Returns the AWS-side target id that the Bedrock runtime would invoke against, given a
+ * provider-settings snapshot. Mirrors the resolution `AwsBedrockHandler.getModel()` does
+ * before sending a Converse command, so that callers outside the runtime (e.g. the
+ * settings-page max-tokens probe) can hit the exact same target the user's profile is
+ * configured to invoke.
+ *
+ * Resolution order:
+ *  1. `awsCustomArn` wins if present (the user provided a literal ARN).
+ *  2. If `awsBedrockTargetKind` (or the inferred kind) is an explicit profile / prompt
+ *     router selection, use `awsBedrockInvokeTarget` verbatim, stripping the synthetic
+ *     `:1m` UI suffix.
+ *  3. Otherwise we have a foundation-model selection. Apply Global Inference (`global.`)
+ *     when enabled and supported, else apply the regional cross-region inference prefix
+ *     (`us.`, `eu.`, etc.) when enabled.
+ */
+export interface ResolveBedrockInvokeTargetIdOptions {
+	awsCustomArn?: string
+	awsBedrockInvokeTarget?: string
+	awsBedrockTargetKind?: BedrockInvokeTargetKind
+	apiModelId?: string
+	awsUseGlobalInference?: boolean
+	awsUseCrossRegionInference?: boolean
+	awsRegion?: string
+}
+
+export const resolveBedrockInvokeTargetId = (options: ResolveBedrockInvokeTargetIdOptions): string => {
+	if (options.awsCustomArn) {
+		return options.awsCustomArn
+	}
+
+	const configuredTargetId = options.awsBedrockInvokeTarget || options.apiModelId || ""
+	const explicitKind = options.awsBedrockTargetKind
+	const targetKind = inferBedrockInvokeTargetKind({
+		targetId: configuredTargetId,
+		explicitKind,
+	})
+
+	if (
+		targetKind === "system-profile" ||
+		targetKind === "application-profile" ||
+		targetKind === "prompt-router" ||
+		targetKind === "custom-arn"
+	) {
+		return stripBedrock1MContextSuffix(configuredTargetId)
+	}
+
+	const baseModelId = parseBedrockBaseModelId(configuredTargetId)
+
+	if (
+		options.awsUseGlobalInference &&
+		BEDROCK_GLOBAL_INFERENCE_MODEL_IDS.includes(baseModelId as (typeof BEDROCK_GLOBAL_INFERENCE_MODEL_IDS)[number])
+	) {
+		return `global.${baseModelId}`
+	}
+
+	if (options.awsUseCrossRegionInference) {
+		const prefix = getBedrockRegionPrefix(options.awsRegion)
+		if (prefix) {
+			return `${prefix}${baseModelId}`
+		}
+	}
+
+	return baseModelId
+}
+
 export const shouldUseBedrock1MContext = ({
 	targetId,
 	baseModelId,
