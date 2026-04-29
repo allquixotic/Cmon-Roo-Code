@@ -42,6 +42,7 @@ describe("ClineProvider.delegateParentAndOpenChild()", () => {
 		const provider = {
 			emit: providerEmit,
 			getCurrentTask: vi.fn(() => parentTask),
+			getTaskById: vi.fn((id: string) => (id === "parent-1" ? parentTask : undefined)),
 			removeClineFromStack,
 			createTask,
 			getTaskWithId,
@@ -63,6 +64,7 @@ describe("ClineProvider.delegateParentAndOpenChild()", () => {
 
 		// Invariant: parent closed before child creation
 		expect(removeClineFromStack).toHaveBeenCalledTimes(1)
+		expect(removeClineFromStack).toHaveBeenCalledWith({ taskId: "parent-1", skipDelegationRepair: true })
 		// Child task is created with startTask: false and initialStatus: "active"
 		expect(createTask).toHaveBeenCalledWith("Do something", undefined, parentTask, {
 			initialTodos: [],
@@ -92,7 +94,7 @@ describe("ClineProvider.delegateParentAndOpenChild()", () => {
 		expect(providerEmit).toHaveBeenCalledWith(RooCodeEventName.TaskDelegated, "parent-1", "child-1")
 
 		// Mode switch
-		expect(handleModeSwitch).toHaveBeenCalledWith("code")
+		expect(handleModeSwitch).toHaveBeenCalledWith("code", { updateCurrentTask: false })
 	})
 
 	it("calls child.start() only after parent metadata is persisted (no race condition)", async () => {
@@ -124,6 +126,7 @@ describe("ClineProvider.delegateParentAndOpenChild()", () => {
 		const provider = {
 			emit: vi.fn(),
 			getCurrentTask: vi.fn(() => parentTask),
+			getTaskById: vi.fn((id: string) => (id === "parent-1" ? parentTask : undefined)),
 			removeClineFromStack,
 			createTask,
 			getTaskWithId,
@@ -141,5 +144,81 @@ describe("ClineProvider.delegateParentAndOpenChild()", () => {
 
 		// Verify ordering: createTask → updateTaskHistory → child.start
 		expect(callOrder).toEqual(["createTask", "updateTaskHistory", "child.start"])
+	})
+
+	it("uses the invoking parent id when the current visible task differs", async () => {
+		const parentTask = {
+			taskId: "parent-1",
+			emit: vi.fn(),
+			flushPendingToolResultsToHistory: vi.fn().mockResolvedValue(true),
+		} as any
+		const visibleTask = { taskId: "visible-other", emit: vi.fn() } as any
+		const childStart = vi.fn()
+		const updateTaskHistory = vi.fn()
+		const removeClineFromStack = vi.fn().mockResolvedValue(undefined)
+		const createTask = vi.fn().mockResolvedValue({ taskId: "child-1", start: childStart })
+		const handleModeSwitch = vi.fn().mockResolvedValue(undefined)
+		const getTaskWithId = vi.fn().mockImplementation(async (id: string) => {
+			if (id === "parent-1") {
+				return {
+					historyItem: {
+						id: "parent-1",
+						task: "Parent",
+						tokensIn: 0,
+						tokensOut: 0,
+						totalCost: 0,
+						childIds: [],
+					},
+				}
+			}
+			return {
+				historyItem: {
+					id: "child-1",
+					task: "Do something",
+					tokensIn: 0,
+					tokensOut: 0,
+					totalCost: 0,
+				},
+			}
+		})
+
+		const provider = {
+			emit: vi.fn(),
+			getCurrentTask: vi.fn(() => visibleTask),
+			getTaskById: vi.fn((id: string) =>
+				id === "parent-1" ? parentTask : id === "visible-other" ? visibleTask : undefined,
+			),
+			removeClineFromStack,
+			createTask,
+			getTaskWithId,
+			updateTaskHistory,
+			handleModeSwitch,
+			log: vi.fn(),
+		} as unknown as ClineProvider
+
+		const child = await (ClineProvider.prototype as any).delegateParentAndOpenChild.call(provider, {
+			parentTaskId: "parent-1",
+			message: "Do something",
+			initialTodos: [],
+			mode: "code",
+		})
+
+		expect(child.taskId).toBe("child-1")
+		expect(removeClineFromStack).toHaveBeenCalledWith({ taskId: "parent-1", skipDelegationRepair: true })
+		expect(createTask).toHaveBeenCalledWith("Do something", undefined, parentTask, {
+			initialTodos: [],
+			initialStatus: "active",
+			startTask: false,
+		})
+		expect(updateTaskHistory).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: "parent-1",
+				status: "delegated",
+				delegatedToId: "child-1",
+				awaitingChildId: "child-1",
+			}),
+		)
+		expect(handleModeSwitch).toHaveBeenCalledWith("code", { updateCurrentTask: false })
+		expect(childStart).toHaveBeenCalledTimes(1)
 	})
 })

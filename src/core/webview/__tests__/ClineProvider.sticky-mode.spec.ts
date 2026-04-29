@@ -434,6 +434,31 @@ describe("ClineProvider - Sticky Mode", () => {
 				}),
 			)
 		})
+
+		it("should skip current task metadata when requested", async () => {
+			const mockTask = {
+				taskId: "test-task-id",
+				taskMode: "code",
+				emit: vi.fn(),
+				saveClineMessages: vi.fn(),
+				clineMessages: [],
+				apiConversationHistory: [],
+				updateApiConfiguration: vi.fn(),
+			}
+
+			await provider.addClineToStack(mockTask as any)
+
+			const updateTaskHistorySpy = vi
+				.spyOn(provider, "updateTaskHistory")
+				.mockImplementation(() => Promise.resolve([]))
+
+			await provider.handleModeSwitch("architect", { updateCurrentTask: false })
+
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("mode", "architect")
+			expect(updateTaskHistorySpy).not.toHaveBeenCalled()
+			expect(mockTask.emit).not.toHaveBeenCalledWith("taskModeSwitched", mockTask.taskId, "architect")
+			expect((mockTask as any)._taskMode).toBeUndefined()
+		})
 	})
 
 	describe("createTaskWithHistoryItem", () => {

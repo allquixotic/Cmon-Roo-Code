@@ -1635,8 +1635,9 @@ export class ClineProvider
 	 * Handle switching to a new mode, including updating the associated API configuration
 	 * @param newMode The mode to switch to
 	 */
-	public async handleModeSwitch(newMode: Mode) {
-		const task = this.getCurrentTask()
+	public async handleModeSwitch(newMode: Mode, options: { updateCurrentTask?: boolean } = {}) {
+		const { updateCurrentTask = true } = options
+		const task = updateCurrentTask ? this.getCurrentTask() : undefined
 
 		if (task) {
 			task.emit(RooCodeEventName.TaskModeSwitched, task.taskId, newMode)
@@ -1698,7 +1699,7 @@ export class ClineProvider
 				const hasActualSettings = !!fullProfile.apiProvider
 
 				if (hasActualSettings) {
-					await this.activateProviderProfile({ name: profile.name })
+					await this.activateProviderProfile({ name: profile.name }, { updateCurrentTask })
 				} else {
 					// The task will continue with the current/default configuration.
 				}
@@ -1881,12 +1882,13 @@ export class ClineProvider
 
 	async activateProviderProfile(
 		args: { name: string } | { id: string },
-		options?: { persistModeConfig?: boolean; persistTaskHistory?: boolean },
+		options?: { persistModeConfig?: boolean; persistTaskHistory?: boolean; updateCurrentTask?: boolean },
 	) {
 		const { name, id, ...providerSettings } = await this.providerSettingsManager.activateProfile(args)
 
 		const persistModeConfig = options?.persistModeConfig ?? true
 		const persistTaskHistory = options?.persistTaskHistory ?? true
+		const updateCurrentTask = options?.updateCurrentTask ?? true
 
 		// See `upsertProviderProfile` for a description of what this is doing.
 		await Promise.all([
@@ -1901,13 +1903,15 @@ export class ClineProvider
 			await this.providerSettingsManager.setModeConfig(mode, id)
 		}
 
-		// Change the provider for the current task.
-		this.updateTaskApiHandlerIfNeeded(providerSettings, { forceRebuild: true })
+		if (updateCurrentTask) {
+			// Change the provider for the current task.
+			this.updateTaskApiHandlerIfNeeded(providerSettings, { forceRebuild: true })
 
-		// Update the current task's sticky provider profile, unless this activation is
-		// being used purely as a non-persisting restoration (e.g., reopening a task from history).
-		if (persistTaskHistory) {
-			await this.persistStickyProviderProfileToCurrentTask(name)
+			// Update the current task's sticky provider profile, unless this activation is
+			// being used purely as a non-persisting restoration (e.g., reopening a task from history).
+			if (persistTaskHistory) {
+				await this.persistStickyProviderProfileToCurrentTask(name)
+			}
 		}
 
 		await this.postStateToWebview()
@@ -3515,7 +3519,7 @@ export class ClineProvider
 	/**
 	 * Delegate parent task and open child task.
 	 *
-	 * - Enforce single-open invariant
+	 * - Resolve the invoking parent by id, independent of current visible selection
 	 * - Persist parent delegation metadata
 	 * - Emit TaskDelegated (task-level; API forwards to provider/bridge)
 	 * - Create child as sole active and switch mode to child's mode
@@ -3530,14 +3534,14 @@ export class ClineProvider
 
 		// Metadata-driven delegation is always enabled
 
-		// 1) Get parent (must be current task)
-		const parent = this.getCurrentTask()
+		// 1) Get the exact live parent that invoked new_task. Do not use getCurrentTask()
+		// here: the visible/current task can change while approval or async state work is
+		// pending, and rejecting on that stale selection blocks valid delegation.
+		const parent = this.getTaskById(parentTaskId)
 		if (!parent) {
-			throw new Error("[delegateParentAndOpenChild] No current task")
-		}
-		if (parent.taskId !== parentTaskId) {
+			const current = this.getCurrentTask()
 			throw new Error(
-				`[delegateParentAndOpenChild] Parent mismatch: expected ${parentTaskId}, current ${parent.taskId}`,
+				`[delegateParentAndOpenChild] Parent task not open: expected ${parentTaskId}, current ${current?.taskId ?? "none"}`,
 			)
 		}
 		// 2) Flush pending tool results to API history BEFORE disposing the parent.
@@ -3578,7 +3582,7 @@ export class ClineProvider
 		//    This ensures we never have >1 tasks open at any time during delegation.
 		//    Await abort completion to ensure clean disposal and prevent unhandled rejections.
 		try {
-			await this.removeClineFromStack({ skipDelegationRepair: true })
+			await this.removeClineFromStack({ taskId: parentTaskId, skipDelegationRepair: true })
 		} catch (error) {
 			this.log(
 				`[delegateParentAndOpenChild] Error during parent disposal (non-fatal): ${
@@ -3593,7 +3597,7 @@ export class ClineProvider
 		//    The mode switch must happen before createTask() because the Task constructor
 		//    initializes its mode from provider.getState() during initializeTaskMode().
 		try {
-			await this.handleModeSwitch(mode as any)
+			await this.handleModeSwitch(mode as any, { updateCurrentTask: false })
 		} catch (e) {
 			this.log(
 				`[delegateParentAndOpenChild] handleModeSwitch failed for mode '${mode}': ${
