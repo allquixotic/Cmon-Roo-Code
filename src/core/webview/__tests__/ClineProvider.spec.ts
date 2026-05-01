@@ -610,6 +610,56 @@ describe("ClineProvider", () => {
 		await expect(provider.postMessageToWebview(message)).resolves.toBeUndefined()
 	})
 
+	describe("condenseTaskContext", () => {
+		beforeEach(async () => {
+			await provider.resolveWebviewView(mockWebviewView)
+			mockPostMessage.mockClear()
+		})
+
+		it("posts a response after condensing the requested task", async () => {
+			const task = new Task(defaultTaskOptions) as any
+			task.taskId = "task-1"
+			task.condenseContext = vi.fn().mockResolvedValue(undefined)
+
+			await provider.addClineToStack(task)
+			mockPostMessage.mockClear()
+
+			await provider.condenseTaskContext("task-1")
+
+			expect(task.condenseContext).toHaveBeenCalled()
+			expect(mockPostMessage).toHaveBeenCalledWith({
+				type: "condenseTaskContextResponse",
+				text: "task-1",
+			})
+		})
+
+		it("posts a response when condensing fails", async () => {
+			const task = new Task(defaultTaskOptions) as any
+			task.taskId = "task-1"
+			task.condenseContext = vi.fn().mockRejectedValue(new Error("condense failed"))
+
+			await provider.addClineToStack(task)
+			mockPostMessage.mockClear()
+
+			await expect(provider.condenseTaskContext("task-1")).rejects.toThrow("condense failed")
+			expect(mockPostMessage).toHaveBeenCalledWith({
+				type: "condenseTaskContextResponse",
+				text: "task-1",
+			})
+		})
+
+		it("posts a response when the requested task is missing", async () => {
+			await expect(provider.condenseTaskContext("missing-task")).rejects.toThrow(
+				"Task with id missing-task not found in stack",
+			)
+
+			expect(mockPostMessage).toHaveBeenCalledWith({
+				type: "condenseTaskContextResponse",
+				text: "missing-task",
+			})
+		})
+	})
+
 	test("postMessageToWebview skips postMessage after dispose", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 

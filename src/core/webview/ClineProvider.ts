@@ -2116,10 +2116,14 @@ export class ClineProvider
 			}
 		}
 		if (!task) {
+			await this.postMessageToWebview({ type: "condenseTaskContextResponse", text: taskId })
 			throw new Error(`Task with id ${taskId} not found in stack`)
 		}
-		await task.condenseContext()
-		await this.postMessageToWebview({ type: "condenseTaskContextResponse", text: taskId })
+		try {
+			await task.condenseContext()
+		} finally {
+			await this.postMessageToWebview({ type: "condenseTaskContextResponse", text: taskId })
+		}
 	}
 
 	// this function deletes a task from task history, and deletes its checkpoints and delete the task folder

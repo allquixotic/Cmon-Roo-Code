@@ -143,6 +143,17 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
 
+const TASK_SCOPED_STATE_KEYS: (keyof ExtensionState)[] = [
+	"clineMessages",
+	"clineMessagesSeq",
+	"currentTaskId",
+	"currentTaskItem",
+	"currentTaskTodos",
+	"activeConversations",
+	"messageQueue",
+	"currentAskDecision",
+]
+
 export const mergeExtensionState = (prevState: ExtensionState, newState: Partial<ExtensionState>) => {
 	const { customModePrompts: prevCustomModePrompts, experiments: prevExperiments, ...prevRest } = prevState
 
@@ -157,18 +168,21 @@ export const mergeExtensionState = (prevState: ExtensionState, newState: Partial
 	const customModePrompts = { ...prevCustomModePrompts, ...(newCustomModePrompts ?? {}) }
 	const experiments = { ...prevExperiments, ...(newExperiments ?? {}) }
 	const rest = { ...prevRest, ...newRest }
+	const hasIncomingTaskScopedState = TASK_SCOPED_STATE_KEYS.some((key) =>
+		Object.prototype.hasOwnProperty.call(newState, key),
+	)
 
 	// Protect task-scoped state from stale state pushes using sequence numbering.
 	// Multiple async event sources (cloud auth, settings, task streaming) can trigger
-	// concurrent state pushes. If a stale push arrives after a newer one, its clineMessages
-	// and related task-scoped fields would overwrite the newer task state. The sequence
-	// number prevents this by only applying task-scoped fields when the incoming seq is
-	// strictly greater than the last applied seq.
+	// concurrent state pushes. If a stale push arrives after a newer one, its task-scoped
+	// fields can overwrite the newer visible task, message queue, or ask state even when
+	// the push omits clineMessages. The sequence number prevents this by only applying
+	// task-scoped fields when the incoming seq is strictly greater than the last applied seq.
 	if (
 		newState.clineMessagesSeq !== undefined &&
 		prevState.clineMessagesSeq !== undefined &&
 		newState.clineMessagesSeq <= prevState.clineMessagesSeq &&
-		newState.clineMessages !== undefined
+		hasIncomingTaskScopedState
 	) {
 		rest.clineMessages = prevState.clineMessages
 		rest.currentTaskId = prevState.currentTaskId

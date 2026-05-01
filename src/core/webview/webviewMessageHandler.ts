@@ -828,7 +828,15 @@ export const webviewMessageHandler = async (
 			provider.showTaskWithId(message.text!)
 			break
 		case "condenseTaskContextRequest":
-			provider.condenseTaskContext(message.text!)
+			if (message.text) {
+				provider.condenseTaskContext(message.text).catch((error) => {
+					provider.log(
+						`[condenseTaskContextRequest] failed for task ${message.text}: ${
+							error instanceof Error ? error.message : String(error)
+						}`,
+					)
+				})
+			}
 			break
 		case "deleteTaskWithId":
 			provider.deleteTaskWithId(message.text!)

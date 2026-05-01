@@ -737,6 +737,7 @@ describe("ChatView - Message Queueing Tests", () => {
 
 		// Add api_req_started without cost (spinner state - API request in progress)
 		mockPostMessage({
+			currentTaskId: "task-1",
 			clineMessages: [
 				{
 					type: "say",
@@ -786,6 +787,7 @@ describe("ChatView - Message Queueing Tests", () => {
 				text: "follow-up question during spinner",
 				images: [],
 				deliveryMode: "queue",
+				taskId: "task-1",
 			})
 		})
 
@@ -803,6 +805,7 @@ describe("ChatView - Message Queueing Tests", () => {
 
 		// Hydrate state with completed API request (cost present)
 		mockPostMessage({
+			currentTaskId: "task-1",
 			clineMessages: [
 				{
 					type: "say",
@@ -857,6 +860,7 @@ describe("ChatView - Message Queueing Tests", () => {
 				askResponse: "messageResponse",
 				text: "follow-up after completion",
 				images: [],
+				taskId: "task-1",
 			})
 		})
 
@@ -873,6 +877,7 @@ describe("ChatView - Message Queueing Tests", () => {
 
 		// Hydrate state with API request in progress and existing queue
 		mockPostMessage({
+			currentTaskId: "task-1",
 			clineMessages: [
 				{
 					type: "say",
@@ -933,6 +938,7 @@ describe("ChatView - Message Queueing Tests", () => {
 				text: "message during queue drain",
 				images: [],
 				deliveryMode: "queue",
+				taskId: "task-1",
 			})
 		})
 
@@ -950,6 +956,7 @@ describe("ChatView - Message Queueing Tests", () => {
 
 		// Hydrate state with command_output ask (Proceed While Running state)
 		mockPostMessage({
+			currentTaskId: "task-1",
 			clineMessages: [
 				{
 					type: "say",
@@ -997,6 +1004,7 @@ describe("ChatView - Message Queueing Tests", () => {
 				text: "message during command execution",
 				images: [],
 				deliveryMode: "queue",
+				taskId: "task-1",
 			})
 		})
 
@@ -1022,6 +1030,7 @@ describe("ChatView - Context Condensing Indicator Tests", () => {
 
 		// First hydrate state with an active task
 		mockPostMessage({
+			currentTaskId: "test-task-id",
 			clineMessages: [
 				{
 					type: "say",
@@ -1075,6 +1084,250 @@ describe("ChatView - Context Condensing Indicator Tests", () => {
 				expect(condensingRow).toBeTruthy()
 			},
 			{ timeout: 2000 },
+		)
+	})
+
+	it("does not show a condensing message for a different task", async () => {
+		const { getByTestId, container } = renderChatView()
+
+		mockPostMessage({
+			currentTaskId: "current-task-id",
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Current task",
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(getByTestId("chat-view")).toBeInTheDocument()
+		})
+
+		await act(async () => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "condenseTaskContextStarted",
+						text: "other-task-id",
+					},
+				}),
+			)
+			await new Promise((resolve) => setTimeout(resolve, 0))
+		})
+
+		const rows = container.querySelectorAll('[data-testid="chat-row"]')
+		const condensingRow = Array.from(rows).find((row) => {
+			const text = row.textContent || ""
+			return text.includes('"say":"condense_context"') && text.includes('"partial":true')
+		})
+		expect(condensingRow).toBeUndefined()
+	})
+
+	it("keeps the current task condensing indicator when another task responds", async () => {
+		const { getByTestId, container } = renderChatView()
+
+		mockPostMessage({
+			currentTaskId: "current-task-id",
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Current task",
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(getByTestId("chat-view")).toBeInTheDocument()
+		})
+
+		await act(async () => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "condenseTaskContextStarted",
+						text: "current-task-id",
+					},
+				}),
+			)
+			await new Promise((resolve) => setTimeout(resolve, 0))
+		})
+
+		await waitFor(() => {
+			const rows = container.querySelectorAll('[data-testid="chat-row"]')
+			const condensingRow = Array.from(rows).find((row) => {
+				const text = row.textContent || ""
+				return text.includes('"say":"condense_context"') && text.includes('"partial":true')
+			})
+			expect(condensingRow).toBeTruthy()
+		})
+
+		await act(async () => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "condenseTaskContextResponse",
+						text: "other-task-id",
+					},
+				}),
+			)
+			await new Promise((resolve) => setTimeout(resolve, 0))
+		})
+
+		let rows = container.querySelectorAll('[data-testid="chat-row"]')
+		let condensingRow = Array.from(rows).find((row) => {
+			const text = row.textContent || ""
+			return text.includes('"say":"condense_context"') && text.includes('"partial":true')
+		})
+		expect(condensingRow).toBeTruthy()
+
+		await act(async () => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "condenseTaskContextResponse",
+						text: "current-task-id",
+					},
+				}),
+			)
+			await new Promise((resolve) => setTimeout(resolve, 0))
+		})
+
+		await waitFor(() => {
+			rows = container.querySelectorAll('[data-testid="chat-row"]')
+			condensingRow = Array.from(rows).find((row) => {
+				const text = row.textContent || ""
+				return text.includes('"say":"condense_context"') && text.includes('"partial":true')
+			})
+			expect(condensingRow).toBeUndefined()
+		})
+	})
+})
+
+describe("ChatView - Compact Command Routing Tests", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		vi.mocked(vscode.postMessage).mockClear()
+	})
+
+	it("sends /compact-and follow-up to the original task after switching tasks", async () => {
+		const { getByTestId } = renderChatView()
+
+		const activeConversations = [
+			{
+				rootTaskId: "task-a",
+				activeTaskId: "task-a",
+				rootTask: "Task A",
+				activeTask: "Task A",
+				ts: Date.now() - 1000,
+				status: "idle",
+				queuedMessageCount: 0,
+				steerMessageCount: 0,
+			},
+			{
+				rootTaskId: "task-b",
+				activeTaskId: "task-b",
+				rootTask: "Task B",
+				activeTask: "Task B",
+				ts: Date.now(),
+				status: "idle",
+				queuedMessageCount: 0,
+				steerMessageCount: 0,
+			},
+		]
+
+		mockPostMessage({
+			currentTaskId: "task-a",
+			currentTaskItem: { id: "task-a" },
+			activeConversations,
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Task A",
+				},
+				{
+					type: "ask",
+					ask: "completion_result",
+					ts: Date.now() - 1000,
+					text: "Done",
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(getByTestId("chat-textarea")).toBeInTheDocument()
+		})
+
+		vi.mocked(vscode.postMessage).mockClear()
+
+		const input = getByTestId("chat-textarea").querySelector("input") as HTMLInputElement
+		await act(async () => {
+			fireEvent.change(input, { target: { value: "/compact-and continue task A" } })
+			fireEvent.keyDown(input, { key: "Enter", code: "Enter" })
+		})
+
+		await waitFor(() => {
+			expect(vscode.postMessage).toHaveBeenCalledWith({
+				type: "condenseTaskContextRequest",
+				text: "task-a",
+			})
+		})
+
+		mockPostMessage({
+			currentTaskId: "task-b",
+			currentTaskItem: { id: "task-b" },
+			activeConversations,
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 500,
+					text: "Task B",
+				},
+				{
+					type: "ask",
+					ask: "completion_result",
+					ts: Date.now(),
+					text: "Done",
+				},
+			],
+		})
+
+		vi.mocked(vscode.postMessage).mockClear()
+
+		await act(async () => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "condenseTaskContextResponse",
+						text: "task-a",
+					},
+				}),
+			)
+			await new Promise((resolve) => setTimeout(resolve, 0))
+		})
+
+		await waitFor(() => {
+			expect(vscode.postMessage).toHaveBeenCalledWith({
+				type: "askResponse",
+				askResponse: "messageResponse",
+				text: "continue task A",
+				images: [],
+				taskId: "task-a",
+			})
+		})
+		expect(vscode.postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "askResponse",
+				text: "continue task A",
+				taskId: "task-b",
+			}),
 		)
 	})
 })

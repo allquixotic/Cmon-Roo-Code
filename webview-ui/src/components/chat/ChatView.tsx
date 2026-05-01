@@ -217,7 +217,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const [checkpointWarning, setCheckpointWarning] = useState<
 		{ type: "WAIT_TIMEOUT" | "INIT_TIMEOUT"; timeout: number } | undefined
 	>(undefined)
-	const [isCondensing, setIsCondensing] = useState<boolean>(false)
+	const [condensingTaskIds, setCondensingTaskIds] = useState<Set<string>>(() => new Set())
+	const isCondensing = useMemo(
+		() => (currentTaskId ? condensingTaskIds.has(currentTaskId) : false),
+		[currentTaskId, condensingTaskIds],
+	)
 	const everVisibleMessagesTsRef = useRef<LRUCache<number, boolean>>(
 		new LRUCache({
 			max: 100,
@@ -226,7 +230,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	)
 	const autoApproveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 	const userRespondedRef = useRef<boolean>(false)
-	const pendingPostCompactRef = useRef<{ text: string; images: string[] } | null>(null)
+	const pendingPostCompactRef = useRef<{ taskId: string; text: string; images: string[] } | null>(null)
 	const [currentFollowUpTs, setCurrentFollowUpTs] = useState<number | null>(null)
 	const [aggregatedCostsMap, setAggregatedCostsMap] = useState<
 		Map<
@@ -238,6 +242,23 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			}
 		>
 	>(new Map())
+
+	const markTaskCondensing = useCallback((taskId: string, condensing: boolean) => {
+		setCondensingTaskIds((prev) => {
+			const currentlyCondensing = prev.has(taskId)
+			if (currentlyCondensing === condensing) {
+				return prev
+			}
+
+			const next = new Set(prev)
+			if (condensing) {
+				next.add(taskId)
+			} else {
+				next.delete(taskId)
+			}
+			return next
+		})
+	}, [])
 
 	const clineAskRef = useRef(clineAsk)
 	useEffect(() => {
@@ -553,7 +574,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		setExpandedRows({})
 		everVisibleMessagesTsRef.current.clear()
 		setCurrentFollowUpTs(null)
-		setIsCondensing(false)
 
 		if (autoApproveTimeoutRef.current) {
 			clearTimeout(autoApproveTimeoutRef.current)
@@ -660,14 +680,14 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 	const handleCondenseContext = useCallback(
 		(taskId: string) => {
-			if (isCondensing || sendingDisabled) {
+			if (!taskId || condensingTaskIds.has(taskId) || sendingDisabled) {
 				return
 			}
-			setIsCondensing(true)
+			markTaskCondensing(taskId, true)
 			setSendingDisabled(true)
 			vscode.postMessage({ type: "condenseTaskContextRequest", text: taskId })
 		},
-		[isCondensing, sendingDisabled],
+		[condensingTaskIds, markTaskCondensing, sendingDisabled],
 	)
 
 	/**
@@ -689,8 +709,13 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				// /compact-and <msg> condenses, then sends <msg> once condensing completes.
 				const compactMatch = /^\/compact(-and)?(?:\s+([\s\S]+))?$/.exec(text)
 				if (compactMatch) {
-					const taskId = currentTaskItem?.id
-					if (!taskId || messagesRef.current.length === 0 || isCondensing || sendingDisabled) {
+					const taskId = currentTaskId ?? currentTaskItem?.id
+					if (
+						!taskId ||
+						messagesRef.current.length === 0 ||
+						condensingTaskIds.has(taskId) ||
+						sendingDisabled
+					) {
 						// Nothing to condense, or a condense is already in flight.
 						setInputValue("")
 						setSelectedImages([])
@@ -698,9 +723,9 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					}
 					const followUp = (compactMatch[2] ?? "").trim()
 					if (compactMatch[1] && followUp) {
-						pendingPostCompactRef.current = { text: followUp, images }
+						pendingPostCompactRef.current = { taskId, text: followUp, images }
 					}
-					setIsCondensing(true)
+					markTaskCondensing(taskId, true)
 					setSendingDisabled(true)
 					vscode.postMessage({ type: "condenseTaskContextRequest", text: taskId })
 					setInputValue("")
@@ -794,6 +819,8 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			sendingDisabled,
 			isStreaming,
 			isCondensing,
+			condensingTaskIds,
+			markTaskCondensing,
 			apiConfiguration?.apiProvider,
 			submissionDisabled,
 			selectedDraftId,
@@ -805,16 +832,27 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	// After /compact-and completes, dispatch the follow-up message stashed
 	// when the user submitted the command.
 	useEffect(() => {
-		if (isCondensing || sendingDisabled) {
+		const pending = pendingPostCompactRef.current
+		if (!pending || condensingTaskIds.has(pending.taskId)) {
 			return
 		}
-		const pending = pendingPostCompactRef.current
-		if (!pending) {
+
+		if (pending.taskId === currentTaskId && sendingDisabled) {
 			return
 		}
 		pendingPostCompactRef.current = null
-		handleSendMessage(pending.text, pending.images)
-	}, [isCondensing, sendingDisabled, handleSendMessage])
+		if (pending.taskId === currentTaskId) {
+			handleSendMessage(pending.text, pending.images)
+		} else {
+			vscode.postMessage({
+				type: "askResponse",
+				askResponse: "messageResponse",
+				text: pending.text,
+				images: pending.images,
+				taskId: pending.taskId,
+			})
+		}
+	}, [condensingTaskIds, currentTaskId, sendingDisabled, handleSendMessage])
 
 	const handleSetChatBoxMessage = useCallback(
 		(text: string, images: string[]) => {
@@ -1083,24 +1121,19 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					}
 					break
 				case "condenseTaskContextStarted":
-					// Handle both manual and automatic condensation start
-					// We don't check the task ID because:
-					// 1. There can only be one active task at a time
-					// 2. Task switching resets isCondensing to false (see useEffect with task?.ts dependency)
-					// 3. For new tasks, currentTaskItem may not be populated yet due to async state updates
+					// Handle both manual and automatic condensation start.
 					if (message.text) {
-						setIsCondensing(true)
+						markTaskCondensing(message.text, true)
 						// Note: sendingDisabled is only set for manual condensation via handleCondenseContext
 						// Automatic condensation doesn't disable sending since the task is already running
 					}
 					break
 				case "condenseTaskContextResponse":
-					// Same reasoning as above - we trust this is for the current task
 					if (message.text) {
-						if (isCondensing && sendingDisabled) {
+						markTaskCondensing(message.text, false)
+						if (message.text === currentTaskId && sendingDisabled) {
 							setSendingDisabled(false)
 						}
-						setIsCondensing(false)
 					}
 					break
 				case "checkpointInitWarning":
@@ -1124,10 +1157,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			// not using its value but its reference.
 		},
 		[
-			isCondensing,
 			isHidden,
 			sendingDisabled,
 			enableButtons,
+			currentTaskId,
+			markTaskCondensing,
 			handleChatReset,
 			handleSendMessage,
 			handleSetChatBoxMessage,
