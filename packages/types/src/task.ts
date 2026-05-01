@@ -22,7 +22,7 @@ export interface TaskProviderLike extends EventEmitter<TaskProviderEvents> {
 		options?: CreateTaskOptions,
 		configuration?: RooCodeSettings,
 	): Promise<TaskLike>
-	cancelTask(): Promise<void>
+	cancelTask(taskId?: string): Promise<void>
 	clearTask(): Promise<void>
 	resumeTask(taskId: string): void
 
@@ -36,7 +36,6 @@ export interface TaskProviderLike extends EventEmitter<TaskProviderEvents> {
 	getProviderProfile(): Promise<string>
 	setProviderProfile(providerProfile: string): Promise<void>
 	readonly cwd: string
-
 
 	// @TODO: Find a better way to do this.
 	postStateToWebview(): Promise<void>

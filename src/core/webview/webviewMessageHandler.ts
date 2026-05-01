@@ -1388,7 +1388,7 @@ export const webviewMessageHandler = async (
 			break
 		}
 		case "cancelTask":
-			await provider.cancelTask()
+			await provider.cancelTask(message.taskId)
 			break
 		case "cancelAutoApproval":
 			// Cancel any pending auto-approval timeout for the target task

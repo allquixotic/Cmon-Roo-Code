@@ -3393,14 +3393,15 @@ export class ClineProvider
 		return task
 	}
 
-	public async cancelTask(): Promise<void> {
-		const task = this.getCurrentTask()
+	public async cancelTask(taskId?: string): Promise<void> {
+		const task = this.resolveMessageTask(taskId)
 
 		if (!task) {
 			return
 		}
 
 		console.log(`[cancelTask] cancelling task ${task.taskId}.${task.instanceId}`)
+		const wasVisible = this.isTaskVisible(task.taskId)
 		const preservedQueuedMessages = task.messageQueueService.messages.map((message) => ({
 			...message,
 			images: message.images ? [...message.images] : undefined,
@@ -3453,7 +3454,7 @@ export class ClineProvider
 		}
 		const replacementTask = await this.createTaskWithHistoryItem(
 			{ ...historyItem, rootTask, parentTask },
-			{ replaceExistingTask: true },
+			{ replaceExistingTask: true, focus: wasVisible },
 		)
 
 		if (replacementTask && preservedQueuedMessages.length > 0) {

@@ -14,6 +14,7 @@ interface ClineMessage {
 	type: "say" | "ask"
 	say?: string
 	ask?: string
+	task?: string
 	ts: number
 	text?: string
 	partial?: boolean
@@ -153,6 +154,8 @@ interface ChatTextAreaProps {
 	placeholderText?: string
 	selectedImages?: string[]
 	shouldDisableImages?: boolean
+	isStreaming?: boolean
+	onStop?: () => void
 }
 
 const mockInputRef = React.createRef<HTMLInputElement>()
@@ -195,6 +198,11 @@ vi.mock("../ChatTextArea", () => {
 					}}
 					data-sending-disabled={props.sendingDisabled}
 				/>
+				{props.isStreaming && props.onStop && (
+					<button type="button" onClick={props.onStop}>
+						Stop
+					</button>
+				)}
 			</div>
 		)
 	})
@@ -1014,6 +1022,123 @@ describe("ChatView - Message Queueing Tests", () => {
 				type: "terminalOperation",
 			}),
 		)
+	})
+})
+
+describe("ChatView - Task-local Stop and Continue state", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		vi.mocked(vscode.postMessage).mockClear()
+	})
+
+	it("clears a paused task's Continue button when switching to a running task", async () => {
+		const { getByText, queryByText, getByTestId } = renderChatView()
+
+		const activeConversations = [
+			{
+				rootTaskId: "task-a",
+				activeTaskId: "task-a",
+				rootTask: "Paused task",
+				activeTask: "Paused task",
+				ts: 1000,
+				status: "resumable",
+				queuedMessageCount: 0,
+				steerMessageCount: 0,
+			},
+			{
+				rootTaskId: "task-b",
+				activeTaskId: "task-b",
+				rootTask: "Running task",
+				activeTask: "Running task",
+				ts: 2000,
+				status: "running",
+				queuedMessageCount: 0,
+				steerMessageCount: 0,
+			},
+		]
+
+		mockPostMessage({
+			currentTaskId: "task-a",
+			currentTaskItem: { id: "task-a" },
+			activeConversations,
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: 100,
+					text: "Paused task",
+				},
+				{
+					type: "ask",
+					ask: "resume_task",
+					ts: 101,
+					text: "",
+					partial: false,
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(getByText("chat:resumeTask.title")).toBeInTheDocument()
+		})
+
+		mockPostMessage({
+			currentTaskId: "task-b",
+			currentTaskItem: { id: "task-b" },
+			activeConversations,
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: 200,
+					text: "Running task",
+				},
+				{
+					type: "say",
+					say: "text",
+					ts: 201,
+					text: "Still running",
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(getByTestId("chat-textarea")).toBeInTheDocument()
+			expect(queryByText("chat:resumeTask.title")).not.toBeInTheDocument()
+			expect(queryByText("chat:terminate.title")).not.toBeInTheDocument()
+		})
+	})
+
+	it("includes the current task id when stopping a streaming task", async () => {
+		const { getByText } = renderChatView()
+
+		mockPostMessage({
+			currentTaskId: "task-1",
+			currentTaskItem: { id: "task-1" },
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: 100,
+					text: "Streaming task",
+				},
+				{
+					type: "say",
+					say: "api_req_started",
+					ts: 101,
+					text: JSON.stringify({ apiProtocol: "anthropic" }),
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(getByText("Stop")).toBeInTheDocument()
+		})
+
+		vi.mocked(vscode.postMessage).mockClear()
+		fireEvent.click(getByText("Stop"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "cancelTask", taskId: "task-1" })
 	})
 })
 

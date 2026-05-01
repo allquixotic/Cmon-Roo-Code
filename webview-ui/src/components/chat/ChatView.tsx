@@ -651,6 +651,23 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		return false
 	}, [modifiedMessages, clineAsk, enableButtons, primaryButtonText])
 
+	useEffect(() => {
+		// Button/ask state is local React state, while messages are task-scoped.
+		// When switching from a paused task to a running task whose last message is
+		// not an ask, clear the previous task's Continue/approval buttons instead
+		// of carrying them onto the newly selected task.
+		if (lastMessage?.type === "ask") {
+			return
+		}
+
+		setClineAsk(undefined)
+		setEnableButtons(false)
+		setPrimaryButtonText(undefined)
+		setSecondaryButtonText(undefined)
+		setSendingDisabled(isStreaming)
+		setDidClickCancel(false)
+	}, [currentTaskId, isStreaming, lastMessage?.type, taskTs])
+
 	const markFollowUpAsAnswered = useCallback(() => {
 		const lastFollowUpMessage = messagesRef.current.findLast((msg: ClineMessage) => msg.ask === "followup")
 		if (lastFollowUpMessage) {
@@ -915,9 +932,9 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 	// Handle stop button click from textarea
 	const handleStopTask = useCallback(() => {
-		vscode.postMessage({ type: "cancelTask" })
+		vscode.postMessage({ type: "cancelTask", taskId: currentTaskId })
 		setDidClickCancel(true)
-	}, [setDidClickCancel])
+	}, [currentTaskId, setDidClickCancel])
 
 	// This logic depends on the useEffect[messages] above to set clineAsk,
 	// after which buttons are shown and we then send an askResponse to the
@@ -1019,7 +1036,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			const trimmedInput = text?.trim()
 
 			if (isStreaming) {
-				vscode.postMessage({ type: "cancelTask" })
+				vscode.postMessage({ type: "cancelTask", taskId: currentTaskId })
 				setDidClickCancel(true)
 				return
 			}

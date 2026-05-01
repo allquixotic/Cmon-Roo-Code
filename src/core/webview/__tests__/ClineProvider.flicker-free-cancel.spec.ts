@@ -350,6 +350,7 @@ describe("ClineProvider flicker-free cancel", () => {
 		mockTask1.rootTask = { taskId: "root-task" }
 		mockTask1.parentTask = { taskId: "parent-task" }
 		;(provider as any).clineStack = [mockTask1]
+		;(provider as any).visibleTaskId = "task-1"
 
 		const createTaskWithHistoryItemSpy = vi
 			.spyOn(provider, "createTaskWithHistoryItem")
@@ -371,7 +372,7 @@ describe("ClineProvider flicker-free cancel", () => {
 				rootTask: mockTask1.rootTask,
 				parentTask: mockTask1.parentTask,
 			}),
-			{ replaceExistingTask: true },
+			{ replaceExistingTask: true, focus: true },
 		)
 		expect(replacementTask.messageQueueService.restoreMessages).toHaveBeenCalledWith([
 			{
@@ -383,5 +384,54 @@ describe("ClineProvider flicker-free cancel", () => {
 		])
 		expect(replacementTask.setDeferQueuedMessageDrainUntilResume).toHaveBeenCalledWith(true)
 		expect(removeClineFromStackSpy).not.toHaveBeenCalled()
+	})
+
+	it("hard-stops the requested task without cancelling the visible task", async () => {
+		const visibleTask = {
+			taskId: "task-2",
+			instanceId: "instance-2",
+			emit: vi.fn(),
+			abortTask: vi.fn().mockResolvedValue(undefined),
+			cancelCurrentRequest: vi.fn(),
+			cancelAutoApprovalTimeout: vi.fn(),
+			supersedePendingAsk: vi.fn(),
+			messageQueueService: { messages: [] },
+			terminalProcess: { abort: vi.fn() },
+			rootTask: undefined,
+			parentTask: undefined,
+			abandoned: false,
+			abort: false,
+			on: vi.fn(),
+			off: vi.fn(),
+		}
+		const replacementTask = {
+			messageQueueService: {
+				restoreMessages: vi.fn(),
+			},
+			setDeferQueuedMessageDrainUntilResume: vi.fn(),
+		}
+
+		;(provider as any).clineStack = [mockTask1, visibleTask]
+		;(provider as any).visibleTaskId = "task-2"
+
+		const createTaskWithHistoryItemSpy = vi
+			.spyOn(provider, "createTaskWithHistoryItem")
+			.mockResolvedValue(replacementTask as any)
+
+		await provider.cancelTask("task-1")
+
+		expect(mockTask1.abortReason).toBe("user_cancelled")
+		expect(mockTask1.cancelCurrentRequest).toHaveBeenCalledTimes(1)
+		expect(mockTask1.cancelAutoApprovalTimeout).toHaveBeenCalledTimes(1)
+		expect(mockTask1.supersedePendingAsk).toHaveBeenCalledTimes(1)
+		expect(mockTask1.abortTask).toHaveBeenCalledWith(true)
+		expect(visibleTask.cancelCurrentRequest).not.toHaveBeenCalled()
+		expect(visibleTask.cancelAutoApprovalTimeout).not.toHaveBeenCalled()
+		expect(visibleTask.supersedePendingAsk).not.toHaveBeenCalled()
+		expect(visibleTask.abortTask).not.toHaveBeenCalled()
+		expect(createTaskWithHistoryItemSpy).toHaveBeenCalledWith(expect.objectContaining({ id: "task-1" }), {
+			replaceExistingTask: true,
+			focus: false,
+		})
 	})
 })
