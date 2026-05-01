@@ -944,6 +944,23 @@ describe("Cline", () => {
 			let mockApiConfig: any
 			let mockDelay: ReturnType<typeof vi.fn>
 
+			const createMockStream = (text: string) =>
+				({
+					async *[Symbol.asyncIterator]() {
+						yield { type: "text", text }
+					},
+					async next() {
+						return { done: true, value: { type: "text", text } }
+					},
+					async return() {
+						return { done: true, value: undefined }
+					},
+					async throw(e: any) {
+						throw e
+					},
+					[Symbol.asyncDispose]: async () => {},
+				}) as AsyncGenerator<ApiStreamChunk>
+
 			beforeEach(() => {
 				vi.clearAllMocks()
 				// Reset the global timestamp before each test
@@ -1317,6 +1334,67 @@ describe("Cline", () => {
 				const globalTimestamp = (Task as any).lastGlobalApiRequestTime
 				expect(globalTimestamp).toBeDefined()
 				expect(globalTimestamp).toBeGreaterThan(0)
+			})
+
+			it("should not apply rate limiting across unrelated provider rate-limit keys", async () => {
+				const parentConfig = {
+					...mockApiConfig,
+					apiModelId: "claude-3-5-sonnet-20241022",
+				}
+				const childConfig = {
+					...mockApiConfig,
+					apiModelId: "claude-3-5-haiku-20241022",
+				}
+				const listApiConfigMeta = [
+					{ id: "parent-profile-id", name: "parent-profile" },
+					{ id: "child-profile-id", name: "child-profile" },
+				]
+
+				mockProvider.getState.mockResolvedValue({
+					apiConfiguration: parentConfig,
+					currentApiConfigName: "parent-profile",
+					listApiConfigMeta,
+					mcpEnabled: false,
+				})
+
+				const parent = new Task({
+					provider: mockProvider,
+					apiConfiguration: parentConfig,
+					task: "parent task",
+					startTask: false,
+				})
+				parent.setTaskApiConfigName("parent-profile")
+				vi.spyOn(parent as any, "getSystemPrompt").mockResolvedValue("mock system prompt")
+				vi.spyOn(parent.api, "createMessage").mockReturnValue(createMockStream("parent response"))
+
+				const parentIterator = parent.attemptApiRequest(0)
+				await parentIterator.next()
+				expect(mockDelay).not.toHaveBeenCalled()
+
+				mockDelay.mockClear()
+				mockProvider.getState.mockResolvedValue({
+					apiConfiguration: childConfig,
+					currentApiConfigName: "child-profile",
+					listApiConfigMeta,
+					mcpEnabled: false,
+				})
+
+				const child = new Task({
+					provider: mockProvider,
+					apiConfiguration: childConfig,
+					task: "child task",
+					parentTask: parent,
+					rootTask: parent,
+					startTask: false,
+				})
+				child.setTaskApiConfigName("child-profile")
+				vi.spyOn(child as any, "getSystemPrompt").mockResolvedValue("mock system prompt")
+				vi.spyOn(child.api, "createMessage").mockReturnValue(createMockStream("child response"))
+
+				const childIterator = child.attemptApiRequest(0)
+				await childIterator.next()
+
+				expect(mockDelay).not.toHaveBeenCalled()
 			})
 		})
 

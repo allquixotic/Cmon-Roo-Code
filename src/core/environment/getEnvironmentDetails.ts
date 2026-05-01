@@ -65,24 +65,24 @@ export async function getEnvironmentDetails(cline: Task, includeFileDetails: boo
 		details += `\n${allowedOpenTabs}`
 	}
 
-	// Get task-specific and background terminals.
-	const busyTerminals = [
-		...TerminalRegistry.getTerminals(true, cline.taskId),
-		...TerminalRegistry.getBackgroundTerminals(true),
-	]
+	// Get task-specific and background terminals. Only task-owned active terminals block
+	// environment collection; background terminals are included opportunistically below.
+	const taskBusyTerminals = TerminalRegistry.getTerminals(true, cline.taskId)
+	const backgroundBusyTerminals = TerminalRegistry.getBackgroundTerminals(true)
+	const busyTerminals = [...taskBusyTerminals, ...backgroundBusyTerminals]
 
 	const inactiveTerminals = [
 		...TerminalRegistry.getTerminals(false, cline.taskId),
 		...TerminalRegistry.getBackgroundTerminals(false),
 	]
 
-	if (busyTerminals.length > 0) {
+	if (taskBusyTerminals.length > 0) {
 		if (cline.didEditFile) {
 			await delay(300) // Delay after saving file to let terminals catch up.
 		}
-
-		// Wait for terminals to cool down.
-		await pWaitFor(() => busyTerminals.every((t) => !TerminalRegistry.isProcessHot(t.id)), {
+		// Wait for this task's terminals to cool down. Do not let unrelated
+		// background terminals stall every concurrent task.
+		await pWaitFor(() => taskBusyTerminals.every((t) => !TerminalRegistry.isProcessHot(t.id)), {
 			interval: 100,
 			timeout: 5_000,
 		}).catch(() => {})

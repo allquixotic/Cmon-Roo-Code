@@ -610,6 +610,96 @@ describe("ClineProvider", () => {
 		await expect(provider.postMessageToWebview(message)).resolves.toBeUndefined()
 	})
 
+	describe("hidden task webview updates", () => {
+		const createTask = (taskId: string, task: string) => {
+			const cline = new Task(defaultTaskOptions) as any
+			cline.taskId = taskId
+			cline.metadata = { task }
+			cline.clineMessages = [{ ts: Date.now(), type: "say", say: "text", text: task }]
+			cline.taskStatus = "running"
+			cline.queuedMessages = []
+			cline.messageQueueService = { messages: [] }
+			return cline as Task
+		}
+
+		beforeEach(async () => {
+			await provider.resolveWebviewView(mockWebviewView)
+			mockPostMessage.mockClear()
+		})
+
+		it("posts lightweight active conversation state for hidden task state updates", async () => {
+			const visibleTask = createTask("visible-task", "Visible task")
+			const hiddenTask = createTask("hidden-task", "Hidden task")
+			await provider.addClineToStack(visibleTask)
+			await provider.addClineToStack(hiddenTask, { focus: false })
+			await provider.selectTask("visible-task", { broadcast: false })
+			mockPostMessage.mockClear()
+
+			const getStateSpy = vi.spyOn(provider, "getStateToPostToWebview")
+			const broadStateSpy = vi.spyOn(provider, "postStateToWebviewWithoutClineMessages")
+
+			await provider.postTaskStateToWebview("hidden-task")
+
+			expect(getStateSpy).not.toHaveBeenCalled()
+			expect(broadStateSpy).not.toHaveBeenCalled()
+			const stateMessage = mockPostMessage.mock.calls[0]?.[0]
+			expect(stateMessage).toMatchObject({
+				type: "state",
+				state: {
+					clineMessagesSeq: expect.any(Number),
+					activeConversations: expect.arrayContaining([
+						expect.objectContaining({
+							activeTaskId: "hidden-task",
+							activeTask: "Hidden task",
+							status: "running",
+						}),
+					]),
+				},
+			})
+			expect(stateMessage.state).not.toHaveProperty("clineMessages")
+			expect(stateMessage.state).not.toHaveProperty("taskHistory")
+		})
+
+		it("coalesces hidden task message updates before posting active conversations", async () => {
+			const visibleTask = createTask("visible-task", "Visible task")
+			const hiddenTask = createTask("hidden-task", "Hidden task")
+			await provider.addClineToStack(visibleTask)
+			await provider.addClineToStack(hiddenTask, { focus: false })
+			await provider.selectTask("visible-task", { broadcast: false })
+			mockPostMessage.mockClear()
+
+			const getStateSpy = vi.spyOn(provider, "getStateToPostToWebview")
+			const broadStateSpy = vi.spyOn(provider, "postStateToWebviewWithoutClineMessages")
+
+			vi.useFakeTimers()
+			try {
+				await provider.postTaskMessageToWebview("hidden-task", { type: "messageUpdated" } as ExtensionMessage)
+				await provider.postTaskMessageToWebview("hidden-task", {
+					type: "interactionRequired",
+				} as ExtensionMessage)
+
+				expect(mockPostMessage).not.toHaveBeenCalled()
+
+				await vi.advanceTimersByTimeAsync(250)
+
+				expect(mockPostMessage).toHaveBeenCalledTimes(1)
+				expect(getStateSpy).not.toHaveBeenCalled()
+				expect(broadStateSpy).not.toHaveBeenCalled()
+				expect(mockPostMessage.mock.calls[0]?.[0]).toMatchObject({
+					type: "state",
+					state: {
+						clineMessagesSeq: expect.any(Number),
+						activeConversations: expect.arrayContaining([
+							expect.objectContaining({ activeTaskId: "hidden-task" }),
+						]),
+					},
+				})
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+	})
+
 	describe("condenseTaskContext", () => {
 		beforeEach(async () => {
 			await provider.resolveWebviewView(mockWebviewView)

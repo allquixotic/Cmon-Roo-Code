@@ -285,7 +285,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	// API
 	apiConfiguration: ProviderSettings
 	api: ApiHandler
+	// Kept for backward-compatible tests and diagnostics. Rate limiting itself is keyed by provider/profile/model.
 	private static lastGlobalApiRequestTime?: number
+	private static lastApiRequestTimeByRateLimitKey = new Map<string, number>()
 	private autoApprovalHandler: AutoApprovalHandler
 
 	/**
@@ -294,6 +296,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	 */
 	static resetGlobalApiRequestTime(): void {
 		Task.lastGlobalApiRequestTime = undefined
+		Task.lastApiRequestTimeByRateLimitKey.clear()
 	}
 
 	toolRepetitionDetector: ToolRepetitionDetector
@@ -2803,12 +2806,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// This prevents the UI from showing an "API Request..." spinner while we are
 			// intentionally waiting due to the rate limit slider.
 			//
-			// NOTE: We also set Task.lastGlobalApiRequestTime here to reserve this slot
+			// NOTE: We also reserve the rate-limit slot here
 			// before we build environment details (which can take time).
 			// This ensures subsequent requests (including subtasks) still honour the
 			// provider rate-limit window.
-			await this.maybeWaitForProviderRateLimit(currentItem.retryAttempt ?? 0)
-			Task.lastGlobalApiRequestTime = performance.now()
+			const rateLimitState = await this.maybeWaitForProviderRateLimit(currentItem.retryAttempt ?? 0)
+			this.recordProviderRateLimitRequestTime(rateLimitState)
 
 			await this.say(
 				"api_req_started",
@@ -4022,6 +4025,43 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		)
 	}
 
+	private getProviderRateLimitKey(state?: any): string {
+		const apiConfiguration = state?.apiConfiguration ?? this.apiConfiguration
+		const settings = (apiConfiguration ?? {}) as Record<string, unknown>
+		const endpointParts = [
+			settings.awsRegion,
+			settings.awsUseCrossRegionInference,
+			settings.awsUseProfile,
+			settings.awsProfile,
+			settings.openAiBaseUrl,
+			settings.openAiNativeBaseUrl,
+			settings.openRouterBaseUrl,
+			settings.ollamaBaseUrl,
+			settings.lmStudioBaseUrl,
+			settings.vsCodeLmModelSelector,
+			settings.vertexProjectId,
+			settings.vertexRegion,
+		].filter((part) => part !== undefined && part !== null && part !== "")
+
+		return JSON.stringify({
+			profileId: this.getCurrentProfileId(state),
+			profileName: state?.currentApiConfigName ?? this._taskApiConfigName ?? "default",
+			provider: settings.apiProvider ?? "unknown",
+			modelId: getModelId(apiConfiguration),
+			endpointParts,
+		})
+	}
+
+	private getLastProviderRateLimitRequestTime(state?: any): number | undefined {
+		return Task.lastApiRequestTimeByRateLimitKey.get(this.getProviderRateLimitKey(state))
+	}
+
+	private recordProviderRateLimitRequestTime(state?: any): void {
+		const now = performance.now()
+		Task.lastGlobalApiRequestTime = now
+		Task.lastApiRequestTimeByRateLimitKey.set(this.getProviderRateLimitKey(state), now)
+	}
+
 	/**
 	 * Build the Bedrock structured-output cache accessors for inclusion in
 	 * `ApiHandlerCreateMessageMetadata`. These closures are populated unconditionally;
@@ -4182,17 +4222,18 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	 * NOTE: This is intentionally treated as expected behavior and is surfaced via
 	 * the `api_req_rate_limit_wait` say type (not an error).
 	 */
-	private async maybeWaitForProviderRateLimit(retryAttempt: number): Promise<void> {
-		const state = await this.getTaskScopedState()
+	private async maybeWaitForProviderRateLimit(retryAttempt: number, state?: any): Promise<any> {
+		state ??= await this.getTaskScopedState()
 		const rateLimitSeconds =
 			state?.apiConfiguration?.rateLimitSeconds ?? this.apiConfiguration?.rateLimitSeconds ?? 0
 
-		if (rateLimitSeconds <= 0 || !Task.lastGlobalApiRequestTime) {
-			return
+		const lastRequestTime = this.getLastProviderRateLimitRequestTime(state)
+		if (rateLimitSeconds <= 0 || lastRequestTime === undefined) {
+			return state
 		}
 
 		const now = performance.now()
-		const timeSinceLastRequest = now - Task.lastGlobalApiRequestTime
+		const timeSinceLastRequest = now - lastRequestTime
 		const rateLimitDelay = Math.ceil(
 			Math.min(rateLimitSeconds, Math.max(0, rateLimitSeconds * 1000 - timeSinceLastRequest) / 1000),
 		)
@@ -4208,6 +4249,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// Finalize the partial message so the UI doesn't keep rendering an in-progress spinner.
 			await this.say("api_req_rate_limit_wait", undefined, undefined, false)
 		}
+
+		return state
 	}
 
 	public async *attemptApiRequest(
@@ -4230,17 +4273,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const customCondensingPrompt = state?.customSupportPrompts?.CONDENSE
 
 		if (!options.skipProviderRateLimit) {
-			await this.maybeWaitForProviderRateLimit(retryAttempt)
+			await this.maybeWaitForProviderRateLimit(retryAttempt, state)
+			// Update last request time right before making the request so that subsequent
+			// requests — even from new subtasks — will honour the provider's rate-limit.
+			this.recordProviderRateLimitRequestTime(state)
 		}
-
-		// Update last request time right before making the request so that subsequent
-		// requests — even from new subtasks — will honour the provider's rate-limit.
-		//
-		// NOTE: When recursivelyMakeClineRequests handles rate limiting, it sets the
-		// timestamp earlier to include the environment details build. We still set it
-		// here for direct callers (tests) and for the case where we didn't rate-limit
-		// in the caller.
-		Task.lastGlobalApiRequestTime = performance.now()
 
 		const systemPrompt = await this.getSystemPrompt()
 		const { contextTokens } = this.getTokenUsage()
@@ -4620,8 +4657,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// Respect provider rate limit window
 			let rateLimitDelay = 0
 			const rateLimit = (state?.apiConfiguration ?? this.apiConfiguration)?.rateLimitSeconds || 0
-			if (Task.lastGlobalApiRequestTime && rateLimit > 0) {
-				const elapsed = performance.now() - Task.lastGlobalApiRequestTime
+			const lastRequestTime = this.getLastProviderRateLimitRequestTime(state)
+			if (lastRequestTime !== undefined && rateLimit > 0) {
+				const elapsed = performance.now() - lastRequestTime
 				rateLimitDelay = Math.ceil(Math.min(rateLimit, Math.max(0, rateLimit * 1000 - elapsed) / 1000))
 			}
 

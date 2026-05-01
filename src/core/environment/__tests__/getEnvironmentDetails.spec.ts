@@ -353,6 +353,65 @@ describe("getEnvironmentDetails", () => {
 
 		await expect(getEnvironmentDetails(mockCline as Task)).resolves.not.toThrow()
 	})
+
+	it("should not wait for background active terminals", async () => {
+		const mockBackgroundTerminal = {
+			id: "background-terminal",
+			getLastCommand: vi.fn().mockReturnValue("npm run watch"),
+			getProcessesWithOutput: vi.fn().mockReturnValue([]),
+			getCurrentWorkingDirectory: vi.fn().mockReturnValue("/test/path"),
+		} as MockTerminal
+
+		;(TerminalRegistry.getTerminals as Mock).mockImplementation((active: boolean) => (active ? [] : []))
+		;(TerminalRegistry.getBackgroundTerminals as Mock).mockImplementation((active: boolean) =>
+			active ? [mockBackgroundTerminal] : [],
+		)
+		;(TerminalRegistry.getUnretrievedOutput as Mock).mockReturnValue("watch output")
+		mockCline.didEditFile = true
+
+		const result = await getEnvironmentDetails(mockCline as Task)
+
+		expect(pWaitFor).not.toHaveBeenCalled()
+		expect(delay).not.toHaveBeenCalledWith(300)
+		expect(result).toContain("## Terminal background-terminal (Active)")
+		expect(result).toContain("watch output")
+	})
+
+	it("should wait only for task-owned active terminals when background terminals are also active", async () => {
+		const mockTaskTerminal = {
+			id: "task-terminal",
+			getLastCommand: vi.fn().mockReturnValue("npm test"),
+			getProcessesWithOutput: vi.fn().mockReturnValue([]),
+			getCurrentWorkingDirectory: vi.fn().mockReturnValue("/test/path"),
+		} as MockTerminal
+		const mockBackgroundTerminal = {
+			id: "background-terminal",
+			getLastCommand: vi.fn().mockReturnValue("npm run watch"),
+			getProcessesWithOutput: vi.fn().mockReturnValue([]),
+			getCurrentWorkingDirectory: vi.fn().mockReturnValue("/test/path"),
+		} as MockTerminal
+
+		;(TerminalRegistry.getTerminals as Mock).mockImplementation((active: boolean) =>
+			active ? [mockTaskTerminal] : [],
+		)
+		;(TerminalRegistry.getBackgroundTerminals as Mock).mockImplementation((active: boolean) =>
+			active ? [mockBackgroundTerminal] : [],
+		)
+		;(TerminalRegistry.getUnretrievedOutput as Mock).mockImplementation(
+			(terminalId: string) => `${terminalId} output`,
+		)
+
+		const result = await getEnvironmentDetails(mockCline as Task)
+		const waitPredicate = vi.mocked(pWaitFor).mock.calls[0]?.[0] as () => boolean
+
+		;(TerminalRegistry.isProcessHot as Mock).mockClear()
+		waitPredicate()
+
+		expect(TerminalRegistry.isProcessHot).toHaveBeenCalledWith("task-terminal")
+		expect(TerminalRegistry.isProcessHot).not.toHaveBeenCalledWith("background-terminal")
+		expect(result).toContain("## Terminal task-terminal (Active)")
+		expect(result).toContain("## Terminal background-terminal (Active)")
+	})
 	it("should include REMINDERS section when todoListEnabled is true", async () => {
 		mockProvider.getState.mockResolvedValue({
 			...mockState,

@@ -158,6 +158,8 @@ export class ClineProvider
 	private static readonly GLOBAL_STATE_WRITE_THROUGH_DEBOUNCE_MS = 5000 // 5 seconds
 	private pendingOperations: Map<string, PendingEditOperation> = new Map()
 	private static readonly PENDING_OPERATION_TIMEOUT_MS = 30000 // 30 seconds
+	private activeConversationsUpdateTimer: ReturnType<typeof setTimeout> | null = null
+	private static readonly ACTIVE_CONVERSATIONS_UPDATE_DEBOUNCE_MS = 250
 
 	private cloudOrganizationsCache: CloudOrganizationMembership[] | null = null
 	private cloudOrganizationsCacheTimestamp: number | null = null
@@ -468,6 +470,46 @@ export class ClineProvider
 			})
 	}
 
+	private postActiveConversationsStateToWebview(): void {
+		const taskStateSeq = ++this.clineMessagesSeq
+		this.postMessageToWebview({
+			type: "state",
+			state: {
+				clineMessagesSeq: taskStateSeq,
+				activeConversations: this.getActiveConversationSummaries(),
+			},
+		})
+	}
+
+	private scheduleActiveConversationsStateToWebview(options: { immediate?: boolean } = {}): void {
+		if (this._disposed) {
+			return
+		}
+
+		const flush = () => {
+			this.activeConversationsUpdateTimer = null
+			if (!this._disposed) {
+				this.postActiveConversationsStateToWebview()
+			}
+		}
+
+		if (options.immediate) {
+			if (this.activeConversationsUpdateTimer) {
+				clearTimeout(this.activeConversationsUpdateTimer)
+				this.activeConversationsUpdateTimer = null
+			}
+			flush()
+			return
+		}
+
+		if (!this.activeConversationsUpdateTimer) {
+			this.activeConversationsUpdateTimer = setTimeout(
+				flush,
+				ClineProvider.ACTIVE_CONVERSATIONS_UPDATE_DEBOUNCE_MS,
+			)
+		}
+	}
+
 	public async selectTask(taskId?: string, options?: { broadcast?: boolean }): Promise<void> {
 		const { broadcast = true } = options ?? {}
 		const previousTask = this.getTaskById(this.visibleTaskId)
@@ -506,8 +548,7 @@ export class ClineProvider
 			await this.postStateToWebviewWithoutTaskHistory()
 			return
 		}
-
-		await this.postStateToWebviewWithoutClineMessages()
+		this.scheduleActiveConversationsStateToWebview({ immediate: true })
 	}
 
 	public async postTaskMessageToWebview(taskId: string, message: ExtensionMessage): Promise<void> {
@@ -515,8 +556,7 @@ export class ClineProvider
 			await this.postMessageToWebview(message)
 			return
 		}
-
-		await this.postStateToWebviewWithoutClineMessages()
+		this.scheduleActiveConversationsStateToWebview()
 	}
 
 	/**
@@ -867,6 +907,11 @@ export class ClineProvider
 
 		this._disposed = true
 		this.log("Disposing ClineProvider...")
+
+		if (this.activeConversationsUpdateTimer) {
+			clearTimeout(this.activeConversationsUpdateTimer)
+			this.activeConversationsUpdateTimer = null
+		}
 
 		// Clear all tasks from the stack.
 		while (this.clineStack.length > 0) {
