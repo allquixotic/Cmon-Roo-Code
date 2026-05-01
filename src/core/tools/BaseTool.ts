@@ -13,6 +13,8 @@ export interface ToolCallbacks {
 	toolCallId?: string
 }
 
+type ToolCallbackInput = ToolCallbacks | (Omit<ToolCallbacks, "askApproval"> & { taskApproval: AskApproval })
+
 /**
  * Helper type to extract the parameter type for a tool based on its name.
  * If the tool has native args defined in NativeToolArgs, use those; otherwise fall back to any.
@@ -34,9 +36,9 @@ export abstract class BaseTool<TName extends ToolName> {
 
 	/**
 	 * Track the last seen path during streaming to detect when the path has stabilized.
-	 * Used by hasPathStabilized() to prevent displaying truncated paths from partial-json parsing.
+	 * This state is keyed by task and tool call because tool classes are singleton instances.
 	 */
-	protected lastSeenPartialPath: string | undefined = undefined
+	private partialPathState = new WeakMap<Task, Map<string, string | undefined>>()
 
 	/**
 	 * Execute the tool with typed parameters.
@@ -73,29 +75,68 @@ export abstract class BaseTool<TName extends ToolName> {
 	 *
 	 * Usage in handlePartial():
 	 * ```typescript
-	 * if (!this.hasPathStabilized(block.params.path)) {
+	 * if (!this.hasPathStabilized(task, block, block.params.path)) {
 	 *     return // Path still changing, wait for it to stabilize
 	 * }
 	 * // Path is stable, proceed with UI updates
 	 * ```
 	 *
+	 * @param task - The task currently streaming this partial block
+	 * @param block - The current partial block, used to isolate simultaneous tool calls
 	 * @param path - The current path value from the partial block
 	 * @returns true if path has stabilized (same value seen twice) and is non-empty, false otherwise
 	 */
-	protected hasPathStabilized(path: string | undefined): boolean {
-		const pathHasStabilized = this.lastSeenPartialPath !== undefined && this.lastSeenPartialPath === path
-		this.lastSeenPartialPath = path
+	protected hasPathStabilized(task: Task, block: ToolUse<TName>, path: string | undefined): boolean {
+		const taskState = this.getOrCreatePartialPathState(task)
+		const key = this.getPartialToolCallKey(block)
+		const lastSeenPartialPath = taskState.get(key)
+		const pathHasStabilized = lastSeenPartialPath !== undefined && lastSeenPartialPath === path
+		taskState.set(key, path)
 		return pathHasStabilized && !!path
+	}
+
+	protected getPartialToolCallKey(blockOrId?: ToolUse<TName> | string): string {
+		if (typeof blockOrId === "string" && blockOrId.length > 0) {
+			return blockOrId
+		}
+		if (typeof blockOrId === "object" && blockOrId.id) {
+			return blockOrId.id
+		}
+		return this.name
+	}
+
+	private getOrCreatePartialPathState(task: Task): Map<string, string | undefined> {
+		let taskState = this.partialPathState.get(task)
+		if (!taskState) {
+			taskState = new Map()
+			this.partialPathState.set(task, taskState)
+		}
+		return taskState
 	}
 
 	/**
 	 * Reset the partial state tracking.
 	 *
 	 * Should be called at the end of execute() (both success and error paths)
-	 * to ensure clean state for the next tool invocation.
+	 * to ensure clean state for the next tool invocation without clearing other tasks.
 	 */
-	resetPartialState(): void {
-		this.lastSeenPartialPath = undefined
+	resetPartialState(task?: Task, blockOrId?: ToolUse<TName> | string): void {
+		if (!task) {
+			this.partialPathState = new WeakMap()
+			return
+		}
+
+		const taskState = this.partialPathState.get(task)
+		if (!taskState) {
+			return
+		}
+
+		if (blockOrId === undefined) {
+			taskState.clear()
+			return
+		}
+
+		taskState.delete(this.getPartialToolCallKey(blockOrId))
 	}
 
 	/**
@@ -110,14 +151,19 @@ export abstract class BaseTool<TName extends ToolName> {
 	 * @param block - ToolUse block from assistant message
 	 * @param callbacks - Tool execution callbacks
 	 */
-	async handle(task: Task, block: ToolUse<TName>, callbacks: ToolCallbacks): Promise<void> {
+	async handle(task: Task, block: ToolUse<TName>, callbacks: ToolCallbackInput): Promise<void> {
+		const callbacksWithToolCallId: ToolCallbacks = {
+			...callbacks,
+			askApproval: "askApproval" in callbacks ? callbacks.askApproval : callbacks.taskApproval,
+			toolCallId: callbacks.toolCallId ?? block.id,
+		}
 		// Handle partial messages
 		if (block.partial) {
 			try {
 				await this.handlePartial(task, block)
 			} catch (error) {
 				console.error(`Error in handlePartial:`, error)
-				await callbacks.handleError(
+				await callbacksWithToolCallId.handleError(
 					`handling partial ${this.name}`,
 					error instanceof Error ? error : new Error(String(error)),
 				)
@@ -150,13 +196,17 @@ export abstract class BaseTool<TName extends ToolName> {
 		} catch (error) {
 			console.error(`Error parsing parameters:`, error)
 			const errorMessage = `Failed to parse ${this.name} parameters: ${error instanceof Error ? error.message : String(error)}`
-			await callbacks.handleError(`parsing ${this.name} args`, new Error(errorMessage))
+			await callbacksWithToolCallId.handleError(`parsing ${this.name} args`, new Error(errorMessage))
 			// Note: handleError already emits a tool_result via formatResponse.toolError in the caller.
 			// Do NOT call pushToolResult here to avoid duplicate tool_result payloads.
 			return
 		}
 
 		// Execute with typed parameters
-		await this.execute(params, task, callbacks)
+		try {
+			await this.execute(params, task, callbacksWithToolCallId)
+		} finally {
+			this.resetPartialState(task, block)
+		}
 	}
 }

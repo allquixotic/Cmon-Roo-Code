@@ -180,13 +180,13 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 			pushToolResult(message)
 
 			await task.diffViewProvider.reset()
-			this.resetPartialState()
+			this.resetPartialState(task, callbacks.toolCallId)
 
 			return
 		} catch (error) {
 			await handleError("writing file", error as Error)
 			await task.diffViewProvider.reset()
-			this.resetPartialState()
+			this.resetPartialState(task, callbacks.toolCallId)
 			return
 		}
 	}
@@ -196,7 +196,7 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 		let newContent: string | undefined = block.params.content
 
 		// Wait for path to stabilize before showing UI (prevents truncated paths)
-		if (!this.hasPathStabilized(relPath) || newContent === undefined) {
+		if (!this.hasPathStabilized(task, block, relPath) || newContent === undefined) {
 			return
 		}
 

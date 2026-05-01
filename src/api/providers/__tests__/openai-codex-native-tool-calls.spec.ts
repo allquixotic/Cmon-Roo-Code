@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { OpenAiCodexHandler } from "../openai-codex"
 import type { ApiHandlerOptions } from "../../../shared/api"
-import { NativeToolCallParser } from "../../../core/assistant-message/NativeToolCallParser"
 import { openAiCodexOAuthManager } from "../../../integrations/openai-codex/oauth"
 
 describe("OpenAiCodexHandler native tool calls", () => {
@@ -13,8 +12,6 @@ describe("OpenAiCodexHandler native tool calls", () => {
 
 	beforeEach(() => {
 		vi.restoreAllMocks()
-		NativeToolCallParser.clearRawChunkState()
-		NativeToolCallParser.clearAllStreamingToolCalls()
 
 		mockOptions = {
 			apiModelId: "gpt-5.2-2025-12-11",
@@ -78,15 +75,6 @@ describe("OpenAiCodexHandler native tool calls", () => {
 		const chunks: any[] = []
 		for await (const chunk of stream) {
 			chunks.push(chunk)
-			if (chunk.type === "tool_call_partial") {
-				// Simulate Task.ts behavior so finish_reason handling can emit tool_call_end elsewhere
-				NativeToolCallParser.processRawChunk({
-					index: chunk.index,
-					id: chunk.id,
-					name: chunk.name,
-					arguments: chunk.arguments,
-				})
-			}
 		}
 
 		const toolChunks = chunks.filter((c) => c.type === "tool_call_partial")

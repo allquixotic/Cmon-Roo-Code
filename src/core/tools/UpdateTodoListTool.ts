@@ -11,7 +11,30 @@ interface UpdateTodoListParams {
 	todos: string
 }
 
-let approvedTodoList: TodoItem[] | undefined = undefined
+const pendingTodoListsByApproval = new Map<string, TodoItem[]>()
+const activeTodoApprovalKeyByTask = new Map<string, string>()
+
+function getTodoApprovalKey(taskId: string, toolCallId?: string): string {
+	return `${taskId}:${toolCallId || "current"}`
+}
+
+function setPendingTodoListForApproval(taskId: string, todos: TodoItem[], toolCallId?: string): void {
+	const key = getTodoApprovalKey(taskId, toolCallId)
+	pendingTodoListsByApproval.set(key, cloneDeep(todos))
+	activeTodoApprovalKeyByTask.set(taskId, key)
+}
+
+function getPendingTodoListForApproval(taskId: string, toolCallId?: string): TodoItem[] | undefined {
+	return pendingTodoListsByApproval.get(getTodoApprovalKey(taskId, toolCallId))
+}
+
+function clearPendingTodoListForApproval(taskId: string, toolCallId?: string): void {
+	const key = getTodoApprovalKey(taskId, toolCallId)
+	pendingTodoListsByApproval.delete(key)
+	if (activeTodoApprovalKeyByTask.get(taskId) === key) {
+		activeTodoApprovalKeyByTask.delete(taskId)
+	}
+}
 
 export class UpdateTodoListTool extends BaseTool<"update_todo_list"> {
 	readonly name = "update_todo_list" as const
@@ -51,35 +74,44 @@ export class UpdateTodoListTool extends BaseTool<"update_todo_list"> {
 			const approvalMsg = JSON.stringify({
 				tool: "updateTodoList",
 				todos: normalizedTodos,
+				taskId: task.taskId,
+				toolCallId: callbacks.toolCallId,
 			})
 
-			approvedTodoList = cloneDeep(normalizedTodos)
-			const didApprove = await askApproval("tool", approvalMsg)
-			if (!didApprove) {
-				pushToolResult("User declined to update the todoList.")
-				return
-			}
+			setPendingTodoListForApproval(task.taskId, normalizedTodos, callbacks.toolCallId)
+			try {
+				const didApprove = await askApproval("tool", approvalMsg)
+				if (!didApprove) {
+					pushToolResult("User declined to update the todoList.")
+					return
+				}
 
-			const isTodoListChanged =
-				approvedTodoList !== undefined && JSON.stringify(normalizedTodos) !== JSON.stringify(approvedTodoList)
-			if (isTodoListChanged) {
-				normalizedTodos = approvedTodoList ?? []
-				task.say(
-					"user_edit_todos",
-					JSON.stringify({
-						tool: "updateTodoList",
-						todos: normalizedTodos,
-					}),
-				)
-			}
+				const pendingTodoList = getPendingTodoListForApproval(task.taskId, callbacks.toolCallId)
+				const isTodoListChanged =
+					pendingTodoList !== undefined && JSON.stringify(normalizedTodos) !== JSON.stringify(pendingTodoList)
+				if (isTodoListChanged) {
+					normalizedTodos = cloneDeep(pendingTodoList ?? [])
+					await task.say(
+						"user_edit_todos",
+						JSON.stringify({
+							tool: "updateTodoList",
+							todos: normalizedTodos,
+							taskId: task.taskId,
+							toolCallId: callbacks.toolCallId,
+						}),
+					)
+				}
 
-			await setTodoListForTask(task, normalizedTodos)
+				await setTodoListForTask(task, normalizedTodos)
 
-			if (isTodoListChanged) {
-				const md = todoListToMarkdown(normalizedTodos)
-				pushToolResult(formatResponse.toolResult("User edits todo:\n\n" + md))
-			} else {
-				pushToolResult(formatResponse.toolResult("Todo list updated successfully."))
+				if (isTodoListChanged) {
+					const md = todoListToMarkdown(normalizedTodos)
+					pushToolResult(formatResponse.toolResult("User edits todo:\n\n" + md))
+				} else {
+					pushToolResult(formatResponse.toolResult("Todo list updated successfully."))
+				}
+			} finally {
+				clearPendingTodoListForApproval(task.taskId, callbacks.toolCallId)
 			}
 		} catch (error) {
 			await handleError("update todo list", error as Error)
@@ -101,6 +133,8 @@ export class UpdateTodoListTool extends BaseTool<"update_todo_list"> {
 		const approvalMsg = JSON.stringify({
 			tool: "updateTodoList",
 			todos: todos,
+			taskId: task.taskId,
+			toolCallId: block.id,
 		})
 		await task.ask("tool", approvalMsg, block.partial).catch(() => {})
 	}
@@ -175,6 +209,23 @@ function normalizeStatus(status: string | undefined): TodoStatus {
 	return "pending"
 }
 
+function getTodoId(content: string, status: TodoStatus): string {
+	return crypto
+		.createHash("md5")
+		.update(content + status)
+		.digest("hex")
+}
+
+function normalizeTodoItem(todo: TodoItem): TodoItem {
+	const content = typeof todo.content === "string" ? todo.content : ""
+	const status = normalizeStatus(todo.status)
+	return {
+		id: typeof todo.id === "string" && todo.id ? todo.id : getTodoId(content, status),
+		content,
+		status,
+	}
+}
+
 export function parseMarkdownChecklist(md: string): TodoItem[] {
 	if (typeof md !== "string") return []
 	const lines = md
@@ -188,10 +239,7 @@ export function parseMarkdownChecklist(md: string): TodoItem[] {
 		let status: TodoStatus = "pending"
 		if (match[1] === "x" || match[1] === "X") status = "completed"
 		else if (match[1] === "-" || match[1] === "~") status = "in_progress"
-		const id = crypto
-			.createHash("md5")
-			.update(match[2] + status)
-			.digest("hex")
+		const id = getTodoId(match[2], status)
 		todos.push({
 			id,
 			content: match[2],
@@ -201,8 +249,20 @@ export function parseMarkdownChecklist(md: string): TodoItem[] {
 	return todos
 }
 
-export function setPendingTodoList(todos: TodoItem[]) {
-	approvedTodoList = todos
+export function setPendingTodoList(taskId: string | undefined, todos: TodoItem[], toolCallId?: string) {
+	if (!taskId) {
+		return
+	}
+
+	const key = toolCallId ? getTodoApprovalKey(taskId, toolCallId) : activeTodoApprovalKeyByTask.get(taskId)
+	if (!key) {
+		return
+	}
+	if (!pendingTodoListsByApproval.has(key)) {
+		return
+	}
+
+	pendingTodoListsByApproval.set(key, cloneDeep(todos.map((todo) => normalizeTodoItem(todo))))
 }
 
 function validateTodos(todos: any[]): { valid: boolean; error?: string } {

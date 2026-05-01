@@ -251,13 +251,13 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 			}
 
 			await task.diffViewProvider.reset()
-			this.resetPartialState()
+			this.resetPartialState(task, callbacks.toolCallId)
 
 			return
 		} catch (error) {
 			await handleError("applying diff", error as Error)
 			await task.diffViewProvider.reset()
-			this.resetPartialState()
+			this.resetPartialState(task, callbacks.toolCallId)
 			return
 		}
 	}
@@ -267,7 +267,7 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 		const diffContent: string | undefined = block.params.diff
 
 		// Wait for path to stabilize before showing UI (prevents truncated paths)
-		if (!this.hasPathStabilized(relPath)) {
+		if (!this.hasPathStabilized(task, block, relPath)) {
 			return
 		}
 

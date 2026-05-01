@@ -232,11 +232,11 @@ export class EditTool extends BaseTool<"edit"> {
 			// Record successful tool usage and cleanup
 			task.recordToolUsage("edit")
 			await task.diffViewProvider.reset()
-			this.resetPartialState()
+			this.resetPartialState(task, callbacks.toolCallId)
 		} catch (error) {
 			await handleError("edit", error as Error)
 			await task.diffViewProvider.reset()
-			this.resetPartialState()
+			this.resetPartialState(task, callbacks.toolCallId)
 		}
 	}
 
@@ -244,7 +244,7 @@ export class EditTool extends BaseTool<"edit"> {
 		const relPath: string | undefined = block.params.file_path
 
 		// Wait for path to stabilize before showing UI (prevents truncated paths)
-		if (!this.hasPathStabilized(relPath)) {
+		if (!this.hasPathStabilized(task, block, relPath)) {
 			return
 		}
 

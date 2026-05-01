@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
-import { parseMarkdownChecklist } from "../UpdateTodoListTool"
+import { parseMarkdownChecklist, setPendingTodoList, UpdateTodoListTool } from "../UpdateTodoListTool"
 import { TodoItem } from "@roo-code/types"
+import type { AskApproval, HandleError, PushToolResult, ToolUse } from "../../../shared/tools"
 
 describe("parseMarkdownChecklist", () => {
 	describe("standard checkbox format (without dash prefix)", () => {
@@ -239,5 +240,76 @@ Just some text
 			const result2 = parseMarkdownChecklist(md2)
 			expect(result1[0].id).toBe(result2[0].id)
 		})
+	})
+})
+
+describe("UpdateTodoListTool approval isolation", () => {
+	function deferred<T>() {
+		let resolve!: (value: T) => void
+		const promise = new Promise<T>((res) => {
+			resolve = res
+		})
+		return { promise, resolve }
+	}
+
+	function makeTask(taskId: string): any {
+		return {
+			taskId,
+			todoList: [],
+			clineMessages: [],
+			consecutiveMistakeCount: 0,
+			didToolFailInCurrentTurn: false,
+			recordToolError: vi.fn(),
+			say: vi.fn().mockResolvedValue(undefined),
+		}
+	}
+
+	function makeToolUse(id: string, todos: string): ToolUse<"update_todo_list"> {
+		return {
+			type: "tool_use",
+			id,
+			name: "update_todo_list",
+			params: { todos },
+			nativeArgs: { todos },
+			partial: false,
+		} as ToolUse<"update_todo_list">
+	}
+
+	it("keeps pending approval edits isolated by task and tool call", async () => {
+		const tool = new UpdateTodoListTool()
+		const taskA = makeTask("task-a")
+		const taskB = makeTask("task-b")
+		const approvalA = deferred<boolean>()
+		const approvalB = deferred<boolean>()
+		const pushedResults: string[] = []
+		const callbacksA = {
+			askApproval: vi.fn<AskApproval>().mockImplementation(() => approvalA.promise),
+			handleError: vi.fn<HandleError>().mockResolvedValue(undefined),
+			pushToolResult: vi.fn<PushToolResult>().mockImplementation((result) => pushedResults.push(String(result))),
+		}
+		const callbacksB = {
+			askApproval: vi.fn<AskApproval>().mockImplementation(() => approvalB.promise),
+			handleError: vi.fn<HandleError>().mockResolvedValue(undefined),
+			pushToolResult: vi.fn<PushToolResult>().mockImplementation((result) => pushedResults.push(String(result))),
+		}
+
+		const runA = tool.handle(taskA, makeToolUse("call-a", "[ ] Original A"), callbacksA)
+		const runB = tool.handle(taskB, makeToolUse("call-b", "[ ] Original B"), callbacksB)
+
+		await vi.waitFor(() => expect(callbacksA.askApproval).toHaveBeenCalled())
+		await vi.waitFor(() => expect(callbacksB.askApproval).toHaveBeenCalled())
+
+		setPendingTodoList("task-a", [{ id: "edited-a", content: "Edited A", status: "completed" }], "call-a")
+
+		approvalA.resolve(true)
+		approvalB.resolve(true)
+		await Promise.all([runA, runB])
+
+		expect(taskA.todoList).toEqual([{ id: "edited-a", content: "Edited A", status: "completed" }])
+		expect(taskB.todoList).toMatchObject([{ content: "Original B", status: "pending" }])
+		expect(taskA.say).toHaveBeenCalledWith("user_edit_todos", expect.stringContaining('"taskId":"task-a"'))
+		expect(taskB.say).not.toHaveBeenCalledWith("user_edit_todos", expect.any(String))
+		expect(pushedResults).toContain("User edits todo:\n\n[x] Edited A")
+		expect(pushedResults).toContain("Todo list updated successfully.")
 	})
 })

@@ -132,9 +132,37 @@ function countRegexMatches(content: string, regex: RegExp): number {
 
 export class EditFileTool extends BaseTool<"edit_file"> {
 	readonly name = "edit_file" as const
+	private partialToolAskState = new WeakMap<Task, Map<string, { relPath?: string }>>()
 
-	private didSendPartialToolAsk = false
-	private partialToolAskRelPath: string | undefined
+	private getPartialToolAskState(
+		task: Task,
+		blockOrId?: ToolUse<"edit_file"> | string,
+	): { relPath?: string } | undefined {
+		return this.partialToolAskState.get(task)?.get(this.getPartialToolCallKey(blockOrId))
+	}
+
+	private setPartialToolAskState(task: Task, block: ToolUse<"edit_file">, relPath: string): void {
+		let taskState = this.partialToolAskState.get(task)
+		if (!taskState) {
+			taskState = new Map()
+			this.partialToolAskState.set(task, taskState)
+		}
+		taskState.set(this.getPartialToolCallKey(block), { relPath })
+	}
+
+	private clearPartialToolAskState(task: Task, blockOrId?: ToolUse<"edit_file"> | string): void {
+		const taskState = this.partialToolAskState.get(task)
+		if (!taskState) {
+			return
+		}
+
+		if (blockOrId === undefined) {
+			taskState.clear()
+			return
+		}
+
+		taskState.delete(this.getPartialToolCallKey(blockOrId))
+	}
 
 	async execute(params: EditFileParams, task: Task, callbacks: ToolCallbacks): Promise<void> {
 		// Coerce old_string/new_string to handle malformed native tool calls where they could be non-strings.
@@ -148,11 +176,11 @@ export class EditFileTool extends BaseTool<"edit_file"> {
 		let operationPreviewForErrorHandling: string | undefined
 
 		const finalizePartialToolAskIfNeeded = async (relPath: string): Promise<void> => {
-			if (!this.didSendPartialToolAsk) {
+			const partialToolAskState = this.getPartialToolAskState(task, callbacks.toolCallId)
+			if (!partialToolAskState) {
 				return
 			}
-
-			if (this.partialToolAskRelPath && this.partialToolAskRelPath !== relPath) {
+			if (partialToolAskState.relPath && partialToolAskState.relPath !== relPath) {
 				return
 			}
 
@@ -466,7 +494,7 @@ export class EditFileTool extends BaseTool<"edit_file"> {
 			// Record successful tool usage and cleanup
 			task.recordToolUsage("edit_file")
 			await task.diffViewProvider.reset()
-			this.resetPartialState()
+			this.resetPartialState(task, callbacks.toolCallId)
 		} catch (error) {
 			if (relPathForErrorHandling) {
 				await finalizePartialToolAskIfNeeded(relPathForErrorHandling)
@@ -475,9 +503,8 @@ export class EditFileTool extends BaseTool<"edit_file"> {
 			await task.diffViewProvider.reset()
 			task.didToolFailInCurrentTurn = true
 		} finally {
-			this.didSendPartialToolAsk = false
-			this.partialToolAskRelPath = undefined
-			this.resetPartialState()
+			this.clearPartialToolAskState(task, callbacks.toolCallId)
+			this.resetPartialState(task, callbacks.toolCallId)
 		}
 	}
 
@@ -486,7 +513,7 @@ export class EditFileTool extends BaseTool<"edit_file"> {
 		const oldString: string | undefined = block.params.old_string
 
 		// Wait for path to stabilize before showing UI (prevents truncated paths)
-		if (!this.hasPathStabilized(filePath)) {
+		if (!this.hasPathStabilized(task, block, filePath)) {
 			return
 		}
 
@@ -505,8 +532,7 @@ export class EditFileTool extends BaseTool<"edit_file"> {
 		if (path.isAbsolute(relPath)) {
 			relPath = path.relative(task.cwd, relPath)
 		}
-		this.didSendPartialToolAsk = true
-		this.partialToolAskRelPath = relPath
+		this.setPartialToolAskState(task, block, relPath)
 
 		const absolutePath = path.resolve(task.cwd, relPath)
 		const isOutsideWorkspace = isPathOutsideWorkspace(absolutePath)

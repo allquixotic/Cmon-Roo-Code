@@ -1885,10 +1885,11 @@ export const webviewMessageHandler = async (
 			break
 		}
 		case "updateTodoList": {
-			const payload = message.payload as { todos?: any[] }
+			const payload = message.payload as { todos?: any[]; taskId?: string; toolCallId?: string }
 			const todos = payload?.todos
 			if (Array.isArray(todos)) {
-				await setPendingTodoList(todos)
+				const taskId = payload.taskId ?? message.taskId ?? provider.getCurrentTask()?.taskId
+				setPendingTodoList(taskId, todos, payload.toolCallId)
 			}
 			break
 		}

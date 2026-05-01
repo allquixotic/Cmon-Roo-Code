@@ -178,12 +178,21 @@ export const ChatRowContent = ({
 	onBatchFileResponse,
 	isFollowUpAnswered,
 	isFollowUpAutoApprovalPaused,
+	editable,
 	onJumpToPreviousCheckpoint,
 }: ChatRowContentProps) => {
 	const { t, i18n } = useTranslation()
 
-	const { mcpServers, alwaysAllowMcp, currentCheckpoint, mode, apiConfiguration, clineMessages, currentTaskItem } =
-		useExtensionState()
+	const {
+		mcpServers,
+		alwaysAllowMcp,
+		currentCheckpoint,
+		mode,
+		apiConfiguration,
+		clineMessages,
+		currentTaskItem,
+		currentTaskId,
+	} = useExtensionState()
 	const { info: model } = useSelectedModel(apiConfiguration)
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedContent, setEditedContent] = useState("")
@@ -552,7 +561,28 @@ export const ChatRowContent = ({
 				)
 			}
 			case "updateTodoList" as any: {
-				const todos = (tool as any).todos || []
+				const todos = tool.todos || []
+				if (message.type === "ask" && editable) {
+					const taskId = tool.taskId ?? currentTaskId
+					const toolCallId = tool.toolCallId
+					return (
+						<UpdateTodoListToolBlock
+							todos={todos}
+							editable={editable}
+							onChange={(updatedTodos) =>
+								vscode.postMessage({
+									type: "updateTodoList",
+									taskId,
+									payload: {
+										todos: updatedTodos,
+										taskId,
+										toolCallId,
+									},
+								})
+							}
+						/>
+					)
+				}
 				// Get previous todos from the latest todos in the task context
 				const previousTodos = getPreviousTodos(clineMessages, message.ts)
 

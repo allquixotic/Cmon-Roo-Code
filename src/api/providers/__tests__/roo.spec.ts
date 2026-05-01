@@ -987,12 +987,6 @@ describe("RooHandler", () => {
 		})
 
 		it("should yield tool_call_end events when finish_reason is tool_calls", async () => {
-			// Import NativeToolCallParser to set up state
-			const { NativeToolCallParser } = await import("../../../core/assistant-message/NativeToolCallParser")
-
-			// Clear any previous state
-			NativeToolCallParser.clearRawChunkState()
-
 			mockCreate.mockResolvedValueOnce({
 				[Symbol.asyncIterator]: async function* () {
 					yield {
@@ -1027,16 +1021,6 @@ describe("RooHandler", () => {
 			const stream = handler.createMessage(systemPrompt, messages)
 			const chunks: any[] = []
 			for await (const chunk of stream) {
-				// Simulate what Task.ts does: when we receive tool_call_partial,
-				// process it through NativeToolCallParser to populate rawChunkTracker
-				if (chunk.type === "tool_call_partial") {
-					NativeToolCallParser.processRawChunk({
-						index: chunk.index,
-						id: chunk.id,
-						name: chunk.name,
-						arguments: chunk.arguments,
-					})
-				}
 				chunks.push(chunk)
 			}
 

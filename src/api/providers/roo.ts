@@ -4,8 +4,6 @@ import OpenAI from "openai"
 import { rooDefaultModelId, getApiProtocol, type ImageGenerationApiMethod } from "@roo-code/types"
 import { CloudService } from "@roo-code/cloud"
 
-import { NativeToolCallParser } from "../../core/assistant-message/NativeToolCallParser"
-
 import { Package } from "../../shared/package"
 import type { ApiHandlerOptions } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
@@ -142,6 +140,7 @@ export class RooHandler extends BaseOpenAiCompatibleProvider<string> {
 			const stream = await this.createStream(systemPrompt, messages, metadata, { headers })
 
 			let lastUsage: RooUsage | undefined = undefined
+			const activeToolCallIds = new Set<string>()
 			// Accumulator for reasoning_details FROM the API.
 			// We preserve the original shape of reasoning_details to prevent malformed responses.
 			const reasoningDetailsAccumulator = new Map<
@@ -257,6 +256,9 @@ export class RooHandler extends BaseOpenAiCompatibleProvider<string> {
 					// Emit raw tool call chunks - NativeToolCallParser handles state management
 					if ("tool_calls" in delta && Array.isArray(delta.tool_calls)) {
 						for (const toolCall of delta.tool_calls) {
+							if (toolCall.id) {
+								activeToolCallIds.add(toolCall.id)
+							}
 							yield {
 								type: "tool_call_partial",
 								index: toolCall.index,
@@ -275,11 +277,11 @@ export class RooHandler extends BaseOpenAiCompatibleProvider<string> {
 					}
 				}
 
-				if (finishReason) {
-					const endEvents = NativeToolCallParser.processFinishReason(finishReason)
-					for (const event of endEvents) {
-						yield event
+				if (finishReason === "tool_calls" && activeToolCallIds.size > 0) {
+					for (const id of activeToolCallIds) {
+						yield { type: "tool_call_end", id }
 					}
+					activeToolCallIds.clear()
 				}
 
 				if (chunk.usage) {

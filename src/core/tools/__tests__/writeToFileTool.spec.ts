@@ -185,6 +185,7 @@ describe("writeToFileTool", () => {
 		mockAskApproval.mockResolvedValue(true)
 		mockHandleError = vi.fn<HandleError>()
 		mockHandleError.mockResolvedValue(undefined)
+		mockPushToolResult = vi.fn<PushToolResult>()
 
 		toolResult = undefined
 	})
@@ -390,6 +391,35 @@ describe("writeToFileTool", () => {
 	})
 
 	describe("partial block handling", () => {
+		const makePartialTask = (taskId: string) => ({
+			...mockCline,
+			taskId,
+			diffViewProvider: {
+				...mockCline.diffViewProvider,
+				editType: undefined,
+				isEditing: false,
+				ask: undefined,
+				open: vi.fn().mockResolvedValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+				reset: vi.fn().mockResolvedValue(undefined),
+			},
+			rooProtectedController: {
+				isWriteProtected: vi.fn().mockReturnValue(false),
+			},
+			ask: vi.fn().mockResolvedValue(undefined),
+		})
+
+		const partialBlock = (id = "partial-call"): ToolUse<"write_to_file"> =>
+			({
+				type: "tool_use",
+				id,
+				name: "write_to_file",
+				params: {
+					path: testFilePath,
+					content: testContent,
+				},
+				partial: true,
+			}) as ToolUse<"write_to_file">
 		it("returns early when path is missing in partial block", async () => {
 			await executeWriteFileTool({ path: undefined }, { isPartial: true })
 
@@ -413,6 +443,28 @@ describe("writeToFileTool", () => {
 			expect(mockCline.ask).toHaveBeenCalled()
 			expect(mockCline.diffViewProvider.open).toHaveBeenCalledWith(testFilePath)
 			expect(mockCline.diffViewProvider.update).toHaveBeenCalledWith(testContent, false)
+		})
+
+		it("does not stabilize a partial path using another task's previous partial", async () => {
+			const taskA = makePartialTask("task-a")
+			const taskB = makePartialTask("task-b")
+			const callbacks = {
+				taskApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			}
+
+			await writeToFileTool.handle(taskA as any, partialBlock("same-tool-call"), callbacks)
+			await writeToFileTool.handle(taskB as any, partialBlock("same-tool-call"), callbacks)
+
+			expect(taskA.ask).not.toHaveBeenCalled()
+			expect(taskB.ask).not.toHaveBeenCalled()
+			expect(taskB.diffViewProvider.open).not.toHaveBeenCalled()
+
+			await writeToFileTool.handle(taskB as any, partialBlock("same-tool-call"), callbacks)
+
+			expect(taskB.ask).toHaveBeenCalledTimes(1)
+			expect(taskB.diffViewProvider.open).toHaveBeenCalledWith(testFilePath)
 		})
 	})
 

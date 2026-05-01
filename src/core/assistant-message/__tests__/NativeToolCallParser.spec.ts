@@ -1,9 +1,9 @@
 import { NativeToolCallParser } from "../NativeToolCallParser"
 
 describe("NativeToolCallParser", () => {
+	let parser: NativeToolCallParser
 	beforeEach(() => {
-		NativeToolCallParser.clearAllStreamingToolCalls()
-		NativeToolCallParser.clearRawChunkState()
+		parser = new NativeToolCallParser()
 	})
 
 	describe("parseToolCall", () => {
@@ -297,13 +297,13 @@ describe("NativeToolCallParser", () => {
 		describe("read_file tool", () => {
 			it("should emit a partial ToolUse with nativeArgs.path during streaming", () => {
 				const id = "toolu_streaming_123"
-				NativeToolCallParser.startStreamingToolCall(id, "read_file")
+				parser.startStreamingToolCall(id, "read_file")
 
 				// Simulate streaming chunks
 				const fullArgs = JSON.stringify({ path: "src/test.ts" })
 
 				// Process the complete args as a single chunk for simplicity
-				const result = NativeToolCallParser.processStreamingChunk(id, fullArgs)
+				const result = parser.processStreamingChunk(id, fullArgs)
 
 				expect(result).not.toBeNull()
 				expect(result?.nativeArgs).toBeDefined()
@@ -317,10 +317,10 @@ describe("NativeToolCallParser", () => {
 		describe("read_file tool", () => {
 			it("should parse read_file args on finalize", () => {
 				const id = "toolu_finalize_123"
-				NativeToolCallParser.startStreamingToolCall(id, "read_file")
+				parser.startStreamingToolCall(id, "read_file")
 
 				// Add the complete arguments
-				NativeToolCallParser.processStreamingChunk(
+				parser.processStreamingChunk(
 					id,
 					JSON.stringify({
 						path: "finalized.ts",
@@ -330,7 +330,7 @@ describe("NativeToolCallParser", () => {
 					}),
 				)
 
-				const result = NativeToolCallParser.finalizeStreamingToolCall(id)
+				const result = parser.finalizeStreamingToolCall(id)
 
 				expect(result).not.toBeNull()
 				expect(result?.type).toBe("tool_use")
@@ -341,6 +341,87 @@ describe("NativeToolCallParser", () => {
 					expect(nativeArgs.limit).toBe(10)
 				}
 			})
+		})
+	})
+
+	describe("instance isolation", () => {
+		it("keeps same-index raw chunks isolated between parser instances", () => {
+			const parserA = new NativeToolCallParser()
+			const parserB = new NativeToolCallParser()
+
+			const eventsA = [
+				...parserA.processRawChunk({
+					index: 0,
+					id: "call_apply_diff",
+					name: "apply_diff",
+				}),
+				...parserA.processRawChunk({
+					index: 0,
+					arguments: JSON.stringify({
+						path: "src/a.ts",
+						diff: "<<<<<<< SEARCH\nold\n=======\nnew\n>>>>>>> REPLACE",
+					}),
+				}),
+			]
+
+			const eventsB = [
+				...parserB.processRawChunk({
+					index: 0,
+					id: "call_search_files",
+					name: "search_files",
+				}),
+				...parserB.processRawChunk({
+					index: 0,
+					arguments: JSON.stringify({
+						path: "src",
+						regex: "TODO",
+					}),
+				}),
+			]
+
+			for (const event of eventsA) {
+				if (event.type === "tool_call_start") {
+					parserA.startStreamingToolCall(event.id, event.name)
+				} else if (event.type === "tool_call_delta") {
+					parserA.processStreamingChunk(event.id, event.delta)
+				}
+			}
+
+			for (const event of eventsB) {
+				if (event.type === "tool_call_start") {
+					parserB.startStreamingToolCall(event.id, event.name)
+				} else if (event.type === "tool_call_delta") {
+					parserB.processStreamingChunk(event.id, event.delta)
+				}
+			}
+
+			const [endA] = parserA.finalizeRawChunks()
+			const [endB] = parserB.finalizeRawChunks()
+
+			expect(endA).toEqual({ type: "tool_call_end", id: "call_apply_diff" })
+			expect(endB).toEqual({ type: "tool_call_end", id: "call_search_files" })
+
+			const finalA = parserA.finalizeStreamingToolCall("call_apply_diff")
+			const finalB = parserB.finalizeStreamingToolCall("call_search_files")
+
+			expect(finalA?.type).toBe("tool_use")
+			expect(finalB?.type).toBe("tool_use")
+
+			if (finalA?.type === "tool_use") {
+				expect(finalA.name).toBe("apply_diff")
+				expect(finalA.nativeArgs).toEqual({
+					path: "src/a.ts",
+					diff: "<<<<<<< SEARCH\nold\n=======\nnew\n>>>>>>> REPLACE",
+				})
+			}
+
+			if (finalB?.type === "tool_use") {
+				expect(finalB.name).toBe("search_files")
+				expect(finalB.nativeArgs).toEqual({
+					path: "src",
+					regex: "TODO",
+				})
+			}
 		})
 	})
 })

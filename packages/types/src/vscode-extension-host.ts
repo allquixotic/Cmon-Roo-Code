@@ -424,6 +424,8 @@ export type AudioType = "notification" | "celebration" | "progress_loop"
 export interface UpdateTodoListPayload {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	todos: any[]
+	taskId?: string
+	toolCallId?: string
 }
 
 export type EditQueuedMessagePayload = Pick<QueuedMessage, "id" | "text" | "images" | "deliveryMode">
@@ -858,6 +860,10 @@ export interface ClineSayTool {
 	description?: string
 	// Properties for skill tool
 	skill?: string
+	// Properties for updateTodoList tool
+	todos?: TodoItem[]
+	taskId?: string
+	toolCallId?: string
 }
 
 export interface ClineAskUseMcpServer {
