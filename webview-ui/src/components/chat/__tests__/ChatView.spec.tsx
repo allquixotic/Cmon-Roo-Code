@@ -130,6 +130,12 @@ vi.mock("@src/components/welcome/RooHero", () => ({
 	},
 }))
 
+vi.mock("../../history/HistoryPreview", () => ({
+	default: function MockHistoryPreview() {
+		return <div data-testid="history-preview">Recent task: sensitive demo task</div>
+	},
+}))
+
 // Mock i18n
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
@@ -361,6 +367,108 @@ describe("ChatView - Conversation Drafts", () => {
 
 		expect(draftRow).toHaveAttribute("aria-pressed", "true")
 		expect(existingRow).toHaveAttribute("aria-pressed", "false")
+	})
+	it("clears the previous task from the chat pane immediately when New is clicked", async () => {
+		const { getByText, getByTestId, queryByText } = renderChatView()
+
+		mockPostMessage({
+			currentTaskId: "task-1",
+			clineMessages: [
+				{ type: "say", say: "task", ts: 1, text: "Existing conversation" },
+				{ type: "say", say: "text", ts: 2, text: "Previous pane text" },
+			],
+			activeConversations: [
+				{
+					rootTaskId: "task-1",
+					activeTaskId: "task-1",
+					rootTask: "Existing conversation",
+					activeTask: "Existing conversation",
+					ts: Date.now(),
+					status: "idle",
+					queuedMessageCount: 0,
+					steerMessageCount: 0,
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(queryByText(/Previous pane text/)).toBeInTheDocument()
+			expect(getByText("New")).toBeInTheDocument()
+		})
+
+		fireEvent.click(getByText("New"))
+
+		await waitFor(() => {
+			expect(getByText("New conversation")).toBeInTheDocument()
+			expect(getByTestId("roo-hero")).toBeInTheDocument()
+		})
+		expect(queryByText(/Previous pane text/)).not.toBeInTheDocument()
+	})
+
+	it("starts a selected draft instead of sending to stale previous task state", async () => {
+		const { getByText, getByTestId } = renderChatView()
+
+		mockPostMessage({
+			currentTaskId: "task-1",
+			clineMessages: [
+				{ type: "say", say: "task", ts: 1, text: "Existing conversation" },
+				{ type: "say", say: "text", ts: 2, text: "Previous pane text" },
+			],
+			activeConversations: [
+				{
+					rootTaskId: "task-1",
+					activeTaskId: "task-1",
+					rootTask: "Existing conversation",
+					activeTask: "Existing conversation",
+					ts: Date.now(),
+					status: "idle",
+					queuedMessageCount: 0,
+					steerMessageCount: 0,
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(getByText("New")).toBeInTheDocument()
+		})
+
+		fireEvent.click(getByText("New"))
+
+		await waitFor(() => {
+			expect(getByText("New conversation")).toBeInTheDocument()
+		})
+
+		vi.mocked(vscode.postMessage).mockClear()
+
+		const input = getByTestId("chat-textarea").querySelector("input") as HTMLInputElement
+
+		await act(async () => {
+			fireEvent.change(input, { target: { value: "Start draft from stale state" } })
+			fireEvent.keyDown(input, { key: "Enter", code: "Enter" })
+		})
+
+		await waitFor(() => {
+			expect(vscode.postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "newTask",
+					taskId: expect.stringMatching(/^draft-/),
+					text: "Start draft from stale state",
+					images: [],
+				}),
+			)
+		})
+		expect(vscode.postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "askResponse",
+				taskId: "task-1",
+			}),
+		)
+		expect(vscode.postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "queueMessage",
+				taskId: "task-1",
+			}),
+		)
 	})
 
 	it("reuses the selected draft id when the first message starts a task", async () => {
@@ -1022,6 +1130,66 @@ describe("ChatView - Message Queueing Tests", () => {
 				type: "terminalOperation",
 			}),
 		)
+	})
+})
+
+describe("ChatView - Recent conversation preview privacy", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		const storage = new Map<string, string>([["crc.recentConversationsHidden", "false"]])
+		Object.defineProperty(window, "localStorage", {
+			configurable: true,
+			value: {
+				getItem: (key: string) => storage.get(key) ?? null,
+				setItem: (key: string, value: string) => storage.set(key, String(value)),
+				removeItem: (key: string) => storage.delete(key),
+				clear: () => storage.clear(),
+			},
+		})
+	})
+
+	it("hides and restores the empty-state recent conversation list by button or hotkey without deleting history", async () => {
+		const { getByRole, getByTestId, queryByTestId } = renderChatView()
+
+		mockPostMessage({
+			taskHistory: [
+				{
+					id: "task-1",
+					task: "Sensitive demo task",
+					ts: Date.now(),
+					tokensIn: 0,
+					tokensOut: 0,
+					totalCost: 0,
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(getByTestId("history-preview")).toBeInTheDocument()
+		})
+
+		fireEvent.click(getByRole("button", { name: /Hide recent conversations/i }))
+
+		await waitFor(() => {
+			expect(queryByTestId("history-preview")).not.toBeInTheDocument()
+			expect(getByTestId("recent-conversations-hidden")).toBeInTheDocument()
+		})
+		expect(window.localStorage.getItem("crc.recentConversationsHidden")).toBe("true")
+
+		fireEvent.keyDown(window, { key: "H", ctrlKey: true, shiftKey: true })
+
+		await waitFor(() => {
+			expect(getByTestId("history-preview")).toBeInTheDocument()
+		})
+		expect(window.localStorage.getItem("crc.recentConversationsHidden")).toBe("false")
+
+		fireEvent.keyDown(window, { key: "h", ctrlKey: true, shiftKey: true })
+
+		await waitFor(() => {
+			expect(queryByTestId("history-preview")).not.toBeInTheDocument()
+			expect(getByRole("button", { name: /Show recent conversations/i })).toBeInTheDocument()
+		})
+		expect(window.localStorage.getItem("crc.recentConversationsHidden")).toBe("true")
 	})
 })
 

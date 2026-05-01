@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useLayoutEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { QueuedMessage } from "@roo-code/types"
@@ -13,6 +13,51 @@ interface QueuedMessagesProps {
 	queue: QueuedMessage[]
 	onRemove: (messageId: string) => void
 	onUpdate: (message: QueuedMessage, updates: { text?: string; deliveryMode?: QueuedMessage["deliveryMode"] }) => void
+}
+interface QueuedMessageEditorProps {
+	value: string
+	onChange: (value: string) => void
+	onSave: () => void
+	onCancel: () => void
+	placeholder: string
+	rows: number
+}
+
+const QueuedMessageEditor = ({ value, onChange, onSave, onCancel, placeholder, rows }: QueuedMessageEditorProps) => {
+	const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+	const didPlaceInitialCaretRef = useRef(false)
+
+	useLayoutEffect(() => {
+		if (didPlaceInitialCaretRef.current || !textareaRef.current) {
+			return
+		}
+
+		didPlaceInitialCaretRef.current = true
+		const textarea = textareaRef.current
+		textarea.focus()
+		textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+	}, [])
+
+	return (
+		<textarea
+			ref={textareaRef}
+			value={value}
+			onChange={(e) => onChange(e.target.value)}
+			onBlur={onSave}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" && !e.shiftKey) {
+					e.preventDefault()
+					onSave()
+				}
+				if (e.key === "Escape") {
+					onCancel()
+				}
+			}}
+			className="w-full bg-vscode-input-background text-vscode-input-foreground border border-vscode-input-border rounded px-2 py-1 resize-none focus:outline-0 focus:ring-1 focus:ring-vscode-focusBorder"
+			placeholder={placeholder}
+			rows={rows}
+		/>
+	)
 }
 
 export const QueuedMessages = ({ queue, onRemove, onUpdate }: QueuedMessagesProps) => {
@@ -36,6 +81,9 @@ export const QueuedMessages = ({ queue, onRemove, onUpdate }: QueuedMessagesProp
 	const handleSaveEdit = (message: QueuedMessage, newValue: string) => {
 		onUpdate(message, { text: newValue })
 		setEditState(message.id, false)
+	}
+	const handleCancelEdit = (message: QueuedMessage) => {
+		setEditState(message.id, false, message.text)
 	}
 
 	const renderLane = (
@@ -75,30 +123,12 @@ export const QueuedMessages = ({ queue, onRemove, onUpdate }: QueuedMessagesProp
 											</span>
 										</div>
 										{editState.isEditing ? (
-											<textarea
-												ref={(textarea) => {
-													if (textarea) {
-														textarea.setSelectionRange(
-															textarea.value.length,
-															textarea.value.length,
-														)
-													}
-												}}
+											<QueuedMessageEditor
 												value={editState.value}
-												onChange={(e) => setEditState(message.id, true, e.target.value)}
-												onBlur={() => handleSaveEdit(message, editState.value)}
-												onKeyDown={(e) => {
-													if (e.key === "Enter" && !e.shiftKey) {
-														e.preventDefault()
-														handleSaveEdit(message, editState.value)
-													}
-													if (e.key === "Escape") {
-														setEditState(message.id, false, message.text)
-													}
-												}}
-												className="w-full bg-vscode-input-background text-vscode-input-foreground border border-vscode-input-border rounded px-2 py-1 resize-none focus:outline-0 focus:ring-1 focus:ring-vscode-focusBorder"
+												onChange={(value) => setEditState(message.id, true, value)}
+												onSave={() => handleSaveEdit(message, editState.value)}
+												onCancel={() => handleCancelEdit(message)}
 												placeholder={t("chat:editMessage.placeholder")}
-												autoFocus
 												rows={Math.min(editState.value.split("\n").length, 10)}
 											/>
 										) : (

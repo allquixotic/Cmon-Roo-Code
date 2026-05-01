@@ -10,7 +10,15 @@ import { appendImages } from "@src/utils/imageUtils"
 import { getCostBreakdownIfNeeded } from "@src/utils/costFormatting"
 import { batchConsecutive } from "@src/utils/batchConsecutive"
 
-import type { ClineAsk, ClineSayTool, ClineMessage, ExtensionMessage, AudioType } from "@roo-code/types"
+import type {
+	ClineAsk,
+	ClineSayTool,
+	ClineMessage,
+	ExtensionMessage,
+	AudioType,
+	TodoItem,
+	QueuedMessage,
+} from "@roo-code/types"
 import { isRetiredProvider } from "@roo-code/types"
 
 import { findLast } from "@roo/array"
@@ -62,6 +70,12 @@ interface DraftConversation {
 	title: string
 }
 
+const EMPTY_MESSAGES: ClineMessage[] = []
+const EMPTY_TODOS: TodoItem[] = []
+const EMPTY_MESSAGE_QUEUE: QueuedMessage[] = []
+const RECENT_CONVERSATIONS_HIDDEN_STORAGE_KEY = "crc.recentConversationsHidden"
+const RECENT_CONVERSATIONS_TOGGLE_SHORTCUT = "Ctrl+Shift+H"
+
 const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewProps> = ({ isHidden }, ref) => {
 	const [audioBaseUri] = useState(() => {
 		return (window as unknown as { AUDIO_BASE_URI?: string }).AUDIO_BASE_URI || ""
@@ -71,10 +85,10 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const modeShortcutText = `${isMac ? "⌘" : "Ctrl"} + . ${t("chat:forNextMode")}, ${isMac ? "⌘" : "Ctrl"} + Shift + . ${t("chat:forPreviousMode")}`
 
 	const {
-		clineMessages: messages,
-		currentTaskId,
-		currentTaskItem,
-		currentTaskTodos,
+		clineMessages: contextMessages,
+		currentTaskId: contextCurrentTaskId,
+		currentTaskItem: contextCurrentTaskItem,
+		currentTaskTodos: contextCurrentTaskTodos,
 		activeConversations = [],
 		taskHistory,
 		apiConfiguration,
@@ -85,12 +99,34 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		customModes,
 		soundEnabled,
 		soundVolume,
-		messageQueue = [],
+		messageQueue: contextMessageQueue = EMPTY_MESSAGE_QUEUE,
 		showWorktreesInHomeScreen,
 		currentAskDecision,
 	} = useExtensionState()
 	const [draftConversations, setDraftConversations] = useState<DraftConversation[]>([])
 	const [selectedDraftId, setSelectedDraftId] = useState<string | undefined>(undefined)
+	const [areRecentConversationsHidden, setAreRecentConversationsHidden] = useState(() => {
+		try {
+			return window.localStorage.getItem(RECENT_CONVERSATIONS_HIDDEN_STORAGE_KEY) === "true"
+		} catch {
+			return false
+		}
+	})
+	const isDraftSelected = selectedDraftId !== undefined
+	const messages = useMemo(
+		() => (isDraftSelected ? EMPTY_MESSAGES : contextMessages),
+		[contextMessages, isDraftSelected],
+	)
+	const currentTaskId = isDraftSelected ? undefined : contextCurrentTaskId
+	const currentTaskItem = isDraftSelected ? undefined : contextCurrentTaskItem
+	const currentTaskTodos = useMemo(
+		() => (isDraftSelected ? EMPTY_TODOS : contextCurrentTaskTodos),
+		[contextCurrentTaskTodos, isDraftSelected],
+	)
+	const messageQueue = useMemo(
+		() => (isDraftSelected ? EMPTY_MESSAGE_QUEUE : contextMessageQueue),
+		[contextMessageQueue, isDraftSelected],
+	)
 
 	const visibleConversationIds = useMemo(
 		() =>
@@ -112,6 +148,17 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	}, [selectedDraftId, visibleConversationIds])
 
 	const selectedConversationId = selectedDraftId ?? currentTaskId
+	const toggleRecentConversationsVisibility = useCallback(() => {
+		setAreRecentConversationsHidden((prev) => {
+			const next = !prev
+			try {
+				window.localStorage.setItem(RECENT_CONVERSATIONS_HIDDEN_STORAGE_KEY, String(next))
+			} catch {
+				// Ignore storage failures; the in-memory display toggle still works.
+			}
+			return next
+		})
+	}, [])
 
 	const conversations = useMemo<ConversationListItem[]>(() => {
 		const draftItems = draftConversations
@@ -785,7 +832,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				// Mark that user has responded - this prevents any pending auto-approvals.
 				userRespondedRef.current = true
 
-				if (messagesRef.current.length === 0) {
+				if (selectedDraftId || messagesRef.current.length === 0) {
 					vscode.postMessage({ type: "newTask", taskId: selectedDraftId, text, images })
 				} else if (clineAskRef.current) {
 					if (clineAskRef.current === "followup") {
@@ -885,20 +932,41 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		},
 		[inputValue, selectedImages],
 	)
-
-	const startNewTask = useCallback(() => {
-		const draftId = `draft-${typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Date.now().toString(36)}`
+	const resetDraftSelectionState = useCallback(() => {
 		setShowRetiredProviderWarning(false)
 		setInputValue("")
 		setSelectedImages([])
+		setSendingDisabled(false)
+		setClineAsk(undefined)
+		setEnableButtons(false)
+		setPrimaryButtonText(undefined)
+		setSecondaryButtonText(undefined)
+		setDidClickCancel(false)
+		setExpandedRows({})
+		setCurrentFollowUpTs(null)
+		setCheckpointWarning(undefined)
+		everVisibleMessagesTsRef.current.clear()
+
+		if (autoApproveTimeoutRef.current) {
+			clearTimeout(autoApproveTimeoutRef.current)
+			autoApproveTimeoutRef.current = null
+		}
+
+		userRespondedRef.current = false
+	}, [])
+
+	const startNewTask = useCallback(() => {
+		const draftId = `draft-${typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Date.now().toString(36)}`
+		resetDraftSelectionState()
 		setSelectedDraftId(draftId)
 		setDraftConversations((prev) => [{ id: draftId, ts: Date.now(), title: "New conversation" }, ...prev])
 		vscode.postMessage({ type: "clearTask" })
-	}, [])
+	}, [resetDraftSelectionState])
 
 	const handleSelectConversation = useCallback(
 		(conversation: ConversationListItem) => {
 			if (conversation.kind === "draft") {
+				resetDraftSelectionState()
 				setSelectedDraftId(conversation.activeTaskId)
 				if (currentTaskId) {
 					vscode.postMessage({ type: "clearTask" })
@@ -909,7 +977,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			setSelectedDraftId(undefined)
 			vscode.postMessage({ type: "showTaskWithId", text: conversation.activeTaskId })
 		},
-		[currentTaskId],
+		[currentTaskId, resetDraftSelectionState],
 	)
 
 	const handleDeleteConversation = useCallback((conversation: ConversationListItem) => {
@@ -983,6 +1051,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 						)
 					if (isCompletedSubtaskForClick) {
 						startNewTask()
+						return
 					} else {
 						// Only send text/images if they exist
 						if (trimmedInput || (images && images.length > 0)) {
@@ -1009,7 +1078,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				case "resume_completed_task":
 					// Waiting for feedback, but we can just present a new task button
 					startNewTask()
-					break
+					return
 				case "command_output":
 					vscode.postMessage({
 						type: "terminalOperation",
@@ -1046,7 +1115,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				case "mistake_limit_reached":
 				case "resume_task":
 					startNewTask()
-					break
+					return
 				case "command":
 				case "tool":
 				case "use_mcp_server":
@@ -1762,6 +1831,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	// (PageUp, Home, ArrowUp) is handled by useScrollLifecycle.
 	const handleKeyDown = useCallback(
 		(event: KeyboardEvent) => {
+			if (event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === "h") {
+				event.preventDefault()
+				toggleRecentConversationsVisibility()
+				return
+			}
 			if ((event.metaKey || event.ctrlKey) && event.key === ".") {
 				event.preventDefault()
 				if (event.shiftKey) {
@@ -1771,7 +1845,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				}
 			}
 		},
-		[switchToNextMode, switchToPreviousMode],
+		[switchToNextMode, switchToPreviousMode, toggleRecentConversationsVisibility],
 	)
 
 	useEffect(() => {
@@ -1877,7 +1951,40 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 									{/* Show RooTips when authenticated or when user is new */}
 									{taskHistory.length < 6 && <RooTips />}
 									{/* Everyone should see their task history if any */}
-									{taskHistory.length > 0 && <HistoryPreview />}
+									{taskHistory.length > 0 && (
+										<div className="flex flex-col gap-2">
+											<div className="flex justify-end">
+												<Button
+													variant="secondary"
+													size="sm"
+													className="h-7 px-2 text-xs"
+													onClick={toggleRecentConversationsVisibility}
+													aria-label={
+														areRecentConversationsHidden
+															? `Show recent conversations (${RECENT_CONVERSATIONS_TOGGLE_SHORTCUT})`
+															: `Hide recent conversations (${RECENT_CONVERSATIONS_TOGGLE_SHORTCUT})`
+													}>
+													{areRecentConversationsHidden
+														? "Show recent conversations"
+														: "Hide recent conversations"}
+													<span className="ml-2 text-[10px] opacity-70">
+														{RECENT_CONVERSATIONS_TOGGLE_SHORTCUT}
+													</span>
+												</Button>
+											</div>
+											{areRecentConversationsHidden ? (
+												<div
+													className="rounded-md border border-vscode-editorGroup-border bg-vscode-editor-background/60 px-3 py-2 text-sm text-vscode-descriptionForeground"
+													data-testid="recent-conversations-hidden">
+													Recent conversations are hidden for privacy. Your history is still
+													saved; use the button or {RECENT_CONVERSATIONS_TOGGLE_SHORTCUT} to
+													show it again.
+												</div>
+											) : (
+												<HistoryPreview />
+											)}
+										</div>
+									)}
 								</div>
 							</div>
 						</div>
