@@ -51,6 +51,7 @@ import { QueuedMessages } from "./QueuedMessages"
 import { WorktreeSelector } from "./WorktreeSelector"
 import FileChangesPanel from "./FileChangesPanel"
 import { useScrollLifecycle } from "@src/hooks/useScrollLifecycle"
+import { recordPromptHistorySend } from "./utils/promptHistory"
 
 export interface ChatViewProps {
 	isHidden: boolean
@@ -102,6 +103,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		messageQueue: contextMessageQueue = EMPTY_MESSAGE_QUEUE,
 		showWorktreesInHomeScreen,
 		currentAskDecision,
+		cwd,
 	} = useExtensionState()
 	const [draftConversations, setDraftConversations] = useState<DraftConversation[]>([])
 	const [selectedDraftId, setSelectedDraftId] = useState<string | undefined>(undefined)
@@ -802,21 +804,27 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					setShowRetiredProviderWarning(true)
 					return
 				}
+				recordPromptHistorySend(text, cwd)
 
 				const shouldQueueMessage =
 					isStreaming ||
 					isCondensing ||
 					clineAskRef.current === "command_output" ||
 					(!clineAskRef.current && sendingDisabled)
+				const targetTaskId = currentTaskId ?? currentTaskItem?.id
 
 				if (shouldQueueMessage) {
+					if (!targetTaskId && messagesRef.current.length > 0) {
+						console.error("[handleSendMessage] Cannot queue message: no target task id is available")
+						return
+					}
 					try {
 						vscode.postMessage({
 							type: "queueMessage",
 							text,
 							images,
 							deliveryMode: "queue",
-							taskId: currentTaskId,
+							taskId: targetTaskId,
 						})
 						setInputValue("")
 						setSelectedImages([])
@@ -858,7 +866,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 								askResponse: "messageResponse",
 								text,
 								images,
-								taskId: currentTaskId,
+								taskId: targetTaskId,
 							})
 							break
 						// There is no other case that a textfield should be enabled.
@@ -870,7 +878,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 						askResponse: "messageResponse",
 						text,
 						images,
-						taskId: currentTaskId,
+						taskId: targetTaskId,
 					})
 				}
 
@@ -890,6 +898,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			selectedDraftId,
 			currentTaskItem?.id,
 			currentTaskId,
+			cwd,
 		], // messagesRef and clineAskRef are stable
 	)
 
@@ -1011,8 +1020,18 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		(text?: string, images?: string[]) => {
 			// Mark that user has responded
 			userRespondedRef.current = true
+			const trimmedInput = text?.trim() ?? ""
+			const promptImages = images ?? []
+			const hasPromptInput = !!trimmedInput || promptImages.length > 0
+			const targetTaskId = currentTaskId ?? currentTaskItem?.id
 
-			const trimmedInput = text?.trim()
+			const clearPromptInput = () => {
+				if (trimmedInput) {
+					recordPromptHistorySend(trimmedInput, cwd)
+				}
+				setInputValue("")
+				setSelectedImages([])
+			}
 
 			switch (clineAsk) {
 				case "api_req_failed":
@@ -1022,22 +1041,20 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				case "mistake_limit_reached":
 				case "auto_approval_max_req_reached":
 					// Only send text/images if they exist
-					if (trimmedInput || (images && images.length > 0)) {
+					if (hasPromptInput) {
+						clearPromptInput()
 						vscode.postMessage({
 							type: "askResponse",
 							askResponse: "yesButtonClicked",
 							text: trimmedInput,
-							images: images,
-							taskId: currentTaskId,
+							images: promptImages,
+							taskId: targetTaskId,
 						})
-						// Clear input state after sending
-						setInputValue("")
-						setSelectedImages([])
 					} else {
 						vscode.postMessage({
 							type: "askResponse",
 							askResponse: "yesButtonClicked",
-							taskId: currentTaskId,
+							taskId: targetTaskId,
 						})
 					}
 					break
@@ -1050,40 +1067,64 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							(msg) => msg.ask === "completion_result" || msg.say === "completion_result",
 						)
 					if (isCompletedSubtaskForClick) {
+						if (hasPromptInput) {
+							clearPromptInput()
+							vscode.postMessage({
+								type: "askResponse",
+								askResponse: "messageResponse",
+								text: trimmedInput,
+								images: promptImages,
+								taskId: targetTaskId,
+							})
+							break
+						}
 						startNewTask()
 						return
 					} else {
 						// Only send text/images if they exist
-						if (trimmedInput || (images && images.length > 0)) {
+						if (hasPromptInput) {
+							clearPromptInput()
 							vscode.postMessage({
 								type: "askResponse",
 								askResponse: "yesButtonClicked",
 								text: trimmedInput,
-								images: images,
-								taskId: currentTaskId,
+								images: promptImages,
+								taskId: targetTaskId,
 							})
-							// Clear input state after sending
-							setInputValue("")
-							setSelectedImages([])
 						} else {
 							vscode.postMessage({
 								type: "askResponse",
 								askResponse: "yesButtonClicked",
-								taskId: currentTaskId,
+								taskId: targetTaskId,
 							})
 						}
 					}
 					break
 				case "completion_result":
 				case "resume_completed_task":
+					if (hasPromptInput) {
+						clearPromptInput()
+						vscode.postMessage({
+							type: "askResponse",
+							askResponse: "messageResponse",
+							text: trimmedInput,
+							images: promptImages,
+							taskId: targetTaskId,
+						})
+						break
+					}
 					// Waiting for feedback, but we can just present a new task button
 					startNewTask()
 					return
 				case "command_output":
+					if (hasPromptInput) {
+						handleSendMessage(trimmedInput, promptImages)
+						return
+					}
 					vscode.postMessage({
 						type: "terminalOperation",
 						terminalOperation: "continue",
-						taskId: currentTaskId,
+						taskId: targetTaskId,
 					})
 					break
 			}
@@ -1094,18 +1135,28 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			setPrimaryButtonText(undefined)
 			setSecondaryButtonText(undefined)
 		},
-		[clineAsk, startNewTask, currentTaskItem?.parentTaskId, currentTaskId],
+		[
+			clineAsk,
+			currentTaskId,
+			currentTaskItem?.id,
+			currentTaskItem?.parentTaskId,
+			cwd,
+			handleSendMessage,
+			startNewTask,
+		],
 	)
 
 	const handleSecondaryButtonClick = useCallback(
 		(text?: string, images?: string[]) => {
 			// Mark that user has responded
 			userRespondedRef.current = true
-
-			const trimmedInput = text?.trim()
+			const trimmedInput = text?.trim() ?? ""
+			const promptImages = images ?? []
+			const hasPromptInput = !!trimmedInput || promptImages.length > 0
+			const targetTaskId = currentTaskId ?? currentTaskItem?.id
 
 			if (isStreaming) {
-				vscode.postMessage({ type: "cancelTask", taskId: currentTaskId })
+				vscode.postMessage({ type: "cancelTask", taskId: targetTaskId })
 				setDidClickCancel(true)
 				return
 			}
@@ -1120,13 +1171,16 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				case "tool":
 				case "use_mcp_server":
 					// Only send text/images if they exist
-					if (trimmedInput || (images && images.length > 0)) {
+					if (hasPromptInput) {
+						if (trimmedInput) {
+							recordPromptHistorySend(trimmedInput, cwd)
+						}
 						vscode.postMessage({
 							type: "askResponse",
 							askResponse: "noButtonClicked",
 							text: trimmedInput,
-							images: images,
-							taskId: currentTaskId,
+							images: promptImages,
+							taskId: targetTaskId,
 						})
 						// Clear input state after sending
 						setInputValue("")
@@ -1136,7 +1190,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 						vscode.postMessage({
 							type: "askResponse",
 							askResponse: "noButtonClicked",
-							taskId: currentTaskId,
+							taskId: targetTaskId,
 						})
 					}
 					break
@@ -1144,7 +1198,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					vscode.postMessage({
 						type: "terminalOperation",
 						terminalOperation: "abort",
-						taskId: currentTaskId,
+						taskId: targetTaskId,
 					})
 					break
 			}
@@ -1152,7 +1206,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			setClineAsk(undefined)
 			setEnableButtons(false)
 		},
-		[clineAsk, startNewTask, isStreaming, setDidClickCancel, currentTaskId],
+		[clineAsk, startNewTask, isStreaming, setDidClickCancel, currentTaskId, currentTaskItem?.id, cwd],
 	)
 
 	const { info: model } = useSelectedModel(apiConfiguration)
@@ -1858,16 +1912,25 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 	useImperativeHandle(ref, () => ({
 		acceptInput: () => {
-			const hasInput = inputValue.trim() || selectedImages.length > 0
+			const trimmedInput = inputValue.trim()
+			const hasInput = trimmedInput.length > 0 || selectedImages.length > 0
+			const targetTaskId = currentTaskId ?? currentTaskItem?.id
 
 			// Special case: during command_output, queue the message instead of
 			// triggering the primary button action (which would lose the message)
 			if (clineAskRef.current === "command_output" && hasInput) {
+				if (!targetTaskId && messagesRef.current.length > 0) {
+					console.error("[acceptInput] Cannot queue message: no target task id is available")
+					return
+				}
+				if (trimmedInput) {
+					recordPromptHistorySend(trimmedInput, cwd)
+				}
 				vscode.postMessage({
 					type: "queueMessage",
-					text: inputValue.trim(),
+					text: trimmedInput,
 					images: selectedImages,
-					taskId: currentTaskId,
+					taskId: targetTaskId,
 					deliveryMode: "queue",
 				})
 				setInputValue("")
@@ -1875,10 +1938,10 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				return
 			}
 
-			if (enableButtons && !shouldHideAutoDecisionButtons && primaryButtonText) {
-				handlePrimaryButtonClick(inputValue, selectedImages)
-			} else if (!submissionDisabled && hasInput && (isStreaming || isCondensing || !sendingDisabled)) {
+			if (!submissionDisabled && hasInput) {
 				handleSendMessage(inputValue, selectedImages)
+			} else if (enableButtons && !shouldHideAutoDecisionButtons && primaryButtonText) {
+				handlePrimaryButtonClick(inputValue, selectedImages)
 			}
 		},
 	}))

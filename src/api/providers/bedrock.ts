@@ -43,7 +43,7 @@ import { BaseProvider } from "./base-provider"
 import { logger } from "../../utils/logging"
 import { Package } from "../../shared/package"
 import { MultiPointStrategy } from "../transform/cache-strategy/multi-point-strategy"
-import { ModelInfo as CacheModelInfo } from "../transform/cache-strategy/types"
+import type { ModelInfo as CacheModelInfo, CachePointTtl } from "../transform/cache-strategy/types"
 import { convertToBedrockConverseMessages as sharedConverter } from "../transform/bedrock-converse-format"
 import { getModelParams } from "../transform/model-params"
 import { shouldUseReasoningBudget } from "../../shared/api"
@@ -117,6 +117,16 @@ function normalizeReasoningEffortForBedrock(value: unknown): "low" | "medium" | 
 	if (v === "low" || v === "medium" || v === "high") return v
 	if (v === "minimal") return "low"
 	return undefined
+}
+
+function normalizeBedrockPromptCacheTtl(value: unknown): CachePointTtl | undefined {
+	return value === "5m" || value === "1h" ? value : undefined
+}
+
+function createBedrockCachePointContentBlock(ttl?: CachePointTtl): ContentBlock {
+	return {
+		cachePoint: ttl ? { type: "default", ttl } : { type: "default" },
+	} as unknown as ContentBlock
 }
 
 // Extended payload type that includes service_tier as a top-level parameter
@@ -959,6 +969,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		}
 
 		// Convert model info to expected format for cache strategy
+		const promptCacheTtl = normalizeBedrockPromptCacheTtl(modelInfo?.promptCacheTtl)
 		const cacheModelInfo: CacheModelInfo = {
 			maxTokens: modelInfo?.maxTokens || 8192,
 			contextWindow: modelInfo?.contextWindow || 200_000,
@@ -966,6 +977,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			maxCachePoints: modelInfo?.maxCachePoints || 0,
 			minTokensPerCachePoint: modelInfo?.minTokensPerCachePoint || 50,
 			cachableFields: modelInfo?.cachableFields || [],
+			promptCacheTtl,
 		}
 
 		// Get previous cache point placements for this conversation if available
@@ -998,7 +1010,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			if (placement) {
 				return {
 					...msg,
-					content: [...(msg.content || []), { cachePoint: { type: "default" } } as ContentBlock],
+					content: [...(msg.content || []), createBedrockCachePointContentBlock(promptCacheTtl)],
 				}
 			}
 			return msg

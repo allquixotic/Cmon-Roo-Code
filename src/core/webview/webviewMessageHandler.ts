@@ -186,6 +186,26 @@ export const webviewMessageHandler = async (
 		})
 		return resolved
 	}
+
+	const restoreDroppedInput = async (kind: "askResponse" | "queueMessage", text?: string, images?: string[]) => {
+		const restoredText = text ?? ""
+		const restoredImages = images ?? []
+		if (!restoredText && restoredImages.length === 0) {
+			return
+		}
+
+		await provider.postMessageToWebview({
+			type: "invoke",
+			invoke: "setChatBoxMessage",
+			text: restoredText,
+			images: restoredImages,
+		})
+		await vscode.window.showWarningMessage(
+			kind === "queueMessage"
+				? "Your queued message could not be delivered because the target task is no longer active. It has been restored to the chat box."
+				: "Your response could not be delivered because the target task is no longer active. It has been restored to the chat box.",
+		)
+	}
 	/**
 	 * Shared utility to find message indices based on timestamp.
 	 * When multiple messages share the same timestamp (e.g., after condense),
@@ -641,6 +661,7 @@ export const webviewMessageHandler = async (
 					provider.log(
 						`[askResponse] dropped — target task ${message.taskId ?? "(current)"} no longer active`,
 					)
+					await restoreDroppedInput("askResponse", message.text, message.images)
 					break
 				}
 				const expectedTaskId = targetTask.taskId
@@ -648,6 +669,7 @@ export const webviewMessageHandler = async (
 				const stillActive = provider.resolveMessageTask(expectedTaskId)
 				if (!stillActive || stillActive.taskId !== expectedTaskId) {
 					provider.log(`[askResponse] dropped after image resolve — task ${expectedTaskId} no longer active`)
+					await restoreDroppedInput("askResponse", resolved.text, resolved.images)
 					break
 				}
 				stillActive.handleWebviewAskResponse(message.askResponse!, resolved.text, resolved.images)
@@ -3281,6 +3303,7 @@ export const webviewMessageHandler = async (
 			const targetTask = provider.resolveMessageTask(message.taskId)
 			if (!targetTask) {
 				provider.log(`[queueMessage] dropped — target task ${message.taskId ?? "(current)"} no longer active`)
+				await restoreDroppedInput("queueMessage", message.text, message.images)
 				break
 			}
 			const expectedTaskId = targetTask.taskId
@@ -3288,6 +3311,7 @@ export const webviewMessageHandler = async (
 			const stillActive = provider.resolveMessageTask(expectedTaskId)
 			if (!stillActive || stillActive.taskId !== expectedTaskId) {
 				provider.log(`[queueMessage] dropped after image resolve — task ${expectedTaskId} no longer active`)
+				await restoreDroppedInput("queueMessage", resolved.text, resolved.images)
 				break
 			}
 			stillActive.messageQueueService.addMessage(resolved.text, resolved.images, message.deliveryMode ?? "queue")

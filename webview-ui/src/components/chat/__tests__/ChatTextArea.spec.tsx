@@ -1,11 +1,17 @@
 import { defaultModeSlug } from "@roo/modes"
 
-import { render, fireEvent, screen } from "@src/utils/test-utils"
+import { render, fireEvent, screen, act } from "@src/utils/test-utils"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { vscode } from "@src/utils/vscode"
 import * as pathMentions from "@src/utils/path-mentions"
 
 import { ChatTextArea } from "../ChatTextArea"
+import {
+	PROMPT_HISTORY_AUTOSAVE_INTERVAL_MS,
+	PROMPT_HISTORY_STORAGE_KEY,
+	recordPromptHistorySend,
+	resetActivePromptHistoryDraft,
+} from "../utils/promptHistory"
 
 vi.mock("@src/utils/vscode", () => ({
 	vscode: {
@@ -183,6 +189,145 @@ describe("ChatTextArea", () => {
 	})
 
 	describe("prompt history", () => {
+		let originalLocalStorage: Storage
+		let promptHistoryStorage: Map<string, string>
+
+		beforeAll(() => {
+			originalLocalStorage = window.localStorage
+			promptHistoryStorage = new Map()
+
+			Object.defineProperty(window, "localStorage", {
+				configurable: true,
+				value: {
+					getItem: (key: string) => promptHistoryStorage.get(key) ?? null,
+					setItem: (key: string, value: string) => promptHistoryStorage.set(key, String(value)),
+					removeItem: (key: string) => promptHistoryStorage.delete(key),
+					clear: () => promptHistoryStorage.clear(),
+					key: (index: number) => Array.from(promptHistoryStorage.keys())[index] ?? null,
+					get length() {
+						return promptHistoryStorage.size
+					},
+				},
+			})
+		})
+
+		afterAll(() => {
+			Object.defineProperty(window, "localStorage", {
+				configurable: true,
+				value: originalLocalStorage,
+			})
+		})
+		beforeEach(() => {
+			window.localStorage.clear()
+			resetActivePromptHistoryDraft()
+		})
+
+		afterEach(() => {
+			vi.useRealTimers()
+		})
+
+		const getPersistedPromptHistory = () => {
+			return JSON.parse(window.localStorage.getItem(PROMPT_HISTORY_STORAGE_KEY) ?? "[]")
+		}
+
+		it("autosaves nonblank input after five seconds", async () => {
+			vi.useFakeTimers()
+
+			render(<ChatTextArea {...defaultProps} inputValue="hello" />)
+
+			expect(window.localStorage.getItem(PROMPT_HISTORY_STORAGE_KEY)).toBeNull()
+
+			await act(async () => {
+				vi.advanceTimersByTime(PROMPT_HISTORY_AUTOSAVE_INTERVAL_MS)
+			})
+
+			expect(getPersistedPromptHistory()).toMatchObject([
+				{ text: "hello", source: "draft", workspace: "/test/workspace" },
+			])
+		})
+
+		it("updates the same autosaved draft instead of creating duplicates", async () => {
+			vi.useFakeTimers()
+
+			const { rerender } = render(<ChatTextArea {...defaultProps} inputValue="hello" />)
+
+			await act(async () => {
+				vi.advanceTimersByTime(PROMPT_HISTORY_AUTOSAVE_INTERVAL_MS)
+			})
+
+			rerender(<ChatTextArea {...defaultProps} inputValue="hello there" />)
+
+			await act(async () => {
+				vi.advanceTimersByTime(PROMPT_HISTORY_AUTOSAVE_INTERVAL_MS)
+			})
+
+			expect(getPersistedPromptHistory()).toMatchObject([
+				{ text: "hello there", source: "draft", workspace: "/test/workspace" },
+			])
+			expect(getPersistedPromptHistory()).toHaveLength(1)
+		})
+
+		it("does not delete the previous autosaved draft when input is cleared to whitespace", async () => {
+			vi.useFakeTimers()
+
+			const { rerender } = render(<ChatTextArea {...defaultProps} inputValue="hello" />)
+
+			await act(async () => {
+				vi.advanceTimersByTime(PROMPT_HISTORY_AUTOSAVE_INTERVAL_MS)
+			})
+
+			rerender(<ChatTextArea {...defaultProps} inputValue="   " />)
+
+			await act(async () => {
+				vi.advanceTimersByTime(PROMPT_HISTORY_AUTOSAVE_INTERVAL_MS)
+			})
+
+			expect(getPersistedPromptHistory()).toMatchObject([{ text: "hello", source: "draft" }])
+		})
+
+		it("records actual sends as separate history entries from autosaved drafts", async () => {
+			vi.useFakeTimers()
+
+			render(<ChatTextArea {...defaultProps} inputValue="hello" />)
+
+			await act(async () => {
+				vi.advanceTimersByTime(PROMPT_HISTORY_AUTOSAVE_INTERVAL_MS)
+			})
+
+			recordPromptHistorySend("hello", "/test/workspace")
+
+			expect(getPersistedPromptHistory()).toMatchObject([
+				{ text: "hello", source: "sent", workspace: "/test/workspace" },
+				{ text: "hello", source: "draft", workspace: "/test/workspace" },
+			])
+		})
+
+		it("recovers a persisted autosaved draft with ArrowUp", () => {
+			const setInputValue = vi.fn()
+			window.localStorage.setItem(
+				PROMPT_HISTORY_STORAGE_KEY,
+				JSON.stringify([
+					{
+						id: "draft-1",
+						text: "persisted draft",
+						createdAt: 1,
+						updatedAt: 1,
+						source: "draft",
+						workspace: "/test/workspace",
+					},
+				]),
+			)
+
+			render(<ChatTextArea {...defaultProps} inputValue="" setInputValue={setInputValue} />)
+
+			const textarea = screen.getByPlaceholderText("Type a message...") as HTMLTextAreaElement
+			textarea.focus()
+			textarea.setSelectionRange(0, 0)
+
+			fireEvent.keyDown(textarea, { key: "ArrowUp" })
+
+			expect(setInputValue).toHaveBeenCalledWith("persisted draft")
+		})
 		it("recovers a queued follow-up message with ArrowUp", () => {
 			const setInputValue = vi.fn()
 

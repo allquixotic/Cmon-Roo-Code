@@ -121,6 +121,17 @@ describe("TaskHeader", () => {
 		expect(screen.queryByText(/\$/)).not.toBeInTheDocument()
 	})
 
+	it("should display cache write and read percentages when expanded", () => {
+		renderTaskHeader({ tokensIn: 1000, cacheWrites: 25, cacheReads: 75 })
+
+		fireEvent.click(screen.getByText("Test task"))
+
+		expect(screen.getByText("(2.5%)")).toBeInTheDocument()
+		expect(screen.getByText("(7.5%)")).toBeInTheDocument()
+		expect(screen.queryByText("(25%)")).not.toBeInTheDocument()
+		expect(screen.queryByText("(75%)")).not.toBeInTheDocument()
+	})
+
 	it("should render the condense context button when expanded", () => {
 		renderTaskHeader()
 		// First click to expand the task header

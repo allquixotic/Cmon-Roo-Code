@@ -1252,6 +1252,8 @@ describe("AwsBedrockHandler", () => {
 		// System prompt must exceed minTokensPerCachePoint (1024) for cache points to be placed
 		const longSystemPrompt = "You are a helpful assistant. ".repeat(200)
 		const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello" }]
+		const findCachePointBlock = (blocks: any[] | undefined) =>
+			blocks?.find((block: any) => block.cachePoint !== undefined)
 
 		it("should enable prompt caching by default when awsUsePromptCache is undefined", async () => {
 			const defaultHandler = new AwsBedrockHandler({
@@ -1272,6 +1274,44 @@ describe("AwsBedrockHandler", () => {
 			const systemBlocks = commandArg.system
 			const hasCachePoint = systemBlocks?.some((block: any) => block.cachePoint !== undefined)
 			expect(hasCachePoint).toBe(true)
+		})
+
+		it("should set 1h ttl on system cache points for Claude 4.5 models", async () => {
+			const claude45Handler = new AwsBedrockHandler({
+				apiModelId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+				awsAccessKey: "test-access-key",
+				awsSecretKey: "test-secret-key",
+				awsRegion: "us-east-1",
+			})
+
+			const generator = claude45Handler.createMessage(longSystemPrompt, messages)
+			await generator.next()
+
+			expect(mockConverseStreamCommand).toHaveBeenCalled()
+			const commandArg = mockConverseStreamCommand.mock.calls[0][0] as any
+
+			expect(findCachePointBlock(commandArg.system)?.cachePoint).toEqual({ type: "default", ttl: "1h" })
+		})
+
+		it("should set 1h ttl on message cache points for Claude 4.5 models", async () => {
+			const claude45Handler = new AwsBedrockHandler({
+				apiModelId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+				awsAccessKey: "test-access-key",
+				awsSecretKey: "test-secret-key",
+				awsRegion: "us-east-1",
+			})
+			const longUserPrompt = Array.from({ length: 1_000 }, (_, index) => `cacheable${index}`).join(" ")
+
+			const generator = claude45Handler.createMessage("", [{ role: "user", content: longUserPrompt }])
+			await generator.next()
+
+			expect(mockConverseStreamCommand).toHaveBeenCalled()
+			const commandArg = mockConverseStreamCommand.mock.calls[0][0] as any
+
+			expect(findCachePointBlock(commandArg.messages?.[0]?.content)?.cachePoint).toEqual({
+				type: "default",
+				ttl: "1h",
+			})
 		})
 
 		it("should disable prompt caching when awsUsePromptCache is explicitly false", async () => {

@@ -27,6 +27,7 @@ export const bedrockModels = {
 		minTokensPerCachePoint: 1024,
 		maxCachePoints: 4,
 		cachableFields: ["system", "messages", "tools"],
+		promptCacheTtl: "1h",
 	},
 	"anthropic.claude-sonnet-4-6": {
 		// Mirrors anthropic-direct cap; AWS Bedrock accepts the same upstream maximum.
@@ -220,6 +221,7 @@ export const bedrockModels = {
 		minTokensPerCachePoint: 1024,
 		maxCachePoints: 4,
 		cachableFields: ["system", "messages", "tools"],
+		promptCacheTtl: "1h",
 	},
 	"anthropic.claude-opus-4-20250514-v1:0": {
 		maxTokens: 8192,
@@ -289,6 +291,7 @@ export const bedrockModels = {
 		minTokensPerCachePoint: 2048,
 		maxCachePoints: 4,
 		cachableFields: ["system", "messages", "tools"],
+		promptCacheTtl: "1h",
 	},
 	"anthropic.claude-3-5-sonnet-20240620-v1:0": {
 		maxTokens: 8192,

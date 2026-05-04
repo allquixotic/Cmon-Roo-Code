@@ -92,6 +92,7 @@ import { t } from "../../../i18n"
 vi.mock("vscode", () => {
 	const showInformationMessage = vi.fn()
 	const showErrorMessage = vi.fn()
+	const showWarningMessage = vi.fn()
 	const openTextDocument = vi.fn().mockResolvedValue({})
 	const showTextDocument = vi.fn().mockResolvedValue(undefined)
 
@@ -99,6 +100,7 @@ vi.mock("vscode", () => {
 		window: {
 			showInformationMessage,
 			showErrorMessage,
+			showWarningMessage,
 			showTextDocument,
 		},
 		workspace: {
@@ -242,6 +244,121 @@ describe("webviewMessageHandler - image mentions", () => {
 		expect(mockHandleWebviewAskResponse).toHaveBeenCalledWith("messageResponse", "See @/img.png", [
 			"data:image/png;base64,from-mention",
 		])
+	})
+})
+
+describe("webviewMessageHandler - dropped chat input recovery", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		mockClineProvider.getState = vi.fn().mockResolvedValue({
+			maxImageFileSize: 5,
+			maxTotalImageSize: 20,
+		})
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(undefined)
+	})
+
+	it("restores a queued message when the target task is no longer active", async () => {
+		vi.mocked(mockClineProvider.resolveMessageTask).mockReturnValue(undefined)
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "queueMessage",
+			taskId: "missing-task",
+			text: "queued text",
+			images: ["data:image/png;base64,original"],
+			deliveryMode: "queue",
+		})
+
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "invoke",
+			invoke: "setChatBoxMessage",
+			text: "queued text",
+			images: ["data:image/png;base64,original"],
+		})
+		expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+			"Your queued message could not be delivered because the target task is no longer active. It has been restored to the chat box.",
+		)
+	})
+
+	it("restores an ask response when the target task is no longer active", async () => {
+		vi.mocked(mockClineProvider.resolveMessageTask).mockReturnValue(undefined)
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "askResponse",
+			taskId: "missing-task",
+			askResponse: "messageResponse",
+			text: "response text",
+			images: [],
+		})
+
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "invoke",
+			invoke: "setChatBoxMessage",
+			text: "response text",
+			images: [],
+		})
+		expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+			"Your response could not be delivered because the target task is no longer active. It has been restored to the chat box.",
+		)
+	})
+
+	it("restores resolved queue content if the task disappears while resolving image mentions", async () => {
+		const mockAddMessage = vi.fn()
+		const mockTask = {
+			taskId: "task-1",
+			cwd: "/mock/workspace",
+			rooIgnoreController: undefined,
+			messageQueueService: {
+				addMessage: mockAddMessage,
+			},
+		} as any
+
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(mockTask)
+		vi.mocked(mockClineProvider.resolveMessageTask).mockReturnValueOnce(mockTask).mockReturnValueOnce(undefined)
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "queueMessage",
+			taskId: "task-1",
+			text: "See @/img.png",
+			images: [],
+			deliveryMode: "queue",
+		})
+
+		expect(mockAddMessage).not.toHaveBeenCalled()
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "invoke",
+			invoke: "setChatBoxMessage",
+			text: "See @/img.png",
+			images: ["data:image/png;base64,from-mention"],
+		})
+	})
+
+	it("restores resolved ask response content if the task disappears while resolving image mentions", async () => {
+		const mockHandleWebviewAskResponse = vi.fn()
+		const mockTask = {
+			taskId: "task-1",
+			cwd: "/mock/workspace",
+			rooIgnoreController: undefined,
+			handleWebviewAskResponse: mockHandleWebviewAskResponse,
+		} as any
+
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(mockTask)
+		vi.mocked(mockClineProvider.resolveMessageTask).mockReturnValueOnce(mockTask).mockReturnValueOnce(undefined)
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "askResponse",
+			taskId: "task-1",
+			askResponse: "messageResponse",
+			text: "See @/img.png",
+			images: [],
+		})
+
+		expect(mockHandleWebviewAskResponse).not.toHaveBeenCalled()
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "invoke",
+			invoke: "setChatBoxMessage",
+			text: "See @/img.png",
+			images: ["data:image/png;base64,from-mention"],
+		})
 	})
 })
 

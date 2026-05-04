@@ -1131,6 +1131,104 @@ describe("ChatView - Message Queueing Tests", () => {
 			}),
 		)
 	})
+
+	it("sends typed feedback from completion_result instead of starting a new task", async () => {
+		const { getByTestId, getByText } = renderChatView()
+
+		mockPostMessage({
+			currentTaskId: "task-1",
+			currentTaskItem: { id: "task-1" },
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Initial task",
+				},
+				{
+					type: "ask",
+					ask: "completion_result",
+					ts: Date.now(),
+					text: "Task completed",
+					partial: false,
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(getByText("chat:startNewTask.title")).toBeInTheDocument()
+		})
+
+		vi.mocked(vscode.postMessage).mockClear()
+
+		const input = getByTestId("chat-textarea").querySelector("input") as HTMLInputElement
+
+		await act(async () => {
+			fireEvent.change(input, { target: { value: "feedback on completed task" } })
+		})
+
+		fireEvent.click(getByText("chat:startNewTask.title"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({
+			type: "askResponse",
+			askResponse: "messageResponse",
+			text: "feedback on completed task",
+			images: [],
+			taskId: "task-1",
+		})
+		expect(vscode.postMessage).not.toHaveBeenCalledWith({ type: "clearTask" })
+	})
+
+	it("queues typed input when Proceed While Running is clicked during command_output", async () => {
+		const { getByTestId, getByText } = renderChatView()
+
+		mockPostMessage({
+			currentTaskId: "task-1",
+			currentTaskItem: { id: "task-1" },
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Initial task",
+				},
+				{
+					type: "ask",
+					ask: "command_output",
+					ts: Date.now(),
+					text: "",
+					partial: false,
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(getByText("chat:proceedWhileRunning.title")).toBeInTheDocument()
+		})
+
+		vi.mocked(vscode.postMessage).mockClear()
+
+		const input = getByTestId("chat-textarea").querySelector("input") as HTMLInputElement
+
+		await act(async () => {
+			fireEvent.change(input, { target: { value: "message during command execution" } })
+		})
+
+		fireEvent.click(getByText("chat:proceedWhileRunning.title"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({
+			type: "queueMessage",
+			text: "message during command execution",
+			images: [],
+			deliveryMode: "queue",
+			taskId: "task-1",
+		})
+		expect(vscode.postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "terminalOperation",
+			}),
+		)
+	})
 })
 
 describe("ChatView - Recent conversation preview privacy", () => {

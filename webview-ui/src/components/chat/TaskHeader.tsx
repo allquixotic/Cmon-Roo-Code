@@ -39,6 +39,20 @@ export interface TaskHeaderProps {
 	todos?: any[]
 }
 
+const formatCachePercentage = (value: number | undefined, total: number): string | undefined => {
+	if (typeof value !== "number" || value <= 0 || total <= 0) {
+		return undefined
+	}
+
+	const percentage = (value / total) * 100
+
+	if (percentage > 0 && percentage < 0.1) {
+		return "<0.1%"
+	}
+
+	return `${percentage.toFixed(1).replace(/\.0$/, "")}%`
+}
+
 const TaskHeader = ({
 	task,
 	tokensIn,
@@ -91,6 +105,13 @@ const TaskHeader = ({
 
 	// Determine if this is a subtask (has a parent)
 	const isSubtask = !!parentTaskId
+
+	const cachePercentageDenominator =
+		typeof tokensIn === "number" && tokensIn > 0
+			? tokensIn
+			: Math.max(cacheWrites ?? 0, 0) + Math.max(cacheReads ?? 0, 0)
+	const cacheWritePercentage = formatCachePercentage(cacheWrites, cachePercentageDenominator)
+	const cacheReadPercentage = formatCachePercentage(cacheReads, cachePercentageDenominator)
 
 	const handleBackToParent = () => {
 		if (parentTaskId) {
@@ -346,18 +367,28 @@ const TaskHeader = ({
 												{t("chat:task.cache")}
 											</th>
 											<td className="font-light align-top">
-												<div className="flex items-center gap-1 flex-wrap">
+												<div className="flex items-center gap-x-2 gap-y-1 flex-wrap">
 													{typeof cacheWrites === "number" && cacheWrites > 0 && (
-														<>
+														<span className="inline-flex items-center gap-1 whitespace-nowrap">
 															<HardDriveDownload className="size-2.5" />
 															<span>{formatLargeNumber(cacheWrites)}</span>
-														</>
+															{cacheWritePercentage && (
+																<span className="text-vscode-descriptionForeground">
+																	({cacheWritePercentage})
+																</span>
+															)}
+														</span>
 													)}
 													{typeof cacheReads === "number" && cacheReads > 0 && (
-														<>
+														<span className="inline-flex items-center gap-1 whitespace-nowrap">
 															<HardDriveUpload className="size-2.5" />
 															<span>{formatLargeNumber(cacheReads)}</span>
-														</>
+															{cacheReadPercentage && (
+																<span className="text-vscode-descriptionForeground">
+																	({cacheReadPercentage})
+																</span>
+															)}
+														</span>
 													)}
 												</div>
 											</td>

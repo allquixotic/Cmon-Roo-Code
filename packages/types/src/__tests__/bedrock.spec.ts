@@ -59,6 +59,12 @@ describe("Bedrock model catalog", () => {
 		expect((bedrockModels["anthropic.claude-sonnet-4-5-20250929-v1:0"] as ModelInfo).maxTokens).toBe(64_000)
 		expect((bedrockModels["anthropic.claude-haiku-4-5-20251001-v1:0"] as ModelInfo).maxTokens).toBe(64_000)
 	})
+
+	it("marks AWS-documented Claude 4.5 models for 1-hour Bedrock prompt cache TTL", () => {
+		expect((bedrockModels["anthropic.claude-sonnet-4-5-20250929-v1:0"] as ModelInfo).promptCacheTtl).toBe("1h")
+		expect((bedrockModels["anthropic.claude-haiku-4-5-20251001-v1:0"] as ModelInfo).promptCacheTtl).toBe("1h")
+		expect((bedrockModels["anthropic.claude-opus-4-5-20251101-v1:0"] as ModelInfo).promptCacheTtl).toBe("1h")
+	})
 })
 
 describe("resolveBedrockModelInfo", () => {

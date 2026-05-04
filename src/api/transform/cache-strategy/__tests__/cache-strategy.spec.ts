@@ -41,6 +41,13 @@ const hasCachePoint = (block: ContentBlock | SystemContentBlock): boolean => {
 	)
 }
 
+const getCachePoint = (block: ContentBlock | SystemContentBlock): { type?: string; ttl?: string } | undefined => {
+	if (!("cachePoint" in block) || typeof block.cachePoint !== "object" || block.cachePoint === null) {
+		return undefined
+	}
+	return block.cachePoint as { type?: string; ttl?: string }
+}
+
 // Create a mock object to store the last config passed to convertToBedrockConverseMessages
 interface CacheConfig {
 	modelInfo: any
@@ -174,6 +181,25 @@ describe("Cache Strategy", () => {
 					expect(result.system).toHaveLength(2)
 					expect(result.system[0]).toEqual({ text: shortSystemPrompt })
 					expect(hasCachePoint(result.system[1])).toBe(true)
+				})
+
+				it("adds configured ttl to system cache blocks", () => {
+					const shortSystemPrompt = "You are a helpful assistant"
+
+					const config = createConfig({
+						messages: [{ role: "user", content: "Hello" }],
+						systemPrompt: shortSystemPrompt,
+						modelInfo: {
+							...defaultModelInfo,
+							minTokensPerCachePoint: 1,
+							promptCacheTtl: "1h",
+						},
+					})
+
+					const strategy = new MultiPointStrategy(config)
+					const result = strategy.determineOptimalCachePoints()
+
+					expect(getCachePoint(result.system[1])).toMatchObject({ type: "default", ttl: "1h" })
 				})
 
 				it("does not add system cache block when system prompt is too short", () => {
@@ -660,6 +686,11 @@ describe("Cache Strategy", () => {
 			}
 		}
 
+		const createWordMessage = (role: "user" | "assistant", wordCount: number) => ({
+			role,
+			content: Array.from({ length: wordCount }, (_, index) => `word${index}`).join(" "),
+		})
+
 		// Helper to log cache point placements for debugging
 		const logPlacements = (placements: any[]) => {
 			console.log(
@@ -669,6 +700,70 @@ describe("Cache Strategy", () => {
 		}
 
 		describe("Example 1: Initial Cache Point Placement", () => {
+			it("should place a cache point after a single first-turn user message that meets the threshold", () => {
+				const messages = [createWordMessage("user", 60)]
+
+				const config = createConfig({
+					modelInfo: multiPointModelInfo,
+					systemPrompt: "",
+					messages,
+					usePromptCache: true,
+				})
+
+				const strategy = new MultiPointStrategy(config)
+				const result = strategy.determineOptimalCachePoints()
+
+				expect(result.messageCachePointPlacements).toEqual([
+					expect.objectContaining({
+						index: 0,
+						type: "message",
+					}),
+				])
+				expect(result.messageCachePointPlacements?.[0].tokensCovered).toBeGreaterThanOrEqual(
+					multiPointModelInfo.minTokensPerCachePoint,
+				)
+				expect(result.messages[0].content?.some((block) => hasCachePoint(block))).toBe(true)
+			})
+
+			it("should add a cache point for a single new user message after a previous placement", () => {
+				const messages = [
+					createWordMessage("user", 60),
+					createWordMessage("assistant", 5),
+					createWordMessage("user", 60),
+				]
+
+				const previousCachePointPlacements: CachePointPlacement[] = [
+					{
+						index: 0,
+						type: "message",
+						tokensCovered: 88,
+					},
+				]
+
+				const config = createConfig({
+					modelInfo: multiPointModelInfo,
+					systemPrompt: "",
+					messages,
+					usePromptCache: true,
+					previousCachePointPlacements,
+				})
+
+				const strategy = new MultiPointStrategy(config)
+				const result = strategy.determineOptimalCachePoints()
+
+				expect(result.messageCachePointPlacements).toEqual([
+					expect.objectContaining({
+						index: 0,
+						type: "message",
+					}),
+					expect.objectContaining({
+						index: 2,
+						type: "message",
+					}),
+				])
+				expect(result.messages[2].content?.some((block) => hasCachePoint(block))).toBe(true)
+			})
+
 			it("should place a cache point after the second user message", () => {
 				// Create messages matching Example 1 from documentation
 				const messages = [
