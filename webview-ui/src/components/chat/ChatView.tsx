@@ -745,7 +745,13 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				) {
 					try {
 						console.log("queueMessage", text, images)
-						vscode.postMessage({ type: "queueMessage", taskId: currentTaskId, text, images })
+						vscode.postMessage({
+							type: "queueMessage",
+							taskId: currentTaskId,
+							text,
+							images,
+							deliveryMode: "queue",
+						})
 						setInputValue("")
 						setSelectedImages([])
 					} catch (error) {
@@ -913,6 +919,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				taskId: currentTaskId,
 				text,
 				images: selectedImages,
+				deliveryMode: "queue",
 			})
 			setInputValue("")
 			setSelectedImages([])
@@ -1787,6 +1794,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					taskId: currentTaskId,
 					text: trimmedInput,
 					images: selectedImages,
+					deliveryMode: "queue",
 				})
 				setInputValue("")
 				setSelectedImages([])
@@ -2017,27 +2025,24 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 					<QueuedMessages
 						queue={visibleMessageQueue}
-						onRemove={(index) => {
-							if (visibleMessageQueue[index]) {
-								vscode.postMessage({
-									type: "removeQueuedMessage",
-									text: visibleMessageQueue[index].id,
-									taskId: currentTaskId,
-								})
-							}
+						onRemove={(messageId) => {
+							vscode.postMessage({
+								type: "removeQueuedMessage",
+								text: messageId,
+								taskId: currentTaskId,
+							})
 						}}
-						onUpdate={(index, newText) => {
-							if (visibleMessageQueue[index]) {
-								vscode.postMessage({
-									type: "editQueuedMessage",
-									taskId: currentTaskId,
-									payload: {
-										id: visibleMessageQueue[index].id,
-										text: newText,
-										images: visibleMessageQueue[index].images,
-									},
-								})
-							}
+						onUpdate={(message, updates) => {
+							vscode.postMessage({
+								type: "editQueuedMessage",
+								taskId: currentTaskId,
+								payload: {
+									id: message.id,
+									text: updates.text ?? message.text,
+									images: message.images,
+									deliveryMode: updates.deliveryMode ?? message.deliveryMode,
+								},
+							})
 						}}
 					/>
 					{showRetiredProviderWarning && (

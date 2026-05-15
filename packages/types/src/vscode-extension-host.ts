@@ -435,7 +435,7 @@ export interface UpdateTodoListPayload {
 	todos: any[]
 }
 
-export type EditQueuedMessagePayload = Pick<QueuedMessage, "id" | "text" | "images">
+export type EditQueuedMessagePayload = Pick<QueuedMessage, "id" | "text" | "images" | "deliveryMode">
 
 export interface WebviewMessage {
 	type:
@@ -622,6 +622,7 @@ export interface WebviewMessage {
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ProviderSettings
 	images?: string[]
+	deliveryMode?: QueuedMessage["deliveryMode"]
 	bool?: boolean
 	value?: number
 	stepIndex?: number
