@@ -275,6 +275,7 @@ export type ExtensionState = Pick<
 	| "customInstructions"
 	| "dismissedUpsells"
 	| "autoApprovalEnabled"
+	| "yoloMode"
 	| "alwaysAllowReadOnly"
 	| "alwaysAllowReadOnlyOutsideWorkspace"
 	| "alwaysAllowWrite"
