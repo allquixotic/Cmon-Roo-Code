@@ -89,7 +89,6 @@ export interface ExtensionMessage {
 		| "showEditMessageDialog"
 		| "commands"
 		| "insertTextIntoTextarea"
-		| "dismissedUpsells"
 		| "organizationSwitchResult"
 		| "interactionRequired"
 		| "customToolsResult"
@@ -185,7 +184,6 @@ export interface ExtensionMessage {
 	context?: string
 	commands?: Command[]
 	queuedMessages?: QueuedMessage[]
-	list?: string[] // For dismissedUpsells
 	organizationId?: string | null // For organizationSwitchResult
 	tools?: SerializedCustomToolDefinition[] // For customToolsResult
 	skills?: SkillMetadata[] // For skills response
@@ -273,7 +271,6 @@ export type ExtensionState = Pick<
 	| "listApiConfigMeta"
 	| "pinnedApiConfigs"
 	| "customInstructions"
-	| "dismissedUpsells"
 	| "autoApprovalEnabled"
 	| "yoloMode"
 	| "alwaysAllowReadOnly"
@@ -337,7 +334,6 @@ export type ExtensionState = Pick<
 	currentTaskTodos?: TodoItem[] // Initial todos for the current task
 	apiConfiguration: ProviderSettings
 	uriScheme?: string
-	shouldShowAnnouncement: boolean
 	activeConversations?: ActiveConversationSummary[]
 
 	taskHistory: HistoryItem[]
@@ -390,7 +386,6 @@ export type ExtensionState = Pick<
 	hasOpenedModeSelector: boolean
 	openRouterImageApiKey?: string
 	messageQueue?: QueuedMessage[]
-	lastShownAnnouncementId?: string
 	apiModelId?: string
 	mcpServers?: McpServer[]
 	mdmCompliant?: boolean
@@ -455,7 +450,6 @@ export interface WebviewMessage {
 		| "askResponse"
 		| "terminalOperation"
 		| "clearTask"
-		| "didShowAnnouncement"
 		| "selectImages"
 		| "exportCurrentTask"
 		| "shareCurrentTask"
@@ -578,8 +572,6 @@ export interface WebviewMessage {
 		| "queueMessage"
 		| "removeQueuedMessage"
 		| "editQueuedMessage"
-		| "dismissUpsell"
-		| "getDismissedUpsells"
 		| "openMarkdownPreview"
 		| "updateSettings"
 		| "allowedCommands"
@@ -675,8 +667,6 @@ export interface WebviewMessage {
 	visibility?: ShareVisibility // For share visibility
 	hasContent?: boolean // For checkRulesDirectoryResult
 	checkOnly?: boolean // For deleteCustomMode check
-	upsellId?: string // For dismissUpsell
-	list?: string[] // For dismissedUpsells response
 	organizationId?: string | null // For organization switching
 	useProviderSignup?: boolean // For rooCloudSignIn to use provider signup flow
 	codeIndexSettings?: {

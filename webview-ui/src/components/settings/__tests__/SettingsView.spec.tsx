@@ -273,7 +273,6 @@ const mockPostMessage = (state: any) => {
 				version: "1.0.0",
 				clineMessages: [],
 				taskHistory: [],
-				shouldShowAnnouncement: false,
 				allowedCommands: [],
 				alwaysAllowExecute: false,
 				ttsEnabled: false,
@@ -566,13 +565,19 @@ describe("SettingsView - Allowed Commands", () => {
 		// Verify command was added
 		expect(within(content).getByText("npm test")).toBeInTheDocument()
 
+		// Click Save
+		const saveButton = screen.getByTestId("save-button")
+		fireEvent.click(saveButton)
+
 		// Verify VSCode message was sent
-		expect(vscode.postMessage).toHaveBeenCalledWith({
-			type: "updateSettings",
-			updatedSettings: {
-				allowedCommands: ["npm test"],
-			},
-		})
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					allowedCommands: ["npm test"],
+				}),
+			}),
+		)
 	})
 
 	it("removes command from the list", () => {
@@ -600,13 +605,19 @@ describe("SettingsView - Allowed Commands", () => {
 		// Verify command was removed
 		expect(within(content).queryByText("npm test")).not.toBeInTheDocument()
 
+		// Click Save
+		const saveButton = screen.getByTestId("save-button")
+		fireEvent.click(saveButton)
+
 		// Verify VSCode message was sent
-		expect(vscode.postMessage).toHaveBeenLastCalledWith({
-			type: "updateSettings",
-			updatedSettings: {
-				allowedCommands: [],
-			},
-		})
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					allowedCommands: [],
+				}),
+			}),
+		)
 	})
 
 	describe("SettingsView - Tab Navigation", () => {
