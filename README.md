@@ -51,7 +51,7 @@ bun allquixotic/build.js install --portable-data-dir=/path/to/code-portable-data
 
 Built VSIX artifacts are copied to `allquixotic/build/artifacts/`. After `install` or `build-install`, restart VS Code to load the updated extension.
 
-## What's New in v3.52.0
+## We are Zoo Code
 
 - Add Poe as an AI provider so you can access Poe models directly in CRC.
 - Improve the xAI provider with a Responses API migration, reusable transform utilities, and updated Grok-4.20 defaults.
@@ -103,7 +103,8 @@ CRC adapts to how you work:
 - Debug Mode: trace issues, add logs, isolate root causes
 - Custom Modes: build specialized modes for your team or workflow
 
-Learn more: [Using Modes](https://docs.roocode.com/basic-usage/using-modes) • [Custom Modes](https://docs.roocode.com/advanced-usage/custom-modes)
+Learn more: [Using Modes](https://docs.zoocode.dev/basic-usage/using-modes) •
+[Custom Modes](https://docs.zoocode.dev/advanced-usage/custom-modes)
 
 ## Resources
 
@@ -174,7 +175,7 @@ If you prefer to install the VSIX package manually:
 2. A `.vsix` file will be generated in the `bin/` directory (for example, `bin/roo-cline-<version>.vsix`).
 3. Install it manually using the VS Code CLI:
     ```sh
-    code --install-extension bin/roo-cline-<version>.vsix
+    code --install-extension bin/zoo-code-<version>.vsix
     ```
 
 ---

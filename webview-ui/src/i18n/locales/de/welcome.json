@@ -1,34 +1,12 @@
 {
-	"routers": {
-		"requesty": {
-			"description": "Dein optimierter LLM-Router",
-			"incentive": "$1 Guthaben gratis"
-		},
-		"openrouter": {
-			"description": "Eine einheitliche Schnittstelle für LLMs"
-		},
-		"roo": {
-			"description": "Die besten kostenlosen Modelle für den Einstieg",
-			"incentive": "Probier Roo kostenlos aus"
-		}
-	},
 	"landing": {
-		"greeting": "Willkommen bei Roo Code!",
-		"introduction": "Mit einer Reihe von integrierten und erweiterbaren Modi ermöglicht dir Roo Code, zu planen, zu architektieren, zu coden, zu debuggen und deine Produktivität wie nie zuvor zu steigern.",
-		"accountMention": "Um zu beginnen, erstelle dein Roo Code Cloud Konto. Erhalte leistungsstarke Modelle, Webkontrolle, Analysen, Support und mehr.",
-		"getStarted": "Roo-Konto erstellen",
-		"noAccount": "oder ohne Konto verwenden"
+		"greeting": "Willkommen bei Zoo Code!",
+		"introduction": "Mit einer Reihe von integrierten und erweiterbaren Modi ermöglicht dir Zoo Code, zu planen, zu architektieren, zu coden, zu debuggen und deine Produktivität wie nie zuvor zu steigern.",
+		"getStarted": "Wähle deinen Anbieter"
 	},
 	"providerSignup": {
 		"heading": "Wähle deinen Anbieter",
-		"chooseProvider": "Roo braucht einen LLM-Anbieter, um zu funktionieren. Wähle einen aus, um loszulegen. Du kannst später mehr hinzufügen.",
-		"rooCloudProvider": "Roo Code Router",
-		"rooCloudDescription": "Der einfachste Weg loszulegen ist mit dem Roo Code Router: eine kuratierte Mischung aus kostenlosen und bezahlten Modellen zu niedrigen Kosten.",
-		"learnMore": "Weitere Informationen",
-		"useAnotherProvider": "3rd-party Provider",
-		"useAnotherProviderDescription": "Gib einen API-Schlüssel ein und leg los.",
-		"noApiKeys": "Du möchtest dich nicht mit API-Schlüsseln und separaten Konten rumschlagen?",
-		"backToRoo": "Geh mit dem Roo Code Router.",
+		"chooseProvider": "Zoo Code braucht einen LLM-Anbieter, um zu funktionieren. Wähle einen aus, um loszulegen. Du kannst später mehr hinzufügen.",
 		"goBack": "Zurück",
 		"finish": "Beenden"
 	},

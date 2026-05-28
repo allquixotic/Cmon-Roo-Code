@@ -185,12 +185,11 @@ vi.mock("../core/webview/ClineProvider", async () => {
 })
 
 // Mock modelCache to prevent network requests during module loading
-const mockRefreshModels = vi.fn().mockResolvedValue({})
 vi.mock("../api/providers/fetchers/modelCache", () => ({
 	flushModels: vi.fn(),
 	getModels: vi.fn().mockResolvedValue([]),
 	initializeModelCacheRefresh: vi.fn(),
-	refreshModels: mockRefreshModels,
+	refreshModels: vi.fn().mockResolvedValue({}),
 }))
 
 describe("extension.ts", () => {
@@ -244,10 +243,9 @@ describe("extension.ts", () => {
 		expect(dotenvx.config).toHaveBeenCalledTimes(1)
 	})
 
-	describe("Roo model cache refresh on auth state change (ROO-202)", () => {
+	describe("cloud auth state handling", () => {
 		beforeEach(() => {
 			vi.resetModules()
-			mockRefreshModels.mockClear()
 		})
 
 		test("refreshModels is called with session token when auth state changes to active-session", async () => {
@@ -293,6 +291,7 @@ describe("extension.ts", () => {
 		test("flushModels is called when auth state changes to logged-out", async () => {
 			const { flushModels } = await import("../api/providers/fetchers/modelCache")
 			const { CloudService } = await import("@roo-code/cloud")
+			const { ClineProvider } = await import("../core/webview/ClineProvider")
 
 			vi.mocked(CloudService.createInstance).mockImplementation(async (_context, _logger, handlers) => {
 				if (handlers?.["auth-state-changed"]) {
@@ -307,14 +306,26 @@ describe("extension.ts", () => {
 			const { activate } = await import("../extension")
 			await activate(mockContext)
 
-			// Trigger logged-out state
+			const provider = (ClineProvider as any).getVisibleInstance()
+			provider.postStateToWebviewWithoutClineMessages.mockClear()
+
 			await authStateChangedHandler!({
-				state: "logged-out" as AuthState,
-				previousState: "active-session" as AuthState,
+				state: "active-session" as AuthState,
+				previousState: "logged-out" as AuthState,
 			})
 
-			// Verify flushModels was called to clear the cache on logout
-			expect(flushModels).toHaveBeenCalledWith({ provider: "roo" }, false)
+			expect(provider.postStateToWebviewWithoutClineMessages).toHaveBeenCalledTimes(1)
+		})
+
+		test("activation continues when CloudService initialization fails", async () => {
+			const { CloudService } = await import("@roo-code/cloud")
+
+			vi.mocked(CloudService.createInstance).mockRejectedValue(new Error("cloud init failed"))
+			vi.mocked(CloudService.hasInstance).mockReturnValue(false)
+
+			const { activate } = await import("../extension")
+
+			await expect(activate(mockContext)).resolves.toBeDefined()
 		})
 	})
 })

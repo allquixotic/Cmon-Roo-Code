@@ -457,7 +457,8 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 
 		// Determine if service tier should be applied (checked later when building payload)
 		const useServiceTier =
-			this.options.awsBedrockServiceTier && BEDROCK_SERVICE_TIER_MODEL_IDS.includes(baseModelId as any)
+			this.options.awsBedrockServiceTier &&
+			BEDROCK_SERVICE_TIER_MODEL_IDS.includes(baseModelId as (typeof BEDROCK_SERVICE_TIER_MODEL_IDS)[number])
 		if (useServiceTier) {
 			logger.info("Service tier specified for Bedrock request", {
 				ctx: "bedrock",
@@ -1227,7 +1228,10 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		// Check if 1M context is enabled for supported Claude 4 models
 		// Use parseBaseModelId to handle cross-region inference prefixes
 		const baseModelId = this.parseBaseModelId(modelConfig.id)
-		if (BEDROCK_1M_CONTEXT_MODEL_IDS.includes(baseModelId as any) && this.options.awsBedrock1MContext) {
+		if (
+			BEDROCK_1M_CONTEXT_MODEL_IDS.includes(baseModelId as (typeof BEDROCK_1M_CONTEXT_MODEL_IDS)[number]) &&
+			this.options.awsBedrock1MContext
+		) {
 			// Update context window and pricing to 1M tier when 1M context beta is enabled
 			const tier = modelConfig.info.tiers?.[0]
 			modelConfig.info = {
@@ -1251,7 +1255,12 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 
 		// Apply service tier pricing if specified and model supports it
 		const baseModelIdForTier = this.parseBaseModelId(modelConfig.id)
-		if (this.options.awsBedrockServiceTier && BEDROCK_SERVICE_TIER_MODEL_IDS.includes(baseModelIdForTier as any)) {
+		if (
+			this.options.awsBedrockServiceTier &&
+			BEDROCK_SERVICE_TIER_MODEL_IDS.includes(
+				baseModelIdForTier as (typeof BEDROCK_SERVICE_TIER_MODEL_IDS)[number],
+			)
+		) {
 			const pricingMultiplier = BEDROCK_SERVICE_TIER_PRICING[this.options.awsBedrockServiceTier]
 			if (pricingMultiplier && pricingMultiplier !== 1.0) {
 				// Apply pricing multiplier to all price fields

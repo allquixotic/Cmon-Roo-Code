@@ -12,6 +12,7 @@ import {
 	openRouterDefaultModelId,
 	poeDefaultModelId,
 	requestyDefaultModelId,
+	rooDefaultModelId,
 	litellmDefaultModelId,
 	openAiNativeDefaultModelId,
 	openAiCodexDefaultModelId,
@@ -29,9 +30,10 @@ import {
 	internationalZAiDefaultModelId,
 	mainlandZAiDefaultModelId,
 	fireworksDefaultModelId,
-	rooDefaultModelId,
 	vercelAiGatewayDefaultModelId,
+	opencodeGoDefaultModelId,
 	minimaxDefaultModelId,
+	mimoDefaultModelId,
 	unboundDefaultModelId,
 } from "@roo-code/types"
 
@@ -48,6 +50,7 @@ import { validateApiConfigurationExcludingModelErrors, getModelValidationError }
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { useRouterModels } from "@src/components/ui/hooks/useRouterModels"
 import { useSelectedModel } from "@src/components/ui/hooks/useSelectedModel"
+import { requestLmStudioModels } from "@src/components/ui/hooks/useLmStudioModels"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import {
 	useOpenRouterModelProviders,
@@ -94,7 +97,9 @@ import {
 	ZAi,
 	Fireworks,
 	VercelAiGateway,
+	OpenCodeGo,
 	MiniMax,
+	Mimo,
 } from "./providers"
 
 import { MODELS_BY_PROVIDER, PROVIDERS } from "./constants"
@@ -239,7 +244,7 @@ const ApiOptions = ({
 			} else if (selectedProvider === "ollama") {
 				vscode.postMessage({ type: "requestOllamaModels" })
 			} else if (selectedProvider === "lmstudio") {
-				vscode.postMessage({ type: "requestLmStudioModels" })
+				requestLmStudioModels(apiConfiguration?.lmStudioBaseUrl)
 			} else if (selectedProvider === "vscode-lm") {
 				vscode.postMessage({ type: "requestVsCodeLmModels" })
 			} else if (selectedProvider === "litellm" || selectedProvider === "roo" || selectedProvider === "poe") {
@@ -333,6 +338,7 @@ const ApiOptions = ({
 			> = {
 				openrouter: { field: "openRouterModelId", default: openRouterDefaultModelId },
 				requesty: { field: "requestyModelId", default: requestyDefaultModelId },
+				roo: { field: "apiModelId", default: rooDefaultModelId },
 				unbound: { field: "unboundModelId", default: unboundDefaultModelId },
 				litellm: { field: "litellmModelId", default: litellmDefaultModelId },
 				anthropic: { field: "apiModelId", default: anthropicDefaultModelId },
@@ -343,6 +349,7 @@ const ApiOptions = ({
 				deepseek: { field: "apiModelId", default: deepSeekDefaultModelId },
 				moonshot: { field: "apiModelId", default: moonshotDefaultModelId },
 				minimax: { field: "apiModelId", default: minimaxDefaultModelId },
+				mimo: { field: "apiModelId", default: mimoDefaultModelId },
 				mistral: { field: "apiModelId", default: mistralDefaultModelId },
 				xai: { field: "apiModelId", default: xaiDefaultModelId },
 				baseten: { field: "apiModelId", default: basetenDefaultModelId },
@@ -358,8 +365,8 @@ const ApiOptions = ({
 				},
 				fireworks: { field: "apiModelId", default: fireworksDefaultModelId },
 				poe: { field: "apiModelId", default: poeDefaultModelId },
-				roo: { field: "apiModelId", default: rooDefaultModelId },
 				"vercel-ai-gateway": { field: "vercelAiGatewayModelId", default: vercelAiGatewayDefaultModelId },
+				"opencode-go": { field: "opencodeGoModelId", default: opencodeGoDefaultModelId },
 				openai: { field: "openAiModelId" },
 				ollama: { field: "ollamaModelId" },
 				lmstudio: { field: "lmStudioModelId" },
@@ -457,7 +464,6 @@ const ApiOptions = ({
 			label: applyBrandMasquerade(label, !!masqueradeAsRooCode),
 		}))
 
-		// Pin "roo" to the top if not on welcome screen
 		if (!fromWelcomeView) {
 			const rooIndex = options.findIndex((opt) => opt.value === "roo")
 			if (rooIndex > 0) {
@@ -465,11 +471,10 @@ const ApiOptions = ({
 				options.unshift(rooOption)
 			}
 		} else {
-			// Filter out roo from the welcome view
-			const filteredOptions = options.filter((opt) => opt.value !== "roo")
-			options.length = 0
-			options.push(...filteredOptions)
-
+			const rooIndex = options.findIndex((opt) => opt.value === "roo")
+			if (rooIndex >= 0) {
+				options.splice(rooIndex, 1)
+			}
 			const openRouterIndex = options.findIndex((opt) => opt.value === "openrouter")
 			if (openRouterIndex > 0) {
 				const [openRouterOption] = options.splice(openRouterIndex, 1)
@@ -485,15 +490,11 @@ const ApiOptions = ({
 			<div className="flex flex-col gap-1 relative">
 				<div className="flex justify-between items-center">
 					<label className="block font-medium">{t("settings:providers.apiProvider")}</label>
-					{selectedProvider === "roo" && cloudIsAuthenticated ? (
-						<RooBalanceDisplay />
-					) : (
-						docs && (
-							<VSCodeLink href={docs.url} target="_blank" className="flex gap-2">
-								{t("settings:providers.apiProviderDocs")}
-								<BookOpenText className="size-4 inline ml-2" />
-							</VSCodeLink>
-						)
+					{docs && (
+						<VSCodeLink href={docs.url} target="_blank" className="flex gap-2">
+							{t("settings:providers.apiProviderDocs")}
+							<BookOpenText className="size-4 inline ml-2" />
+						</VSCodeLink>
 					)}
 				</div>
 				<SearchableSelect
@@ -509,6 +510,11 @@ const ApiOptions = ({
 			</div>
 
 			{errorMessage && <ApiErrorMessage errorMessage={errorMessage} />}
+			{selectedProvider === "roo" && cloudIsAuthenticated ? (
+				<div className="flex flex-col gap-3">
+					<RooBalanceDisplay />
+				</div>
+			) : null}
 
 			{showPromptCachingDisabledWarning && (
 				<div
@@ -557,6 +563,15 @@ const ApiOptions = ({
 							routerModels={routerModels}
 							refetchRouterModels={refetchRouterModels}
 							organizationAllowList={organizationAllowList}
+							modelValidationError={modelValidationError}
+							simplifySettings={fromWelcomeView}
+						/>
+					)}
+					{selectedProvider === "roo" && (
+						<Roo
+							apiConfiguration={apiConfiguration}
+							setApiConfigurationField={setApiConfigurationField}
+							routerModels={routerModels}
 							modelValidationError={modelValidationError}
 							simplifySettings={fromWelcomeView}
 						/>
@@ -660,7 +675,6 @@ const ApiOptions = ({
 						<DeepSeek
 							apiConfiguration={apiConfiguration}
 							setApiConfigurationField={setApiConfigurationField}
-							simplifySettings={fromWelcomeView}
 						/>
 					)}
 
@@ -685,6 +699,10 @@ const ApiOptions = ({
 							apiConfiguration={apiConfiguration}
 							setApiConfigurationField={setApiConfigurationField}
 						/>
+					)}
+
+					{selectedProvider === "mimo" && (
+						<Mimo apiConfiguration={apiConfiguration} setApiConfigurationField={setApiConfigurationField} />
 					)}
 
 					{selectedProvider === "vscode-lm" && (
@@ -737,6 +755,17 @@ const ApiOptions = ({
 						/>
 					)}
 
+					{selectedProvider === "opencode-go" && (
+						<OpenCodeGo
+							apiConfiguration={apiConfiguration}
+							setApiConfigurationField={setApiConfigurationField}
+							routerModels={routerModels}
+							organizationAllowList={organizationAllowList}
+							modelValidationError={modelValidationError}
+							simplifySettings={fromWelcomeView}
+						/>
+					)}
+
 					{selectedProvider === "fireworks" && (
 						<Fireworks
 							apiConfiguration={apiConfiguration}
@@ -748,18 +777,6 @@ const ApiOptions = ({
 						<Poe
 							apiConfiguration={apiConfiguration}
 							setApiConfigurationField={setApiConfigurationField}
-							organizationAllowList={organizationAllowList}
-							modelValidationError={modelValidationError}
-							simplifySettings={fromWelcomeView}
-						/>
-					)}
-
-					{selectedProvider === "roo" && (
-						<Roo
-							apiConfiguration={apiConfiguration}
-							setApiConfigurationField={setApiConfigurationField}
-							routerModels={routerModels}
-							cloudIsAuthenticated={cloudIsAuthenticated}
 							organizationAllowList={organizationAllowList}
 							modelValidationError={modelValidationError}
 							simplifySettings={fromWelcomeView}

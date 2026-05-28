@@ -162,7 +162,10 @@
 		"image_copied_to_clipboard": "Image data URI copied to clipboard",
 		"image_saved": "Image saved to {{path}}",
 		"mode_exported": "Mode '{{mode}}' exported successfully",
-		"mode_imported": "Mode imported successfully"
+		"mode_imported": "Mode imported successfully",
+		"roo": {
+			"signInUnavailable": "Roo Code Cloud sign-in is currently unavailable. Configure another provider to continue."
+		}
 	},
 	"answers": {
 		"yes": "Yes",
@@ -243,6 +246,24 @@
 	},
 	"docsLink": {
 		"label": "Docs",
-		"url": "https://docs.roocode.com"
+		"url": "https://docs.zoocode.dev"
+	},
+	"zooAuth": {
+		"errors": {
+			"invalid_token_received": "Zoo Code: Invalid authentication token received.",
+			"token_verification_failed": "Zoo Code: Token verification failed.",
+			"invalid_token": "Zoo Code: Invalid token.",
+			"could_not_verify_token": "Zoo Code: Could not verify token."
+		},
+		"info": {
+			"connected": "Zoo Code: Successfully connected! You can now use Zoo Code as your AI provider.",
+			"disconnected": "Zoo Code: Disconnected successfully."
+		}
+	},
+	"codeActions": {
+		"explain": "Explain with Zoo Code",
+		"fix": "Fix with Zoo Code",
+		"improve": "Improve with Zoo Code",
+		"addToContext": "Add to Zoo Code"
 	}
 }

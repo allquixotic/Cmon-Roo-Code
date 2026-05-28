@@ -12,6 +12,7 @@ import {
 	PoeHandler,
 	VertexHandler,
 	AnthropicVertexHandler,
+	RooHandler,
 	OpenAiHandler,
 	OpenAiCodexHandler,
 	LmStudioHandler,
@@ -30,9 +31,10 @@ import {
 	SambaNovaHandler,
 	ZAiHandler,
 	FireworksHandler,
-	RooHandler,
 	VercelAiGatewayHandler,
+	OpencodeGoHandler,
 	MiniMaxHandler,
+	MimoHandler,
 	BasetenHandler,
 } from "./providers"
 import { NativeOllamaHandler } from "./providers/native-ollama"
@@ -165,6 +167,8 @@ export function buildApiHandler(configuration: ProviderSettings): ApiHandler {
 			return new MistralHandler(options)
 		case "requesty":
 			return new RequestyHandler(options)
+		case "roo":
+			return new RooHandler(options)
 		case "unbound":
 			return new UnboundHandler(options)
 		case "fake-ai":
@@ -175,16 +179,16 @@ export function buildApiHandler(configuration: ProviderSettings): ApiHandler {
 			return new LiteLLMHandler(options)
 		case "sambanova":
 			return new SambaNovaHandler(options)
+		case "mimo":
+			return new MimoHandler(options)
 		case "zai":
 			return new ZAiHandler(options)
 		case "fireworks":
 			return new FireworksHandler(options)
-		case "roo":
-			// Never throw exceptions from provider constructors
-			// The provider-proxy server will handle authentication and return appropriate error codes
-			return new RooHandler(options)
 		case "vercel-ai-gateway":
 			return new VercelAiGatewayHandler(options)
+		case "opencode-go":
+			return new OpencodeGoHandler(options)
 		case "minimax":
 			return new MiniMaxHandler(options)
 		case "baseten":

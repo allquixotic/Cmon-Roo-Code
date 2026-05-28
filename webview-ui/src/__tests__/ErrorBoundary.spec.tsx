@@ -1,6 +1,7 @@
 import React from "react"
 import { render, screen } from "@testing-library/react"
 import ErrorBoundary from "../components/ErrorBoundary"
+import { EXTERNAL_LINKS } from "../constants/externalLinks"
 
 // Mock translation function
 vi.mock("react-i18next", () => {
@@ -64,7 +65,7 @@ describe("ErrorBoundary", () => {
 		// Check for the GitHub link
 		const githubLink = screen.getByRole("link", { name: /errorBoundary.githubText/ })
 		expect(githubLink).toBeInTheDocument()
-		expect(githubLink).toHaveAttribute("href", "https://github.com/RooCodeInc/Roo-Code/issues")
+		expect(githubLink).toHaveAttribute("href", EXTERNAL_LINKS.GITHUB_ISSUES)
 
 		// Check for other error boundary elements
 		expect(screen.getByText(/errorBoundary.copyInstructions/)).toBeInTheDocument()

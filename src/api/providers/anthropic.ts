@@ -53,8 +53,14 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 			betas = ["fine-grained-tool-streaming-2025-05-14"],
 			maxTokens,
 			temperature,
-			reasoning: thinking,
+			info,
+			reasoningBudget,
 		} = this.getModel()
+		const thinking = getAnthropicProviderReasoning({
+			model: info,
+			reasoningBudget,
+			settings: this.options,
+		})
 
 		// Filter out non-Anthropic blocks (reasoning, thoughtSignature, etc.) before sending to the API
 		const sanitizedMessages = filterNonAnthropicBlocks(messages)
@@ -80,6 +86,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 			case "claude-sonnet-4-5":
 			case "claude-sonnet-4-20250514":
 			case "claude-opus-4-6":
+			case "claude-opus-4-7":
 			case "claude-opus-4-5-20251101":
 			case "claude-opus-4-1-20250805":
 			case "claude-opus-4-20250514":

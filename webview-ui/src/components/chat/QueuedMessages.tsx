@@ -179,6 +179,103 @@ export const QueuedMessages = ({ queue, onRemove, onUpdate }: QueuedMessagesProp
 	const steerMessages = queue.filter((message) => message.deliveryMode === "steer")
 	const queuedMessages = queue.filter((message) => message.deliveryMode !== "steer")
 
+	const handleCancelEdit = (message: QueuedMessage) => {
+		setEditState(message.id, false, message.text)
+	}
+
+	const renderLane = (
+		title: string,
+		messages: QueuedMessage[],
+		options?: { emptyLabel?: string; alternateActionLabel?: string; alternateMode?: QueuedMessage["deliveryMode"] },
+	) => {
+		if (messages.length === 0 && !options?.emptyLabel) {
+			return null
+		}
+
+		return (
+			<div className="flex flex-col gap-2">
+				<div className="flex items-center justify-between gap-2 px-1">
+					<div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-vscode-descriptionForeground">
+						{title}
+					</div>
+					<div className="text-[11px] text-vscode-descriptionForeground">{messages.length}</div>
+				</div>
+				{messages.length === 0 ? (
+					<div className="rounded-xs border border-dashed border-vscode-editorGroup-border px-3 py-2 text-xs text-vscode-descriptionForeground">
+						{options?.emptyLabel}
+					</div>
+				) : (
+					messages.map((message) => {
+						const editState = getEditState(message.id, message.text)
+
+						return (
+							<div
+								key={message.id}
+								className="bg-vscode-editor-background border rounded-xs p-1 overflow-hidden whitespace-pre-wrap flex-shrink-0">
+								<div className="flex justify-between gap-2">
+									<div className="flex-grow px-2 py-1 wrap-anywhere">
+										<div className="mb-1 flex items-center gap-2">
+											<span className="rounded-full bg-vscode-badge-background/80 px-1.5 py-0.5 text-[10px] font-semibold text-vscode-badge-foreground">
+												{message.deliveryMode === "steer" ? "Steer next" : "Queued"}
+											</span>
+										</div>
+										{editState.isEditing ? (
+											<QueuedMessageEditor
+												value={editState.value}
+												onChange={(value) => setEditState(message.id, true, value)}
+												onSave={() => handleSaveEdit(message, editState.value)}
+												onCancel={() => handleCancelEdit(message)}
+												placeholder={t("chat:editMessage.placeholder")}
+												rows={Math.min(editState.value.split("\n").length, 10)}
+											/>
+										) : (
+											<div
+												onClick={() => setEditState(message.id, true, message.text)}
+												className="cursor-pointer hover:bg-vscode-list-hoverBackground px-1 py-0.5 -mx-1 -my-0.5 rounded transition-colors"
+												title={t("chat:queuedMessages.clickToEdit")}>
+												<Mention text={message.text} withShadow />
+											</div>
+										)}
+									</div>
+									<div className="flex shrink-0 flex-col items-end gap-1 py-1 pr-1">
+										{options?.alternateMode && options.alternateActionLabel && (
+											<Button
+												variant="ghost"
+												size="sm"
+												className="h-6 rounded-md px-2 text-xs"
+												onClick={(e) => {
+													e.stopPropagation()
+													onUpdate(message, { deliveryMode: options.alternateMode })
+												}}>
+												{options.alternateActionLabel}
+											</Button>
+										)}
+										<Button
+											variant="ghost"
+											size="icon"
+											className="shrink-0"
+											onClick={(e) => {
+												e.stopPropagation()
+												onRemove(message.id)
+											}}>
+											<span className="codicon codicon-trash" />
+										</Button>
+									</div>
+								</div>
+								{message.images && message.images.length > 0 && (
+									<Thumbnails images={message.images} style={{ marginTop: "8px" }} />
+								)}
+							</div>
+						)
+					})
+				)}
+			</div>
+		)
+	}
+
+	const steerMessages = queue.filter((message) => message.deliveryMode === "steer")
+	const queuedMessages = queue.filter((message) => message.deliveryMode !== "steer")
+
 	return (
 		<div className="px-[15px] py-[10px] pr-[6px]" data-testid="queued-messages">
 			<div className="text-vscode-descriptionForeground text-md mb-2">{t("queuedMessages.title")}</div>

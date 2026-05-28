@@ -1,34 +1,12 @@
 {
-	"routers": {
-		"requesty": {
-			"description": "最適化されたLLMルーター",
-			"incentive": "無料の$1クレジット"
-		},
-		"openrouter": {
-			"description": "LLM向けの統一インターフェース"
-		},
-		"roo": {
-			"description": "始めるための最高の無料モデル",
-			"incentive": "Rooを無料で試す"
-		}
-	},
 	"landing": {
-		"greeting": "Roo Codeへようこそ！",
-		"introduction": "組み込みおよび拡張可能なモードを備えたRoo Codeは、計画、アーキテクチャ設計、コーディング、デバッグ、そして今までにない生産性向上を可能にします。",
-		"accountMention": "始めるには、Roo Code Cloudアカウントを作成してください。強力なモデル、ウェブコントロール、分析、サポート、その他をご利用いただけます。",
-		"getStarted": "Rooアカウントを作成",
-		"noAccount": "またはアカウントなしで使用"
+		"greeting": "Zoo Codeへようこそ！",
+		"introduction": "組み込みおよび拡張可能なモードを備えたZoo Codeは、計画、アーキテクチャ設計、コーディング、デバッグ、そして今までにない生産性向上を可能にします。",
+		"getStarted": "プロバイダーを選択"
 	},
 	"providerSignup": {
 		"heading": "プロバイダーを選択",
-		"chooseProvider": "Rooが機能するにはLLMプロバイダーが必要です。始めるために1つを選択してください。後から追加することもできます。",
-		"rooCloudProvider": "Roo Code Cloudプロバイダー",
-		"rooCloudDescription": "始める最も簡単な方法は、Roo Code Cloudプロバイダーを使用することです。無料および有料モデルの厳選されたミックスを低コストで提供します。",
-		"learnMore": "詳細を見る",
-		"useAnotherProvider": "サードパーティプロバイダー",
-		"useAnotherProviderDescription": "APIキーを入力して開始します。",
-		"noApiKeys": "APIキーと別のアカウントを処理したくありませんか?",
-		"backToRoo": "Roo Code Cloudプロバイダーを選択してください。",
+		"chooseProvider": "Zoo Codeが機能するにはLLMプロバイダーが必要です。始めるために1つを選択してください。後から追加することもできます。",
 		"goBack": "戻る",
 		"finish": "完了"
 	},

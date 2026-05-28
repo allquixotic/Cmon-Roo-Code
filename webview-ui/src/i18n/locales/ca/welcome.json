@@ -1,34 +1,12 @@
 {
-	"routers": {
-		"requesty": {
-			"description": "El teu encaminador LLM optimitzat",
-			"incentive": "Crèdit gratuït de $1"
-		},
-		"openrouter": {
-			"description": "Una interfície unificada per als LLM"
-		},
-		"roo": {
-			"description": "Els millors models gratuïts per començar",
-			"incentive": "Prova Roo gratis"
-		}
-	},
 	"landing": {
-		"greeting": "Benvingut a Roo Code!",
-		"introduction": "Amb una gamma de Modes integrats i ampliables, Roo Code et permet planificar, arquitectar, codificar, depurar i augmentar la teva productivitat com mai abans.",
-		"accountMention": "Per començar, crea el teu compte Roo Code Cloud. Obtén models potents, control web, analítica, suport i molt més.",
-		"getStarted": "Crea compte Roo",
-		"noAccount": "o utilitza sense compte"
+		"greeting": "Benvingut a Zoo Code!",
+		"introduction": "Amb una gamma de Modes integrats i ampliables, Zoo Code et permet planificar, arquitectar, codificar, depurar i augmentar la teva productivitat com mai abans.",
+		"getStarted": "Tria el teu proveïdor"
 	},
 	"providerSignup": {
 		"heading": "Tria el teu proveïdor",
-		"chooseProvider": "Roo necessita un proveïdor de LLM per funcionar. Tria-ne un per començar, pots afegir-ne més tard.",
-		"rooCloudProvider": "Proveïdor de Roo Code Cloud",
-		"rooCloudDescription": "La manera més fàcil de començar és amb el Proveïdor Roo Code Cloud: una mescla acurada de models gratuïts i de pagament a baix cost.",
-		"learnMore": "Més informació",
-		"useAnotherProvider": "Proveïdor de tercers",
-		"useAnotherProviderDescription": "Entra una clau API i comença.",
-		"noApiKeys": "No vols tractar amb claus API i comptes separats?",
-		"backToRoo": "Tria el Proveïdor Roo Code Cloud.",
+		"chooseProvider": "Zoo Code necessita un proveïdor de LLM per funcionar. Tria-ne un per començar, pots afegir-ne més tard.",
 		"goBack": "Enrere",
 		"finish": "Finalitza"
 	},

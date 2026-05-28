@@ -7,7 +7,7 @@ vi.mock("../../../shared/package", () => ({
 		name: "crc",
 		publisher: "allquixotic",
 		version: "1.0.0",
-		outputChannel: "Roo-Code",
+		outputChannel: "Zoo-Code",
 	},
 }))
 

@@ -356,7 +356,10 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 				<label className="block font-medium mb-1">{t("settings:providers.awsRegion")}</label>
 				<Select
 					value={apiConfiguration?.awsRegion || ""}
-					onValueChange={(value) => setApiConfigurationField("awsRegion", value)}>
+					onValueChange={(value) => {
+						clearMaxOutputTokensOverride()
+						setApiConfigurationField("awsRegion", value)
+					}}>
 					<SelectTrigger className="w-full">
 						<SelectValue placeholder={t("settings:common.select")} />
 					</SelectTrigger>
@@ -448,6 +451,7 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 			<Checkbox
 				checked={apiConfiguration?.awsUseCrossRegionInference || false}
 				onChange={(checked: boolean) => {
+					clearMaxOutputTokensOverride()
 					setApiConfigurationField("awsUseCrossRegionInference", checked)
 				}}
 				disabled={isExplicitTargetSelection}>

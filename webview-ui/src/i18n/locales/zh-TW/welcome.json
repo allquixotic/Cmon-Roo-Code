@@ -1,34 +1,12 @@
 {
-	"routers": {
-		"requesty": {
-			"description": "為您最佳化的 LLM 路由器",
-			"incentive": "$1 免費額度"
-		},
-		"openrouter": {
-			"description": "LLM 統一介面"
-		},
-		"roo": {
-			"description": "開始使用的最佳免費模型",
-			"incentive": "免費試用 Roo"
-		}
-	},
 	"landing": {
-		"greeting": "歡迎使用 Roo Code！",
-		"introduction": "Roo Code 提供一系列內建和可擴充的模式，讓您以前所未有的方式規劃專案、設計架構、編寫程式碼、除錯並提升工作效率。",
-		"accountMention": "開始使用，請建立您的 Roo Code Cloud 帳戶。取得強大的模型、網路控制、分析、支援等功能。",
-		"getStarted": "建立 Roo 帳戶",
-		"noAccount": "或不使用帳戶"
+		"greeting": "歡迎使用 Zoo Code！",
+		"introduction": "Zoo Code 提供一系列內建和可擴充的模式，讓您以前所未有的方式規劃專案、設計架構、編寫程式碼、除錯並提升工作效率。",
+		"getStarted": "選擇供應商"
 	},
 	"providerSignup": {
 		"heading": "選擇供應商",
-		"chooseProvider": "Roo 需要 LLM 供應商才能運作。選擇一個以開始使用，您可以稍後新增更多。",
-		"rooCloudProvider": "Roo Code Router",
-		"rooCloudDescription": "開始使用最簡單的方式是使用 Roo Code Router：精選的免費和付費模型組合，價格低廉。",
-		"learnMore": "了解更多",
-		"useAnotherProvider": "第三方供應商",
-		"useAnotherProviderDescription": "輸入 API 金鑰並開始使用。",
-		"noApiKeys": "不想處理 API 金鑰和個別帳戶嗎？",
-		"backToRoo": "選擇 Roo Code Router。",
+		"chooseProvider": "Zoo Code 需要 LLM 供應商才能運作。選擇一個以開始使用，您可以稍後新增更多。",
 		"goBack": "返回",
 		"finish": "完成"
 	},

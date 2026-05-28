@@ -183,6 +183,8 @@ describe("ClineProvider flicker-free cancel", () => {
 			emit: vi.fn(),
 			on: vi.fn(),
 			off: vi.fn(),
+			messageQueueService: { restoreMessages: vi.fn() },
+			setDeferQueuedMessageDrainUntilResume: vi.fn(),
 		}
 
 		// Mock Task constructor

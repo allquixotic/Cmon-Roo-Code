@@ -388,24 +388,36 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements Di
 			throw new Error("CloudService instance already created")
 		}
 
-		this._instance = new CloudService(context, log)
+		const instance = new CloudService(context, log)
+		this._instance = instance
 
-		await this._instance.initialize()
+		try {
+			await instance.initialize()
 
-		if (eventHandlers) {
-			for (const [event, handler] of Object.entries(eventHandlers)) {
-				if (handler) {
-					this._instance.on(
-						event as keyof CloudServiceEvents,
-						handler as (...args: CloudServiceEvents[keyof CloudServiceEvents]) => void,
-					)
+			if (eventHandlers) {
+				for (const [event, handler] of Object.entries(eventHandlers)) {
+					if (handler) {
+						instance.on(
+							event as keyof CloudServiceEvents,
+							handler as (...args: CloudServiceEvents[keyof CloudServiceEvents]) => void,
+						)
+					}
 				}
 			}
+
+			await instance.authService?.broadcast()
+
+			return instance
+		} catch (error) {
+			try {
+				instance.dispose()
+			} catch {
+				// Best effort cleanup only.
+			}
+
+			this._instance = null
+			throw error
 		}
-
-		await this._instance.authService?.broadcast()
-
-		return this._instance
 	}
 
 	static hasInstance(): boolean {
@@ -420,7 +432,7 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements Di
 	}
 
 	static isEnabled(): boolean {
-		return !!this._instance?.isAuthenticated()
+		return false
 	}
 
 	/**

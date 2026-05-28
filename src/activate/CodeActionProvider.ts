@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 
-import { CodeActionName, CodeActionId } from "@roo-code/types"
+import { CodeActionId } from "@roo-code/types"
 import { Package } from "../shared/package"
 
 import { getCodeActionCommand } from "../utils/commands"
@@ -51,12 +51,17 @@ export class CodeActionProvider implements vscode.CodeActionProvider {
 			const actions: vscode.CodeAction[] = []
 
 			actions.push(
-				this.createAction(TITLES.ADD_TO_CONTEXT, vscode.CodeActionKind.QuickFix, "addToContext", [
-					filePath,
-					effectiveRange.text,
-					effectiveRange.range.start.line + 1,
-					effectiveRange.range.end.line + 1,
-				]),
+				this.createAction(
+					t("common:codeActions.addToContext"),
+					vscode.CodeActionKind.QuickFix,
+					"addToContext",
+					[
+						filePath,
+						effectiveRange.text,
+						effectiveRange.range.start.line + 1,
+						effectiveRange.range.end.line + 1,
+					],
+				),
 			)
 
 			if (context.diagnostics.length > 0) {
@@ -66,7 +71,7 @@ export class CodeActionProvider implements vscode.CodeActionProvider {
 
 				if (relevantDiagnostics.length > 0) {
 					actions.push(
-						this.createAction(TITLES.FIX, vscode.CodeActionKind.QuickFix, "fixCode", [
+						this.createAction(t("common:codeActions.fix"), vscode.CodeActionKind.QuickFix, "fixCode", [
 							filePath,
 							effectiveRange.text,
 							effectiveRange.range.start.line + 1,
@@ -77,7 +82,7 @@ export class CodeActionProvider implements vscode.CodeActionProvider {
 				}
 			} else {
 				actions.push(
-					this.createAction(TITLES.EXPLAIN, vscode.CodeActionKind.QuickFix, "explainCode", [
+					this.createAction(t("common:codeActions.explain"), vscode.CodeActionKind.QuickFix, "explainCode", [
 						filePath,
 						effectiveRange.text,
 						effectiveRange.range.start.line + 1,
@@ -86,7 +91,7 @@ export class CodeActionProvider implements vscode.CodeActionProvider {
 				)
 
 				actions.push(
-					this.createAction(TITLES.IMPROVE, vscode.CodeActionKind.QuickFix, "improveCode", [
+					this.createAction(t("common:codeActions.improve"), vscode.CodeActionKind.QuickFix, "improveCode", [
 						filePath,
 						effectiveRange.text,
 						effectiveRange.range.start.line + 1,

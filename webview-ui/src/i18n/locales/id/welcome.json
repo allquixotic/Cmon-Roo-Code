@@ -1,34 +1,12 @@
 {
-	"routers": {
-		"requesty": {
-			"description": "Router LLM yang dioptimalkan",
-			"incentive": "Kredit gratis $1"
-		},
-		"openrouter": {
-			"description": "Antarmuka terpadu untuk LLM"
-		},
-		"roo": {
-			"description": "Model gratis terbaik untuk memulai",
-			"incentive": "Coba Roo gratis"
-		}
-	},
 	"landing": {
-		"greeting": "Selamat datang di Roo Code!",
-		"introduction": "Dengan berbagai Mode bawaan dan dapat diperluas, Roo Code memungkinkan Anda merencanakan, merancang, coding, debug, dan meningkatkan produktivitas seperti yang belum pernah terjadi sebelumnya.",
-		"accountMention": "Untuk memulai, buat akun Roo Code Cloud Anda. Dapatkan model yang kuat, kontrol web, analitik, dukungan, dan banyak lagi.",
-		"getStarted": "Buat Akun Roo",
-		"noAccount": "atau gunakan tanpa akun"
+		"greeting": "Selamat datang di Zoo Code!",
+		"introduction": "Dengan berbagai Mode bawaan dan dapat diperluas, Zoo Code memungkinkan Anda merencanakan, merancang, coding, debug, dan meningkatkan produktivitas seperti yang belum pernah terjadi sebelumnya.",
+		"getStarted": "Pilih penyedia Anda"
 	},
 	"providerSignup": {
 		"heading": "Pilih penyedia Anda",
-		"chooseProvider": "Roo memerlukan penyedia LLM untuk bekerja. Pilih satu untuk memulai, Anda dapat menambahkan lebih banyak nanti.",
-		"rooCloudProvider": "Penyedia Roo Code Cloud",
-		"rooCloudDescription": "Cara termudah untuk memulai adalah dengan Penyedia Roo Code Cloud: campuran model gratis dan berbayar yang dikurasi dengan hati-hati dengan biaya rendah.",
-		"learnMore": "Pelajari lebih lanjut",
-		"useAnotherProvider": "Penyedia Pihak Ketiga",
-		"useAnotherProviderDescription": "Masukkan kunci API dan mulai.",
-		"noApiKeys": "Tidak ingin berurusan dengan kunci API dan akun terpisah?",
-		"backToRoo": "Pilih Penyedia Roo Code Cloud.",
+		"chooseProvider": "Zoo Code memerlukan penyedia LLM untuk bekerja. Pilih satu untuk memulai, Anda dapat menambahkan lebih banyak nanti.",
 		"goBack": "Kembali",
 		"finish": "Selesai"
 	},

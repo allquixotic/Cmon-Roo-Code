@@ -1,5 +1,7 @@
 // pnpm --filter crc test core/webview/__tests__/ClineProvider.spec.ts
 
+import * as path from "path"
+
 import Anthropic from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
 import axios from "axios"
@@ -49,6 +51,14 @@ vi.mock("axios", () => ({
 }))
 
 vi.mock("../../../utils/safeWriteJson")
+
+vi.mock("../../../utils/path", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../../utils/path")>()
+	return {
+		...actual,
+		getWorkspacePath: vi.fn().mockReturnValue(""),
+	}
+})
 
 vi.mock("../../../utils/storage", () => ({
 	getSettingsDirectoryPath: vi.fn().mockResolvedValue("/test/settings/path"),
@@ -114,6 +124,11 @@ vi.mock("vscode", () => ({
 	ExtensionContext: vi.fn(),
 	OutputChannel: vi.fn(),
 	WebviewView: vi.fn(),
+	EventEmitter: vi.fn().mockImplementation(() => ({
+		event: vi.fn(),
+		fire: vi.fn(),
+		dispose: vi.fn(),
+	})),
 	Uri: {
 		joinPath: vi.fn(),
 		file: vi.fn(),
@@ -129,6 +144,7 @@ vi.mock("vscode", () => ({
 		showInformationMessage: vi.fn(),
 		showWarningMessage: vi.fn(),
 		showErrorMessage: vi.fn(),
+		activeTextEditor: undefined,
 		onDidChangeActiveTextEditor: vi.fn(() => ({ dispose: vi.fn() })),
 	},
 	workspace: {
@@ -136,6 +152,7 @@ vi.mock("vscode", () => ({
 			get: vi.fn().mockReturnValue([]),
 			update: vi.fn(),
 		}),
+		getWorkspaceFolder: vi.fn(),
 		onDidChangeConfiguration: vi.fn().mockImplementation(() => ({
 			dispose: vi.fn(),
 		})),
@@ -393,7 +410,7 @@ describe("ClineProvider", () => {
 
 		mockContext = {
 			extensionPath: "/test/path",
-			extensionUri: {} as vscode.Uri,
+			extensionUri: { fsPath: "/test/path" } as vscode.Uri,
 			globalState: {
 				get: vi.fn().mockImplementation((key: string) => globalState[key]),
 				update: vi
@@ -2196,12 +2213,14 @@ describe("Project MCP Settings", () => {
 	let mockWebviewView: vscode.WebviewView
 	let mockPostMessage: any
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		vi.clearAllMocks()
+		const pathUtils = await import("../../../utils/path")
+		vi.mocked(pathUtils.getWorkspacePath).mockReturnValue("")
 
 		mockContext = {
 			extensionPath: "/test/path",
-			extensionUri: {} as vscode.Uri,
+			extensionUri: { fsPath: "/test/path" } as vscode.Uri,
 			globalState: {
 				get: vi.fn(),
 				update: vi.fn(),
@@ -2246,13 +2265,16 @@ describe("Project MCP Settings", () => {
 			onDidDispose: vi.fn(),
 			onDidChangeVisibility: vi.fn(),
 		} as unknown as vscode.WebviewView
-
+		;(vscode.window as any).activeTextEditor = undefined
+		;(vscode.workspace.getWorkspaceFolder as any).mockReset()
 		provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
 	})
 
-	test.skip("handles openProjectMcpSettings message", async () => {
+	test("handles openProjectMcpSettings message", async () => {
 		// Mock workspace folders first
 		;(vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: "/test/workspace" } }]
+		const pathUtils = await import("../../../utils/path")
+		vi.mocked(pathUtils.getWorkspacePath).mockReturnValue("/test/workspace")
 
 		// Mock fs functions
 		const fs = await import("fs/promises")
@@ -2283,14 +2305,18 @@ describe("Project MCP Settings", () => {
 			type: "openProjectMcpSettings",
 		})
 
+		const expectedRooDir = path.join("/test/workspace", ".roo")
+		const expectedMcpPath = path.join(expectedRooDir, "mcp.json")
+
 		// Check that fs.mkdir was called with the correct path
-		expect(mockedFs.mkdir).toHaveBeenCalledWith("/test/workspace/.roo", { recursive: true })
+		expect(mockedFs.mkdir).toHaveBeenCalledWith(expectedRooDir, { recursive: true })
+		expect(pathUtils.getWorkspacePath).toHaveBeenCalled()
 
 		// Verify file was created with default content
-		expect(safeWriteJson).toHaveBeenCalledWith("/test/workspace/.roo/mcp.json", { mcpServers: {} })
+		expect(safeWriteJson).toHaveBeenCalledWith(expectedMcpPath, { mcpServers: {} }, { prettyPrint: true })
 
 		// Check that openFile was called
-		expect(openFileSpy).toHaveBeenCalledWith("/test/workspace/.roo/mcp.json")
+		expect(openFileSpy).toHaveBeenCalledWith(expectedMcpPath)
 	})
 
 	test("handles openProjectMcpSettings when workspace is not open", async () => {
@@ -2307,86 +2333,27 @@ describe("Project MCP Settings", () => {
 		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("errors.no_workspace")
 	})
 
-	test.skip("handles openProjectMcpSettings file creation error", async () => {
+	test("handles openProjectMcpSettings file creation error", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as any).mock.calls[0][0]
 
 		// Mock workspace folders
 		;(vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: "/test/workspace" } }]
+		const pathUtils = await import("../../../utils/path")
+		vi.mocked(pathUtils.getWorkspacePath).mockReturnValue("/test/workspace")
 
 		// Mock fs functions to fail
-		const fs = require("fs/promises")
-		fs.mkdir.mockRejectedValue(new Error("Failed to create directory"))
+		const fs = await import("fs/promises")
+		const mockedFs = vi.mocked(fs)
+		mockedFs.mkdir.mockRejectedValue(new Error("Failed to create directory"))
 
 		// Trigger openProjectMcpSettings
 		await messageHandler({
 			type: "openProjectMcpSettings",
 		})
 
-		// Verify error message was shown
-		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
-			expect.stringContaining("Failed to create or open .roo/mcp.json"),
-		)
-	})
-})
-
-describe.skip("ContextProxy integration", () => {
-	let provider: ClineProvider
-	let mockContext: vscode.ExtensionContext
-	let mockOutputChannel: vscode.OutputChannel
-	let mockContextProxy: any
-
-	beforeEach(() => {
-		// Reset mocks
-		vi.clearAllMocks()
-
-		// Setup basic mocks
-		mockContext = {
-			globalState: {
-				get: vi.fn(),
-				update: vi.fn(),
-				keys: vi.fn().mockReturnValue([]),
-			},
-			workspaceState: {
-				get: vi.fn().mockReturnValue(undefined),
-				update: vi.fn().mockResolvedValue(undefined),
-				keys: vi.fn().mockReturnValue([]),
-			},
-			secrets: { get: vi.fn(), store: vi.fn(), delete: vi.fn() },
-			extensionUri: {} as vscode.Uri,
-			globalStorageUri: { fsPath: "/test/path" },
-			extension: { packageJSON: { version: "1.0.0" } },
-		} as unknown as vscode.ExtensionContext
-
-		mockOutputChannel = { appendLine: vi.fn() } as unknown as vscode.OutputChannel
-		mockContextProxy = new ContextProxy(mockContext)
-		provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", mockContextProxy)
-	})
-
-	test("updateGlobalState uses contextProxy", async () => {
-		await provider.setValue("currentApiConfigName", "testValue")
-		expect(mockContextProxy.updateGlobalState).toHaveBeenCalledWith("currentApiConfigName", "testValue")
-	})
-
-	test("getGlobalState uses contextProxy", async () => {
-		mockContextProxy.getGlobalState.mockResolvedValueOnce("testValue")
-		const result = await provider.getValue("currentApiConfigName")
-		expect(mockContextProxy.getGlobalState).toHaveBeenCalledWith("currentApiConfigName")
-		expect(result).toBe("testValue")
-	})
-
-	test("storeSecret uses contextProxy", async () => {
-		await provider.setValue("apiKey", "test-secret")
-		expect(mockContextProxy.storeSecret).toHaveBeenCalledWith("apiKey", "test-secret")
-	})
-
-	test("contextProxy methods are available", () => {
-		// Verify the contextProxy has all the required methods
-		expect(mockContextProxy.getGlobalState).toBeDefined()
-		expect(mockContextProxy.updateGlobalState).toBeDefined()
-		expect(mockContextProxy.storeSecret).toBeDefined()
-		expect(mockContextProxy.setValue).toBeDefined()
-		expect(mockContextProxy.setValues).toBeDefined()
+		// Verify the translated error key is surfaced in test mode
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("errors.create_json")
 	})
 })
 
@@ -2405,7 +2372,7 @@ describe("ClineProvider - Router Models", () => {
 
 		mockContext = {
 			extensionPath: "/test/path",
-			extensionUri: {} as vscode.Uri,
+			extensionUri: { fsPath: "/test/path" } as vscode.Uri,
 			globalState: {
 				get: vi.fn().mockImplementation((key: string) => globalState[key]),
 				update: vi
@@ -2497,12 +2464,6 @@ describe("ClineProvider - Router Models", () => {
 		expect(getModels).toHaveBeenCalledWith({ provider: "requesty", apiKey: "requesty-key" })
 		expect(getModels).toHaveBeenCalledWith({ provider: "unbound" })
 		expect(getModels).toHaveBeenCalledWith({ provider: "vercel-ai-gateway" })
-		expect(getModels).toHaveBeenCalledWith(
-			expect.objectContaining({
-				provider: "roo",
-				baseUrl: expect.any(String),
-			}),
-		)
 		expect(getModels).toHaveBeenCalledWith({
 			provider: "litellm",
 			apiKey: "litellm-key",
@@ -2516,12 +2477,13 @@ describe("ClineProvider - Router Models", () => {
 				openrouter: mockModels,
 				requesty: mockModels,
 				unbound: mockModels,
-				roo: mockModels,
 				litellm: mockModels,
 				ollama: {},
 				lmstudio: {},
 				"vercel-ai-gateway": mockModels,
 				poe: {},
+				deepseek: {},
+				"opencode-go": {},
 			},
 			values: undefined,
 		})
@@ -2551,7 +2513,6 @@ describe("ClineProvider - Router Models", () => {
 			.mockRejectedValueOnce(new Error("Requesty API error")) // requesty fail
 			.mockResolvedValueOnce(mockModels) // unbound success
 			.mockResolvedValueOnce(mockModels) // vercel-ai-gateway success
-			.mockResolvedValueOnce(mockModels) // roo success
 			.mockRejectedValueOnce(new Error("LiteLLM connection failed")) // litellm fail
 
 		await messageHandler({ type: "requestRouterModels" })
@@ -2563,12 +2524,13 @@ describe("ClineProvider - Router Models", () => {
 				openrouter: mockModels,
 				requesty: {},
 				unbound: mockModels,
-				roo: mockModels,
 				ollama: {},
 				lmstudio: {},
 				litellm: {},
 				"vercel-ai-gateway": mockModels,
 				poe: {},
+				deepseek: {},
+				"opencode-go": {},
 			},
 			values: undefined,
 		})
@@ -2658,12 +2620,13 @@ describe("ClineProvider - Router Models", () => {
 				openrouter: mockModels,
 				requesty: mockModels,
 				unbound: mockModels,
-				roo: mockModels,
 				litellm: {},
 				ollama: {},
 				lmstudio: {},
 				"vercel-ai-gateway": mockModels,
 				poe: {},
+				deepseek: {},
+				"opencode-go": {},
 			},
 			values: undefined,
 		})
@@ -2717,7 +2680,7 @@ describe("ClineProvider - Comprehensive Edit/Delete Edge Cases", () => {
 
 		mockContext = {
 			extensionPath: "/test/path",
-			extensionUri: {} as vscode.Uri,
+			extensionUri: { fsPath: "/test/path" } as vscode.Uri,
 			globalState: {
 				get: vi.fn().mockImplementation((key: string) => globalState[key]),
 				update: vi

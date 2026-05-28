@@ -1,23 +1,44 @@
 <p align="center">
-  <a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline"><img src="https://img.shields.io/badge/VS_Code_Marketplace-007ACC?style=flat&logo=visualstudiocode&logoColor=white" alt="VS Code Marketplace"></a>
-  <a href="https://x.com/roocode"><img src="https://img.shields.io/badge/roocode-000000?style=flat&logo=x&logoColor=white" alt="X"></a>
-  <a href="https://youtube.com/@roocodeyt?feature=shared"><img src="https://img.shields.io/badge/YouTube-FF0000?style=flat&logo=youtube&logoColor=white" alt="YouTube"></a>
-  <a href="https://discord.gg/roocode"><img src="https://img.shields.io/badge/Join%20Discord-5865F2?style=flat&logo=discord&logoColor=white" alt="Join Discord"></a>
-  <a href="https://www.reddit.com/r/RooCode/"><img src="https://img.shields.io/badge/Join%20r%2FRooCode-FF4500?style=flat&logo=reddit&logoColor=white" alt="Join r/RooCode"></a>
-</p>
-<p align="center">
-  <em>Nhận trợ giúp nhanh → <a href="https://discord.gg/roocode">Tham gia Discord</a> • Thích không đồng bộ? → <a href="https://www.reddit.com/r/RooCode/">Tham gia r/RooCode</a></em>
-</p>
+          <a href="https://marketplace.visualstudio.com/items?itemName=ZooCodeOrganization.zoo-code"><img src="https://img.shields.io/badge/VS_Code_Marketplace-007ACC?style=flat&logo=visualstudiocode&logoColor=white" alt="VS Code Marketplace"></a>
+          <a href="https://x.com/ZooCodeDev"><img src="https://img.shields.io/badge/ZooCode-000000?style=flat&logo=x&logoColor=white" alt="X"></a>
+          <a href="https://youtube.com/@roocodeyt?feature=shared"><img src="https://img.shields.io/badge/YouTube-FF0000?style=flat&logo=youtube&logoColor=white" alt="YouTube"></a>
+          <a href="https://discord.gg/VxfP4Vx3gX"><img src="https://img.shields.io/badge/Join%20Discord-5865F2?style=flat&logo=discord&logoColor=white" alt="Join Discord"></a>
+          <a href="https://www.reddit.com/r/ZooCode/"><img src="https://img.shields.io/badge/Join%20r%2FZooCode-FF4500?style=flat&logo=reddit&logoColor=white" alt="Join r/ZooCode"></a>
+          <a href="https://github.com/Zoo-Code-Org/Zoo-Code/issues"><img src="https://img.shields.io/badge/GitHub-Issues-181717?style=flat&logo=github&logoColor=white" alt="GitHub Issues"></a>
+        </p>
+        <p align="center">
+          <em>Cần trợ giúp nhanh → <a href="https://discord.gg/VxfP4Vx3gX">Tham gia Discord</a> • Thích trao đổi không đồng bộ hơn? → <a href="https://www.reddit.com/r/ZooCode/">Tham gia r/ZooCode</a></em>
+        </p>
 
-# Roo Code
+        # Zoo Code
 
-> Đội ngũ dev dùng AI của bạn, ngay trong trình chỉnh sửa
+        > Đội ngũ dev dùng AI của bạn, ngay trong trình chỉnh sửa
 
-## Điểm mới trong v3.52.0
+        ## Chúng tôi là Zoo Code
 
-- Đã thêm Poe làm nhà cung cấp AI để bạn có thể truy cập trực tiếp các model Poe trong Roo Code.
-- Đã cải thiện nhà cung cấp xAI với quá trình chuyển sang Responses API, các tiện ích chuyển đổi có thể tái sử dụng và các giá trị mặc định Grok-4.20 đã được cập nhật.
-- Đã sửa danh sách model MiniMax và cách xử lý context window để thiết lập đáng tin cậy hơn.
+> Có thể bạn đã thấy [thông báo gần đây](https://x.com/mattrubens/status/2046636598859559114) từ đội ngũ Roo 🦘🦘🦘. Tóm lại, đội ngũ đang dần giảm việc phát triển Roo Code một cách tích cực để tập trung vào [Roomote](https://roomote.dev/). Tin này thật khó chấp nhận với nhiều người dùng Roo; plugin này có ý nghĩa rất lớn với cộng đồng này.
+>
+> Chúng tôi muốn cảm ơn toàn bộ đội ngũ Roo vì công sức họ đã dành cho plugin này. Chúng tôi sẽ không nêu tên từng người ở đây, nhưng tất cả chúng ta đều có thể đồng ý rằng họ là những nhà phát triển xuất sắc và, quan trọng không kém, là những con người tuyệt vời. Cảm ơn đội ngũ Roo.
+>
+> Người dùng Roo đến từ đủ mọi kiểu khác nhau. Có người dùng nó chuyên nghiệp trong công việc hằng ngày, có người dùng nó để nghĩ ra những workflow phức tạp đến khó tin. Có người dùng nó để cải thiện chính Roo, trong khi người khác dùng nó để cải thiện những model mà Roo đang sử dụng (siêu meta). Điều chúng tôi muốn nói là cộng đồng rất đa dạng, và dù một chú kangaroo 🦘🦘🦘 là một loài vật cao quý và nổi bật, chúng tôi cảm thấy một "Zoo" 🐘🦡🦒🦓🦛🦧🦭🦦 với nhiều loài khác nhau phản ánh sự đa dạng đó tốt hơn.
+>
+> Vì vậy, chúng tôi muốn thông báo rằng **Zoo Code** sẽ tiếp tục phát triển dự án quan trọng này. Đội ngũ nòng cốt gồm những nhà phát triển từng đóng góp cho Roo trước đây và thực sự quan tâm đến plugin này. Chúng tôi sẽ tiếp tục cập nhật model, sửa lỗi và phát hành tính năng. Nhưng trên hết, chúng tôi muốn lắng nghe bạn, cộng đồng đã làm cho plugin này trở nên đặc biệt. Vì vậy, hãy tham gia [Discord](https://discord.gg/VxfP4Vx3gX), [Reddit](https://www.reddit.com/r/ZooCode) của chúng tôi, hoặc [tạo PR hay issue](https://github.com/Zoo-Code-Org/Zoo-Code); nhưng hơn hết, chúng tôi mong bạn tiếp tục gắn bó, kết nối và năng động cùng cộng đồng.
+>
+> _-Zoo Code Team_
+
+## Chuyển từ Roo Code sang Zoo Code
+
+Bạn có thể xem hướng dẫn nhanh để chuyển từ Roo Code sang Zoo Code trong [hướng dẫn chuyển đổi Roo→Zoo](https://docs.zoocode.dev/roo-to-zoo-migration). Chúng tôi muốn hỗ trợ người dùng nhiều nhất có thể trong quá trình chuyển đổi, và đó chính là lý do chúng tôi có [Reddit](https://www.reddit.com/r/ZooCode) và [Discord](https://discord.gg/VxfP4Vx3gX). Nếu bạn gặp vấn đề hoặc có câu hỏi, cứ vào hỏi nhé.
+
+## Điểm mới trong v3.55.0
+
+**Bản phát hành tính năng đầu tiên của Zoo Code** tiếp tục phần handoff lên Marketplace với một provider mới, merge upstream sunset của Roo Code và một loạt bản sửa lỗi mà người dùng cảm nhận được ở chat, cài đặt provider và phần render.
+
+- Thêm Xiaomi MiMo như một provider API hạng nhất.
+- Tích hợp merge upstream sunset của Roo Code cùng các cập nhật nền tảng liên quan.
+- Sửa nội dung sign-in của MCP, các request Gemini với đầy đủ tool và cách xử lý temperature của OpenAI cho những model không hỗ trợ.
+- Sửa render Markdown với single tilde và cách đặt tên file tạm cho diagnostics.
+- Cải thiện giá trị mặc định của provider và độ phủ region cho Z.AI, GLM và Vertex AI.
 
 <details>
   <summary>🌐 Các ngôn ngữ có sẵn</summary>
@@ -45,7 +66,7 @@
 
 ---
 
-## Roo Code có thể làm gì cho BẠN?
+## Zoo Code có thể làm gì cho BẠN?
 
 - Tạo mã từ mô tả ngôn ngữ tự nhiên
 - Thích ứng với các Chế độ: Mã, Kiến trúc sư, Hỏi, Gỡ lỗi và Chế độ tùy chỉnh
@@ -57,7 +78,7 @@
 
 ## Chế độ
 
-Roo Code thích ứng với cách bạn làm việc, chứ không phải ngược lại:
+Zoo Code thích ứng với cách bạn làm việc, chứ không phải ngược lại:
 
 - Chế độ Mã: viết mã hàng ngày, chỉnh sửa và các thao tác với tệp
 - Chế độ Kiến trúc sư: lập kế hoạch hệ thống, thông số kỹ thuật và di chuyển
@@ -65,7 +86,7 @@ Roo Code thích ứng với cách bạn làm việc, chứ không phải ngượ
 - Chế độ Gỡ lỗi: theo dõi sự cố, thêm nhật ký, cô lập nguyên nhân gốc rễ
 - Chế độ Tùy chỉnh: xây dựng các chế độ chuyên biệt cho nhóm hoặc quy trình làm việc của bạn
 
-Xem thêm: [Sử dụng Chế độ](https://docs.roocode.com/basic-usage/using-modes) • [Chế độ tùy chỉnh](https://docs.roocode.com/advanced-usage/custom-modes)
+Xem thêm: [Sử dụng Chế độ](https://docs.zoocode.dev/basic-usage/using-modes) • [Chế độ tùy chỉnh](https://docs.zoocode.dev/advanced-usage/custom-modes)
 
 ## Video hướng dẫn & tính năng
 
@@ -73,22 +94,22 @@ Xem thêm: [Sử dụng Chế độ](https://docs.roocode.com/basic-usage/using-
 
 |                                                                                                                                                                        |                                                                                                                                                                           |                                                                                                                                                                            |
 | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
-| <a href="https://www.youtube.com/watch?v=Mcq3r1EPZ-4"><img src="https://img.youtube.com/vi/Mcq3r1EPZ-4/maxresdefault.jpg" width="100%"></a><br><b>Cài đặt Roo Code</b> | <a href="https://www.youtube.com/watch?v=ZBML8h5cCgo"><img src="https://img.youtube.com/vi/ZBML8h5cCgo/maxresdefault.jpg" width="100%"></a><br><b>Định cấu hình Hồ sơ</b> | <a href="https://www.youtube.com/watch?v=r1bpod1VWhg"><img src="https://img.youtube.com/vi/r1bpod1VWhg/maxresdefault.jpg" width="100%"></a><br><b>Lập chỉ mục cơ sở mã</b> |
+| <a href="https://www.youtube.com/watch?v=Mcq3r1EPZ-4"><img src="https://img.youtube.com/vi/Mcq3r1EPZ-4/maxresdefault.jpg" width="100%"></a><br><b>Cài đặt Zoo Code</b> | <a href="https://www.youtube.com/watch?v=ZBML8h5cCgo"><img src="https://img.youtube.com/vi/ZBML8h5cCgo/maxresdefault.jpg" width="100%"></a><br><b>Định cấu hình Hồ sơ</b> | <a href="https://www.youtube.com/watch?v=r1bpod1VWhg"><img src="https://img.youtube.com/vi/r1bpod1VWhg/maxresdefault.jpg" width="100%"></a><br><b>Lập chỉ mục cơ sở mã</b> |
 | <a href="https://www.youtube.com/watch?v=iiAv1eKOaxk"><img src="https://img.youtube.com/vi/iiAv1eKOaxk/maxresdefault.jpg" width="100%"></a><br><b>Chế độ tùy chỉnh</b> |    <a href="https://www.youtube.com/watch?v=Ho30nyY332E"><img src="https://img.youtube.com/vi/Ho30nyY332E/maxresdefault.jpg" width="100%"></a><br><b>Điểm kiểm tra</b>    |   <a href="https://www.youtube.com/watch?v=HmnNSasv7T8"><img src="https://img.youtube.com/vi/HmnNSasv7T8/maxresdefault.jpg" width="100%"></a><br><b>Quản lý Ngữ cảnh</b>   |
 
 </div>
 <p align="center">
-<a href="https://docs.roocode.com/tutorial-videos">Thêm video hướng dẫn và tính năng nhanh...</a>
+<a href="https://docs.zoocode.dev/tutorial-videos">Thêm video hướng dẫn và tính năng nhanh...</a>
 </p>
 
 ## Tài nguyên
 
-- **[Tài liệu](https://docs.roocode.com):** Hướng dẫn chính thức để cài đặt, cấu hình và sử dụng thành thạo Roo Code.
+- **[Tài liệu](https://docs.zoocode.dev):** Hướng dẫn chính thức để cài đặt, cấu hình và sử dụng thành thạo Zoo Code.
 - **[Kênh YouTube](https://youtube.com/@roocodeyt?feature=shared):** Xem các video hướng dẫn và các tính năng đang hoạt động.
-- **[Máy chủ Discord](https://discord.gg/roocode):** Tham gia cộng đồng để được trợ giúp và thảo luận trong thời gian thực.
-- **[Cộng đồng Reddit](https://www.reddit.com/r/RooCode):** Chia sẻ kinh nghiệm của bạn và xem những người khác đang xây dựng gì.
-- **[Vấn đề trên GitHub](https://github.com/RooCodeInc/Roo-Code/issues):** Báo cáo lỗi và theo dõi quá trình phát triển.
-- **[Yêu cầu tính năng](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop):** Có ý tưởng? Hãy chia sẻ với các nhà phát triển.
+- **[Máy chủ Discord](https://discord.gg/VxfP4Vx3gX):** Tham gia cộng đồng để được trợ giúp và thảo luận trong thời gian thực.
+- **[Cộng đồng Reddit](https://www.reddit.com/r/ZooCode):** Chia sẻ kinh nghiệm của bạn và xem những người khác đang xây dựng gì.
+- **[Vấn đề trên GitHub](https://github.com/Zoo-Code-Org/Zoo-Code/issues):** Báo cáo lỗi và theo dõi quá trình phát triển.
+- **[Yêu cầu tính năng](https://github.com/Zoo-Code-Org/Zoo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop):** Có ý tưởng? Hãy chia sẻ với các nhà phát triển.
 
 ---
 
@@ -97,7 +118,7 @@ Xem thêm: [Sử dụng Chế độ](https://docs.roocode.com/basic-usage/using-
 1. **Sao chép** kho lưu trữ:
 
 ```sh
-git clone https://github.com/RooCodeInc/Roo-Code.git
+git clone https://github.com/Zoo-Code-Org/Zoo-Code.git
 ```
 
 2. **Cài đặt các dependency**:
@@ -108,13 +129,13 @@ pnpm install
 
 3. **Chạy phần mở rộng**:
 
-Có một số cách để chạy phần mở rộng Roo Code:
+Có một số cách để chạy phần mở rộng Zoo Code:
 
 ### Chế độ phát triển (F5)
 
 Để phát triển tích cực, hãy sử dụng tính năng gỡ lỗi tích hợp của VSCode:
 
-Nhấn `F5` (hoặc vào **Run** → **Start Debugging**) trong VSCode. Thao tác này sẽ mở một cửa sổ VSCode mới với phần mở rộng Roo Code đang chạy.
+Nhấn `F5` (hoặc vào **Run** → **Start Debugging**) trong VSCode. Thao tác này sẽ mở một cửa sổ VSCode mới với phần mở rộng Zoo Code đang chạy.
 
 - Các thay đổi đối với webview sẽ xuất hiện ngay lập tức.
 - Các thay đổi đối với phần mở rộng cốt lõi cũng sẽ tự động được tải lại nóng.
@@ -148,10 +169,10 @@ Nếu bạn muốn cài đặt gói VSIX theo cách thủ công:
     ```sh
     pnpm vsix
     ```
-2.  Một tệp `.vsix` sẽ được tạo trong thư mục `bin/` (ví dụ: `bin/roo-cline-<version>.vsix`).
+2.  Một tệp `.vsix` sẽ được tạo trong thư mục `bin/` (ví dụ: `bin/zoo-code-<version>.vsix`).
 3.  Cài đặt thủ công bằng VSCode CLI:
     ```sh
-    code --install-extension bin/roo-cline-<version>.vsix
+    code --install-extension bin/zoo-code-<version>.vsix
     ```
 
 ---
@@ -162,7 +183,7 @@ Chúng tôi sử dụng [changesets](https://github.com/changesets/changesets) �
 
 ## Tuyên bố miễn trừ trách nhiệm
 
-**Xin lưu ý** rằng Roo Code, Inc. **không** đưa ra bất kỳ tuyên bố hay bảo đảm nào liên quan đến bất kỳ mã, mô hình hoặc công cụ nào khác được cung cấp hoặc cung cấp liên quan đến Roo Code, bất kỳ công cụ nào của bên thứ ba được liên kết hoặc bất kỳ kết quả đầu ra nào. Bạn chịu **mọi rủi ro** liên quan đến việc sử dụng bất kỳ công cụ hoặc kết quả đầu ra nào như vậy; các công cụ đó được cung cấp trên cơ sở **"NGUYÊN TRẠNG"** và **"NHƯ HIỆN CÓ"**. Những rủi ro đó có thể bao gồm, nhưng không giới hạn ở, vi phạm sở hữu trí tuệ, các lỗ hổng hoặc tấn công mạng, thiên vị, không chính xác, lỗi, khiếm khuyết, vi-rút, thời gian ngừng hoạt động, mất mát hoặc hư hỏng tài sản và/hoặc thương tích cá nhân. Bạn hoàn toàn chịu trách nhiệm về việc sử dụng bất kỳ công cụ hoặc kết quả đầu ra nào đó (bao gồm, nhưng không giới hạn ở, tính hợp pháp, tính phù hợp và kết quả của chúng).
+**Xin lưu ý** rằng Zoo Code **không** đưa ra bất kỳ tuyên bố hay bảo đảm nào liên quan đến bất kỳ mã, mô hình hoặc công cụ nào khác được cung cấp hoặc cung cấp liên quan đến Zoo Code, bất kỳ công cụ nào của bên thứ ba được liên kết hoặc bất kỳ kết quả đầu ra nào. Bạn chịu **mọi rủi ro** liên quan đến việc sử dụng bất kỳ công cụ hoặc kết quả đầu ra nào như vậy; các công cụ đó được cung cấp trên cơ sở **"NGUYÊN TRẠNG"** và **"NHƯ HIỆN CÓ"**. Những rủi ro đó có thể bao gồm, nhưng không giới hạn ở, vi phạm sở hữu trí tuệ, các lỗ hổng hoặc tấn công mạng, thiên vị, không chính xác, lỗi, khiếm khuyết, vi-rút, thời gian ngừng hoạt động, mất mát hoặc hư hỏng tài sản và/hoặc thương tích cá nhân. Bạn hoàn toàn chịu trách nhiệm về việc sử dụng bất kỳ công cụ hoặc kết quả đầu ra nào đó (bao gồm, nhưng không giới hạn ở, tính hợp pháp, tính phù hợp và kết quả của chúng).
 
 ---
 
@@ -174,8 +195,8 @@ Chúng tôi yêu thích những đóng góp của cộng đồng! Bắt đầu b
 
 ## Giấy phép
 
-[Apache 2.0 © 2025 Roo Code, Inc.](../../LICENSE)
+[Apache 2.0 © 2025 Zoo Code Org](../../LICENSE)
 
 ---
 
-**Thưởng thức Roo Code!** Dù bạn giữ nó trong tầm kiểm soát chặt chẽ hay để nó tự do hoạt động, chúng tôi rất nóng lòng muốn xem bạn sẽ xây dựng được gì. Nếu bạn có câu hỏi hoặc ý tưởng về tính năng, hãy ghé qua [cộng đồng Reddit](https://www.reddit.com/r/RooCode/) hoặc [Discord](https://discord.gg/roocode) của chúng tôi. Chúc bạn viết mã vui vẻ!
+**Hãy tận hưởng Zoo Code!** Dù bạn giữ nó trong tầm kiểm soát hay để nó tự do hoạt động, chúng tôi rất nóng lòng muốn xem bạn sẽ xây dựng điều gì. Nếu bạn có câu hỏi hoặc ý tưởng tính năng, hãy mở một [issue](https://github.com/Zoo-Code-Org/Zoo-Code/issues) hoặc bắt đầu một [discussion](https://github.com/Zoo-Code-Org/Zoo-Code/discussions). Chúc bạn code vui vẻ!

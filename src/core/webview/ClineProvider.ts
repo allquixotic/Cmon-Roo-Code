@@ -113,16 +113,6 @@ export type ClineProviderEvents = {
 	clineCreated: [cline: Task]
 }
 
-interface PendingEditOperation {
-	messageTs: number
-	editedContent: string
-	images?: string[]
-	messageIndex: number
-	apiConversationHistoryIndex: number
-	timeoutId: NodeJS.Timeout
-	createdAt: number
-}
-
 export class ClineProvider
 	extends EventEmitter<TaskProviderEvents>
 	implements vscode.WebviewViewProvider, TaskProviderLike
@@ -156,7 +146,6 @@ export class ClineProvider
 	private taskHistoryStoreInitialized = false
 	private globalStateWriteThroughTimer: ReturnType<typeof setTimeout> | null = null
 	private static readonly GLOBAL_STATE_WRITE_THROUGH_DEBOUNCE_MS = 5000 // 5 seconds
-	private pendingOperations: Map<string, PendingEditOperation> = new Map()
 	private static readonly PENDING_OPERATION_TIMEOUT_MS = 30000 // 30 seconds
 	private activeConversationsUpdateTimer: ReturnType<typeof setTimeout> | null = null
 	private static readonly ACTIVE_CONVERSATIONS_UPDATE_DEBOUNCE_MS = 250
@@ -186,6 +175,10 @@ export class ClineProvider
 	) {
 		super()
 		this.currentWorkspacePath = getWorkspacePath()
+		this.pendingEditOperations = new PendingEditOperationStore(
+			ClineProvider.PENDING_OPERATION_TIMEOUT_MS,
+			(message) => this.log(message),
+		)
 
 		ClineProvider.activeInstances.add(this)
 
@@ -356,15 +349,195 @@ export class ClineProvider
 				() => instance.off(RooCodeEventName.TaskTokenUsageUpdated, onTaskTokenUsageUpdated),
 			])
 		}
+	}
 
-		// Initialize Roo Code Cloud profile sync.
-		if (CloudService.hasInstance()) {
-			this.initializeCloudProfileSync().catch((error) => {
-				this.log(`Failed to initialize cloud profile sync: ${error}`)
-			})
-		} else {
-			this.log("CloudService not ready, deferring cloud profile sync")
+	private getTaskById(taskId?: string): Task | undefined {
+		if (!taskId) {
+			return undefined
 		}
+
+		return this.clineStack.find((task) => task.taskId === taskId)
+	}
+
+	private getRootTaskId(task: Pick<Task, "taskId" | "rootTaskId">): string {
+		return task.rootTaskId ?? task.taskId
+	}
+
+	private getTaskActivityTs(task: Task): number {
+		return (
+			this.taskHistoryStore.get(task.taskId)?.ts ??
+			this.taskHistoryStore.get(this.getRootTaskId(task))?.ts ??
+			task.clineMessages.at(-1)?.ts ??
+			0
+		)
+	}
+
+	public isTaskVisible(taskId: string): boolean {
+		return this.visibleTaskId === taskId
+	}
+
+	private async syncVisibleTaskContext(task: Task): Promise<void> {
+		const [mode, currentApiConfigName] = await Promise.all([
+			typeof task.getTaskMode === "function"
+				? task.getTaskMode().catch(() => defaultModeSlug)
+				: Promise.resolve(task.taskMode ?? defaultModeSlug),
+			typeof task.getTaskApiConfigName === "function"
+				? task.getTaskApiConfigName().catch(() => undefined)
+				: Promise.resolve(task.taskApiConfigName),
+		])
+
+		await this.contextProxy.setValue("mode", mode)
+		if (task.apiConfiguration) {
+			await this.contextProxy.setProviderSettings(task.apiConfiguration)
+		}
+
+		if (currentApiConfigName !== undefined) {
+			await this.contextProxy.setValue("currentApiConfigName", currentApiConfigName)
+		}
+
+		this.emit(RooCodeEventName.ModeChanged, mode)
+
+		if (task.apiConfiguration?.apiProvider) {
+			this.emit(RooCodeEventName.ProviderProfileChanged, {
+				name: currentApiConfigName ?? "default",
+				provider: task.apiConfiguration.apiProvider,
+			})
+		}
+	}
+
+	private getActiveConversationSummaries(): ActiveConversationSummary[] {
+		const taskByRoot = new Map<string, Task>()
+
+		for (const task of this.clineStack) {
+			const rootTaskId = this.getRootTaskId(task)
+			const existing = taskByRoot.get(rootTaskId)
+
+			if (!existing || this.getTaskActivityTs(task) >= this.getTaskActivityTs(existing)) {
+				taskByRoot.set(rootTaskId, task)
+			}
+		}
+
+		return Array.from(taskByRoot.values())
+			.map((task) => {
+				const rootTaskId = this.getRootTaskId(task)
+				const rootTaskItem = this.taskHistoryStore.get(rootTaskId)
+				const activeTaskItem = this.taskHistoryStore.get(task.taskId)
+				const taskMetadata = task.metadata
+				const queuedMessages = task.queuedMessages ?? []
+				const steerMessageCount = queuedMessages.filter(
+					(message) => (message as { deliveryMode?: string }).deliveryMode === "steer",
+				).length
+
+				return {
+					rootTaskId,
+					activeTaskId: task.taskId,
+					rootTask: rootTaskItem?.task ?? activeTaskItem?.task ?? taskMetadata?.task ?? rootTaskId,
+					activeTask: activeTaskItem?.task ?? taskMetadata?.task ?? rootTaskItem?.task ?? task.taskId,
+					ts: this.getTaskActivityTs(task),
+					status: task.taskStatus ?? "running",
+					parentTaskId: task.parentTaskId,
+					queuedMessageCount: queuedMessages.length,
+					steerMessageCount,
+				} satisfies ActiveConversationSummary
+			})
+			.sort((a, b) => {
+				if (a.activeTaskId === this.visibleTaskId) {
+					return -1
+				}
+				if (b.activeTaskId === this.visibleTaskId) {
+					return 1
+				}
+				return b.ts - a.ts
+			})
+	}
+
+	private postActiveConversationsStateToWebview(): void {
+		const taskStateSeq = ++this.clineMessagesSeq
+		this.postMessageToWebview({
+			type: "state",
+			state: {
+				clineMessagesSeq: taskStateSeq,
+				activeConversations: this.getActiveConversationSummaries(),
+			},
+		})
+	}
+
+	private scheduleActiveConversationsStateToWebview(options: { immediate?: boolean } = {}): void {
+		if (this._disposed) {
+			return
+		}
+
+		const flush = () => {
+			this.activeConversationsUpdateTimer = null
+			if (!this._disposed) {
+				this.postActiveConversationsStateToWebview()
+			}
+		}
+
+		if (options.immediate) {
+			if (this.activeConversationsUpdateTimer) {
+				clearTimeout(this.activeConversationsUpdateTimer)
+				this.activeConversationsUpdateTimer = null
+			}
+			flush()
+			return
+		}
+
+		if (!this.activeConversationsUpdateTimer) {
+			this.activeConversationsUpdateTimer = setTimeout(
+				flush,
+				ClineProvider.ACTIVE_CONVERSATIONS_UPDATE_DEBOUNCE_MS,
+			)
+		}
+	}
+
+	public async selectTask(taskId?: string, options?: { broadcast?: boolean }): Promise<void> {
+		const { broadcast = true } = options ?? {}
+		const previousTask = this.getTaskById(this.visibleTaskId)
+		const nextTask = this.getTaskById(taskId)
+		const nextSelectionCleared = taskId === undefined && nextTask === undefined
+
+		if (previousTask?.taskId === nextTask?.taskId && this.hasExplicitTaskSelectionClear === nextSelectionCleared) {
+			if (broadcast) {
+				if (nextTask) {
+					await this.syncVisibleTaskContext(nextTask)
+				}
+				await this.postStateToWebviewWithoutTaskHistory()
+			}
+			return
+		}
+
+		if (previousTask) {
+			previousTask.emit(RooCodeEventName.TaskUnfocused)
+		}
+
+		this.visibleTaskId = nextTask?.taskId
+		this.hasExplicitTaskSelectionClear = nextSelectionCleared
+
+		if (nextTask) {
+			await this.syncVisibleTaskContext(nextTask)
+			nextTask.emit(RooCodeEventName.TaskFocused)
+		}
+
+		if (broadcast) {
+			await this.postStateToWebviewWithoutTaskHistory()
+		}
+	}
+
+	public async postTaskStateToWebview(taskId: string): Promise<void> {
+		if (this.isTaskVisible(taskId)) {
+			await this.postStateToWebviewWithoutTaskHistory()
+			return
+		}
+		this.scheduleActiveConversationsStateToWebview({ immediate: true })
+	}
+
+	public async postTaskMessageToWebview(taskId: string, message: ExtensionMessage): Promise<void> {
+		if (this.isTaskVisible(taskId)) {
+			await this.postMessageToWebview(message)
+			return
+		}
+		this.scheduleActiveConversationsStateToWebview()
 	}
 
 	private getTaskById(taskId?: string): Task | undefined {
@@ -592,67 +765,21 @@ export class ClineProvider
 	 * Initialize cloud profile synchronization
 	 */
 	private async initializeCloudProfileSync() {
-		try {
-			// Check if authenticated and sync profiles
-			if (CloudService.hasInstance() && CloudService.instance.isAuthenticated()) {
-				await this.syncCloudProfiles()
-			}
-
-			// Set up listener for future updates
-			if (CloudService.hasInstance()) {
-				CloudService.instance.on("settings-updated", this.handleCloudSettingsUpdate)
-			}
-		} catch (error) {
-			this.log(`Error in initializeCloudProfileSync: ${error}`)
-		}
+		this.log("Cloud profile synchronization is disabled in compatibility mode")
 	}
 
 	/**
 	 * Handle cloud settings updates
 	 */
 	private handleCloudSettingsUpdate = async () => {
-		try {
-			await this.syncCloudProfiles()
-		} catch (error) {
-			this.log(`Error handling cloud settings update: ${error}`)
-		}
+		this.log("Ignoring cloud settings update because cloud profile synchronization is disabled")
 	}
 
 	/**
 	 * Synchronize cloud profiles with local profiles.
 	 */
 	private async syncCloudProfiles() {
-		try {
-			const settings = CloudService.instance.getOrganizationSettings()
-
-			if (!settings?.providerProfiles) {
-				return
-			}
-
-			const currentApiConfigName = this.getGlobalState("currentApiConfigName")
-
-			const result = await this.providerSettingsManager.syncCloudProfiles(
-				settings.providerProfiles,
-				currentApiConfigName,
-			)
-
-			if (result.hasChanges) {
-				// Update list.
-				await this.updateGlobalState("listApiConfigMeta", await this.providerSettingsManager.listConfig())
-
-				if (result.activeProfileChanged && result.activeProfileId) {
-					// Reload full settings for new active profile.
-					const profile = await this.providerSettingsManager.getProfile({
-						id: result.activeProfileId,
-					})
-					await this.activateProviderProfile({ name: profile.name })
-				}
-
-				await this.postStateToWebviewWithoutClineMessages()
-			}
-		} catch (error) {
-			this.log(`Error syncing cloud profiles: ${error}`)
-		}
+		this.log("Skipping cloud profile synchronization because it is disabled")
 	}
 
 	/**
@@ -660,18 +787,7 @@ export class ClineProvider
 	 * This method is called externally after CloudService has been initialized
 	 */
 	public async initializeCloudProfileSyncWhenReady(): Promise<void> {
-		try {
-			if (CloudService.hasInstance() && CloudService.instance.isAuthenticated()) {
-				await this.syncCloudProfiles()
-			}
-
-			if (CloudService.hasInstance()) {
-				CloudService.instance.off("settings-updated", this.handleCloudSettingsUpdate)
-				CloudService.instance.on("settings-updated", this.handleCloudSettingsUpdate)
-			}
-		} catch (error) {
-			this.log(`Failed to initialize cloud profile sync when ready: ${error}`)
-		}
+		this.log("Cloud profile synchronization is disabled in compatibility mode")
 	}
 
 	// Adds a new Task instance to clineStack, marking the start of a new task.
@@ -825,65 +941,29 @@ export class ClineProvider
 	/**
 	 * Sets a pending edit operation with automatic timeout cleanup
 	 */
-	public setPendingEditOperation(
-		operationId: string,
-		editData: {
-			messageTs: number
-			editedContent: string
-			images?: string[]
-			messageIndex: number
-			apiConversationHistoryIndex: number
-		},
-	): void {
-		// Clear any existing operation with the same ID
-		this.clearPendingEditOperation(operationId)
-
-		// Create timeout for automatic cleanup
-		const timeoutId = setTimeout(() => {
-			this.clearPendingEditOperation(operationId)
-			this.log(`[setPendingEditOperation] Automatically cleared stale pending operation: ${operationId}`)
-		}, ClineProvider.PENDING_OPERATION_TIMEOUT_MS)
-
-		// Store the operation
-		this.pendingOperations.set(operationId, {
-			...editData,
-			timeoutId,
-			createdAt: Date.now(),
-		})
-
-		this.log(`[setPendingEditOperation] Set pending operation: ${operationId}`)
+	public setPendingEditOperation(operationId: string, editData: PendingEditOperationInput): void {
+		this.pendingEditOperations.set(operationId, editData)
 	}
 
 	/**
 	 * Gets a pending edit operation by ID
 	 */
-	private getPendingEditOperation(operationId: string): PendingEditOperation | undefined {
-		return this.pendingOperations.get(operationId)
+	private getPendingEditOperation(operationId: string) {
+		return this.pendingEditOperations.get(operationId)
 	}
 
 	/**
 	 * Clears a specific pending edit operation
 	 */
 	private clearPendingEditOperation(operationId: string): boolean {
-		const operation = this.pendingOperations.get(operationId)
-		if (operation) {
-			clearTimeout(operation.timeoutId)
-			this.pendingOperations.delete(operationId)
-			this.log(`[clearPendingEditOperation] Cleared pending operation: ${operationId}`)
-			return true
-		}
-		return false
+		return this.pendingEditOperations.clear(operationId)
 	}
 
 	/**
 	 * Clears all pending edit operations
 	 */
 	private clearAllPendingEditOperations(): void {
-		for (const [operationId, operation] of this.pendingOperations) {
-			clearTimeout(operation.timeoutId)
-		}
-		this.pendingOperations.clear()
-		this.log(`[clearAllPendingEditOperations] Cleared all pending operations`)
+		this.pendingEditOperations.clearAll()
 	}
 
 	/*
@@ -1551,7 +1631,7 @@ export class ClineProvider
 			"default-src 'none'",
 			`font-src ${webview.cspSource} data:`,
 			`style-src ${webview.cspSource} 'unsafe-inline' https://* http://${localServerUrl} http://0.0.0.0:${localPort}`,
-			`img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com data:`,
+			`img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com data:`,
 			`media-src ${webview.cspSource}`,
 			`script-src 'unsafe-eval' ${webview.cspSource} https://* http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
 			`connect-src ${webview.cspSource} ${openRouterDomain} https://* ws://${localServerUrl} ws://0.0.0.0:${localPort} http://${localServerUrl} http://0.0.0.0:${localPort}`,
@@ -2039,6 +2119,15 @@ export class ClineProvider
 		await this.upsertProviderProfile(currentApiConfigName, newConfiguration)
 	}
 
+	// Zoo Code Auth (for observability telemetry)
+
+	async handleZooCodeCallback(_token: string) {
+		// Auth mutation (token storage, subscription check, success toast) was already
+		// performed by handleAuthCallback() in handleUri.ts before this method was called.
+		// This method only needs to refresh the webview state to reflect the new auth status.
+		await this.postStateToWebview()
+	}
+
 	// Requesty
 
 	async handleRequestyCallback(code: string, baseUrl: string | null) {
@@ -2372,12 +2461,6 @@ export class ClineProvider
 		setHostMasqueradeMode(state.masqueradeAsRooCode ?? false)
 		refreshTabPanelBrandAssets(this.context.extensionUri, this.contextProxy)
 		this.postMessageToWebview({ type: "state", state })
-
-		// Check MDM compliance and send user to account tab if not compliant
-		// Only redirect if there's an actual MDM policy requiring authentication
-		if (this.mdmService?.requiresCloudAuth() && !this.checkMdmCompliance()) {
-			await this.postMessageToWebview({ type: "action", action: "cloudButtonClicked" })
-		}
 	}
 
 	/**
@@ -2394,11 +2477,6 @@ export class ClineProvider
 		state.clineMessagesSeq = taskStateSeq
 		const { taskHistory: _omit, ...rest } = state
 		this.postMessageToWebview({ type: "state", state: rest })
-
-		// Preserve existing MDM redirect behavior
-		if (this.mdmService?.requiresCloudAuth() && !this.checkMdmCompliance()) {
-			await this.postMessageToWebview({ type: "action", action: "cloudButtonClicked" })
-		}
 	}
 
 	/**
@@ -2418,11 +2496,6 @@ export class ClineProvider
 		state.clineMessagesSeq = taskStateSeq
 		const { clineMessages: _omitMessages, taskHistory: _omitHistory, ...rest } = state
 		this.postMessageToWebview({ type: "state", state: rest })
-
-		// Preserve existing MDM redirect behavior
-		if (this.mdmService?.requiresCloudAuth() && !this.checkMdmCompliance()) {
-			await this.postMessageToWebview({ type: "action", action: "cloudButtonClicked" })
-		}
 	}
 
 	/**
@@ -2767,9 +2840,8 @@ export class ClineProvider
 				codebaseIndexBedrockProfile: codebaseIndexConfig?.codebaseIndexBedrockProfile,
 				codebaseIndexOpenRouterSpecificProvider: codebaseIndexConfig?.codebaseIndexOpenRouterSpecificProvider,
 			},
-			// Only set mdmCompliant if there's an actual MDM policy
-			// undefined means no MDM policy, true means compliant, false means non-compliant
-			mdmCompliant: this.mdmService?.requiresCloudAuth() ? this.checkMdmCompliance() : undefined,
+			// Phase 1 cloud removal: do not let Cloud-auth MDM enforcement force login-only UI flows.
+			mdmCompliant: undefined,
 			profileThresholds: profileThresholds ?? {},
 			cloudApiUrl: getRooCodeApiUrl(),
 			hasOpenedModeSelector: this.getGlobalState("hasOpenedModeSelector") ?? false,
@@ -2795,6 +2867,7 @@ export class ClineProvider
 					return false
 				}
 			})(),
+			...zooCodeState,
 			debug: vscode.workspace.getConfiguration(Package.name).get<boolean>("debug", false),
 		}
 	}
@@ -2857,23 +2930,7 @@ export class ClineProvider
 
 		let sharingEnabled: boolean = false
 
-		try {
-			sharingEnabled = await CloudService.instance.canShareTask()
-		} catch (error) {
-			console.error(
-				`[getState] failed to get sharing enabled state: ${error instanceof Error ? error.message : String(error)}`,
-			)
-		}
-
 		let publicSharingEnabled: boolean = false
-
-		try {
-			publicSharingEnabled = await CloudService.instance.canSharePublicly()
-		} catch (error) {
-			console.error(
-				`[getState] failed to get public sharing enabled state: ${error instanceof Error ? error.message : String(error)}`,
-			)
-		}
 
 		let organizationSettingsVersion: number = -1
 
@@ -2889,14 +2946,6 @@ export class ClineProvider
 		}
 
 		let taskSyncEnabled: boolean = false
-
-		try {
-			taskSyncEnabled = CloudService.instance.isTaskSyncEnabled()
-		} catch (error) {
-			console.error(
-				`[getState] failed to get task sync enabled state: ${error instanceof Error ? error.message : String(error)}`,
-			)
-		}
 
 		// Return the same structure as before.
 		return {

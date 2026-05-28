@@ -37,7 +37,7 @@ vi.mock("../../../shared/package", () => ({
 		publisher: "roo-code",
 		name: "crc",
 		version: "1.0.0",
-		outputChannel: "Roo-Code",
+		outputChannel: "Zoo-Code",
 		sha: undefined,
 	},
 }))

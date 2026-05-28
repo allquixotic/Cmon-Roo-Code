@@ -14,7 +14,6 @@ export * from "./global-settings.js"
 export * from "./history.js"
 export * from "./image-generation.js"
 export * from "./ipc.js"
-export * from "./marketplace.js"
 export * from "./mcp.js"
 export * from "./message.js"
 export * from "./mode.js"
@@ -32,3 +31,5 @@ export * from "./vscode.js"
 export * from "./worktree.js"
 
 export * from "./providers/index.js"
+
+export * from "./utils/looksLikeFilePath.js"

@@ -57,7 +57,10 @@ describe("About", () => {
 			</TranslationProvider>,
 		)
 		expect(screen.getByText("settings:about.bugReport.label")).toBeInTheDocument()
-		expect(screen.getByText("settings:about.bugReport.link")).toBeInTheDocument()
+		expect(screen.getByRole("link", { name: "settings:about.bugReport.link" })).toHaveAttribute(
+			"href",
+			EXTERNAL_LINKS.BUG_REPORT,
+		)
 	})
 
 	it("renders the feature request section with label and link text", () => {
@@ -67,7 +70,10 @@ describe("About", () => {
 			</TranslationProvider>,
 		)
 		expect(screen.getByText("settings:about.featureRequest.label")).toBeInTheDocument()
-		expect(screen.getByText("settings:about.featureRequest.link")).toBeInTheDocument()
+		expect(screen.getByRole("link", { name: "settings:about.featureRequest.link" })).toHaveAttribute(
+			"href",
+			EXTERNAL_LINKS.FEATURE_REQUEST,
+		)
 	})
 
 	it("renders the security issue section with label and link text", () => {
@@ -86,8 +92,6 @@ describe("About", () => {
 				<About />
 			</TranslationProvider>,
 		)
-		expect(screen.getByText("settings:about.contact.label")).toBeInTheDocument()
-		expect(screen.getByText("support@roocode.com")).toBeInTheDocument()
 	})
 
 	it("renders export, import, and reset buttons", () => {

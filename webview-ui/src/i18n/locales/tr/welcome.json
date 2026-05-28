@@ -1,34 +1,12 @@
 {
-	"routers": {
-		"requesty": {
-			"description": "Optimize edilmiş LLM yönlendiriciniz",
-			"incentive": "$1 ücretsiz kredi"
-		},
-		"openrouter": {
-			"description": "LLM'ler için birleşik bir arayüz"
-		},
-		"roo": {
-			"description": "Başlamak için en iyi ücretsiz modeller",
-			"incentive": "Roo'yu ücretsiz dene"
-		}
-	},
 	"landing": {
-		"greeting": "Roo Code'a Hoş Geldin!",
-		"introduction": "Yerleşik ve genişletilebilir Modlar yelpazesiyle Roo Code, daha önce hiç olmadığı gibi planlama, mimari tasarım, kodlama, hata ayıklama ve üretkenliğini artırmanı sağlar.",
-		"accountMention": "Başlamak için Roo Code Cloud hesabını oluştur. Güçlü modeller, web kontrolü, analizler, destek ve daha fazlasını al.",
-		"getStarted": "Roo Hesabı Oluştur",
-		"noAccount": "veya hesap olmadan kullan"
+		"greeting": "Zoo Code'a Hoş Geldin!",
+		"introduction": "Yerleşik ve genişletilebilir Modlar yelpazesiyle Zoo Code, daha önce hiç olmadığı gibi planlama, mimari tasarım, kodlama, hata ayıklama ve üretkenliğini artırmanı sağlar.",
+		"getStarted": "Sağlayıcınızı seçin"
 	},
 	"providerSignup": {
 		"heading": "Sağlayıcınızı seçin",
-		"chooseProvider": "Roo'nun çalışması için bir LLM sağlayıcısına ihtiyacı var. Başlamak için bir tane seç, sonra daha fazlasını ekleyebilirsin.",
-		"rooCloudProvider": "Roo Code Cloud Sağlayıcı",
-		"rooCloudDescription": "Başlamak için en kolay yol Roo Code Cloud Sağlayıcısı'nı kullanmaktır: ücretsiz ve ücretli modellerin dikkatli seçilmiş bir karışımı, düşük maliyette.",
-		"learnMore": "Daha fazla bilgi",
-		"useAnotherProvider": "Üçüncü taraf Sağlayıcı",
-		"useAnotherProviderDescription": "Bir API anahtarı gir ve başla.",
-		"noApiKeys": "API anahtarları ve ayrı hesaplarla uğraşmak istemez misin?",
-		"backToRoo": "Roo Code Cloud Sağlayıcısını seç.",
+		"chooseProvider": "Zoo Code'un çalışması için bir LLM sağlayıcısına ihtiyacı var. Başlamak için bir tane seç, sonra daha fazlasını ekleyebilirsin.",
 		"goBack": "Geri",
 		"finish": "Bitir"
 	},

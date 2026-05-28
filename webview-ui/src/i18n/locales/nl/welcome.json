@@ -1,34 +1,12 @@
 {
-	"routers": {
-		"requesty": {
-			"description": "Je geoptimaliseerde LLM-router",
-			"incentive": "1 dollar gratis tegoed"
-		},
-		"openrouter": {
-			"description": "Een geïntegreerde interface voor LLM's"
-		},
-		"roo": {
-			"description": "De beste gratis modellen om mee te beginnen",
-			"incentive": "Probeer Roo gratis uit"
-		}
-	},
 	"landing": {
-		"greeting": "Welkom bij Roo Code!",
-		"introduction": "Met een reeks ingebouwde en uitbreidbare Modi laat Roo Code je plannen, ontwerpen, coderen, debuggen en je productiviteit verhogen als nooit tevoren.",
-		"accountMention": "Maak je Roo Code Cloud-account aan om te beginnen. Krijg krachtige modellen, webcontrole, analyses, ondersteuning en meer.",
-		"getStarted": "Roo-account aanmaken",
-		"noAccount": "of gebruik zonder account"
+		"greeting": "Welkom bij Zoo Code!",
+		"introduction": "Met een reeks ingebouwde en uitbreidbare Modi laat Zoo Code je plannen, ontwerpen, coderen, debuggen en je productiviteit verhogen als nooit tevoren.",
+		"getStarted": "Kies je provider"
 	},
 	"providerSignup": {
 		"heading": "Kies je provider",
-		"chooseProvider": "Roo heeft een LLM-provider nodig om te werken. Kies er een om te beginnen, je kunt er later meer toevoegen.",
-		"rooCloudProvider": "Roo Code Router",
-		"rooCloudDescription": "De eenvoudigste manier om te beginnen is met de Roo Code Router: een zorgvuldig samengesteld mix van gratis en betaalde modellen tegen lage kosten.",
-		"learnMore": "Meer informatie",
-		"useAnotherProvider": "Provider van derden",
-		"useAnotherProviderDescription": "Voer een API-sleutel in en begin.",
-		"noApiKeys": "Wil je je niet bezighouden met API-sleutels en aparte accounts?",
-		"backToRoo": "Kies de Roo Code Router.",
+		"chooseProvider": "Zoo Code heeft een LLM-provider nodig om te werken. Kies er een om te beginnen, je kunt er later meer toevoegen.",
 		"goBack": "Terug",
 		"finish": "Klaar"
 	},

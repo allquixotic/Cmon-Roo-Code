@@ -15,6 +15,7 @@
 		"lint": "eslint src --ext .ts --max-warnings=0",
 		"check-types": "tsc --noEmit",
 		"test": "vitest run",
+		"test:coverage": "vitest run --coverage",
 		"test:integration": "tsx scripts/integration/run.ts",
 		"build": "tsup",
 		"build:extension": "pnpm --filter crc bundle",

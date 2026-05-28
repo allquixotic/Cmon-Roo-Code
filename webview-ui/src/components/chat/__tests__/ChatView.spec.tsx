@@ -884,6 +884,7 @@ describe("ChatView - Message Queueing Tests", () => {
 		// Simulate user typing and sending a message during the spinner
 		const chatTextArea = getByTestId("chat-textarea")
 		const input = chatTextArea.querySelector("input")! as HTMLInputElement
+		await waitFor(() => expect(input).toHaveAttribute("data-sending-disabled", "true"))
 
 		// Trigger message send by simulating typing and Enter key press
 		await act(async () => {

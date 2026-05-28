@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="260" height="71" viewBox="0 0 260 71" fill="none">
-  <rect x="1.5" y="1.5" width="257" height="68" rx="14.5" stroke="#000000" stroke-width="3"/>
-  <path fill-rule="evenodd" clip-rule="evenodd" d="M26 18C23.2386 18 21 20.2386 21 23V43C21 45.7614 23.2386 48 26 48H46C48.7614 48 51 45.7614 51 43V23C51 20.2386 48.7614 18 46 18H26ZM29.75 39.25V34.25H34.75V29.25H39.75V24.25H44.75V29.25H39.75V34.25H34.75V39.25H29.75Z" fill="#000000"/>
-  <text x="69" y="30" fill="#000000" fill-opacity="0.68" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="700" letter-spacing="2.6">MADE WITH</text>
-  <text x="69" y="51" fill="#000000" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="800" letter-spacing="2.8">CRC</text>
-</svg>
