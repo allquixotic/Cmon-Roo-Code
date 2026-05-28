@@ -102,6 +102,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		messageQueue = [],
 		showWorktreesInHomeScreen,
 		cwd,
+		telemetrySetting,
 	} = useExtensionState()
 	const [draftConversations, setDraftConversations] = useState<DraftConversation[]>([])
 	const [selectedDraftId, setSelectedDraftId] = useState<string | undefined>(undefined)
