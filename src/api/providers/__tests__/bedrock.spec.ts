@@ -898,6 +898,36 @@ describe("AwsBedrockHandler", () => {
 			// Model ID should have cross-region prefix
 			expect(commandArg.modelId).toBe(`us.${BEDROCK_1M_CONTEXT_MODEL_IDS[0]}`)
 		})
+
+		it.each(["anthropic.claude-opus-4-7", "anthropic.claude-opus-4-8"] as const)(
+			"should omit anthropic_beta for native 1M Bedrock model %s",
+			async (modelId) => {
+				const handler = new AwsBedrockHandler({
+					apiModelId: modelId,
+					awsAccessKey: "test",
+					awsSecretKey: "test",
+					awsRegion: "us-east-1",
+					awsBedrock1MContext: true,
+				})
+
+				const messages: Anthropic.Messages.MessageParam[] = [
+					{
+						role: "user",
+						content: "Test message",
+					},
+				]
+
+				const generator = handler.createMessage("", messages)
+				await generator.next() // Start the generator
+
+				expect(mockConverseStreamCommand).toHaveBeenCalled()
+				const commandArg = mockConverseStreamCommand.mock.calls[0][0] as any
+
+				// Native 1M models reject both the 1M beta and the fine-grained tool streaming beta.
+				expect(commandArg.additionalModelRequestFields?.anthropic_beta).toBeUndefined()
+				expect(commandArg.modelId).toBe(modelId)
+			},
+		)
 	})
 
 	describe("service tier feature", () => {
