@@ -102,11 +102,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		setMode,
 		alwaysAllowModeSwitch,
 		customModes,
-		telemetrySetting,
 		soundEnabled,
 		soundVolume,
 		messageQueue = [],
 		showWorktreesInHomeScreen,
+		telemetrySetting,
 	} = useExtensionState()
 	const [draftConversations, setDraftConversations] = useState<DraftConversation[]>([])
 	const [selectedDraftId, setSelectedDraftId] = useState<string | undefined>(undefined)
