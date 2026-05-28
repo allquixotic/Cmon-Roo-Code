@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@/utils/test-utils"
 
 import { TranslationProvider } from "@/i18n/__mocks__/TranslationContext"
+import { EXTERNAL_LINKS } from "@/constants/externalLinks"
 import { vscode } from "@/utils/vscode"
 
 import { About } from "../About"

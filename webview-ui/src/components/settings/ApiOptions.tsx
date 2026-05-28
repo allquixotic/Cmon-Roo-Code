@@ -572,6 +572,8 @@ const ApiOptions = ({
 							apiConfiguration={apiConfiguration}
 							setApiConfigurationField={setApiConfigurationField}
 							routerModels={routerModels}
+							cloudIsAuthenticated={cloudIsAuthenticated}
+							organizationAllowList={organizationAllowList}
 							modelValidationError={modelValidationError}
 							simplifySettings={fromWelcomeView}
 						/>

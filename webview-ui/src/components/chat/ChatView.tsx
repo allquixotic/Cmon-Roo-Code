@@ -363,7 +363,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const [playProgressLoop] = useSound(`${audioBaseUri}/progress_loop.wav`, { volume, soundEnabled, interrupt: true })
 
 	const lastPlayedRef = useRef<Record<string, number>>({})
-	const pendingPostCompactRef = useRef<{ text: string; images: string[]; taskId: string } | null>(null)
 
 	const playSound = useCallback(
 		(audioType: AudioType) => {
@@ -511,7 +510,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 						case "completion_result":
 							// Extension waiting for feedback, but we can just present a new task button.
 							// Only play celebration sound if there are no queued messages.
-							if (!isPartial && visibleMessageQueue.length === 0) {
+							if (!isPartial && messageQueue.length === 0) {
 								playSound("celebration")
 							}
 							setSendingDisabled(isPartial)
@@ -864,7 +863,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 						case "auto_approval_max_req_reached":
 							vscode.postMessage({
 								type: "askResponse",
-								taskId: currentTaskId,
 								askResponse: "messageResponse",
 								text,
 								images,
@@ -1009,32 +1007,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		vscode.postMessage({ type: "archiveTaskWithId", text: conversation.rootTaskId })
 	}, [])
 
-	const handleSelectConversation = useCallback(
-		(conversation: ConversationListItem) => {
-			if (conversation.kind === "draft") {
-				setSelectedDraftId(conversation.activeTaskId)
-				if (currentTaskId) {
-					vscode.postMessage({ type: "clearTask" })
-				}
-				return
-			}
-
-			setSelectedDraftId(undefined)
-			vscode.postMessage({ type: "showTaskWithId", text: conversation.activeTaskId })
-		},
-		[currentTaskId],
-	)
-
-	const handleDeleteConversation = useCallback((conversation: ConversationListItem) => {
-		if (conversation.kind === "draft") {
-			setDraftConversations((prev) => prev.filter((draft) => draft.id !== conversation.activeTaskId))
-			setSelectedDraftId((prev) => (prev === conversation.activeTaskId ? undefined : prev))
-			return
-		}
-
-		vscode.postMessage({ type: "deleteTaskWithId", text: conversation.rootTaskId })
-	}, [])
-
 	// Handle stop button click from textarea
 	const handleStopTask = useCallback(() => {
 		vscode.postMessage({ type: "cancelTask", taskId: currentTaskId })
@@ -1073,7 +1045,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 						clearPromptInput()
 						vscode.postMessage({
 							type: "askResponse",
-							taskId: currentTaskId,
 							askResponse: "yesButtonClicked",
 							text: trimmedInput,
 							images: promptImages,
@@ -1115,7 +1086,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							clearPromptInput()
 							vscode.postMessage({
 								type: "askResponse",
-								taskId: currentTaskId,
 								askResponse: "yesButtonClicked",
 								text: trimmedInput,
 								images: promptImages,
@@ -1207,7 +1177,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 						}
 						vscode.postMessage({
 							type: "askResponse",
-							taskId: currentTaskId,
 							askResponse: "noButtonClicked",
 							text: trimmedInput,
 							images: promptImages,
@@ -1806,29 +1775,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const handleFollowUpUnmount = useCallback(() => {
 		vscode.postMessage({ type: "cancelAutoApproval", taskId: currentTaskId })
 	}, [currentTaskId])
-
-	const handleScrollToBottomAndResetCheckpointCursor = useCallback(() => {
-		checkpointJumpCursorRef.current = null
-		handleScrollToBottomClick()
-	}, [handleScrollToBottomClick])
-
-	const handleScrollToLatestCheckpoint = useCallback(() => {
-		if (checkpointIndices.length === 0) {
-			return
-		}
-
-		const previousCursor = checkpointJumpCursorRef.current
-		const nextCursor = previousCursor === null ? checkpointIndices.length - 1 : Math.max(0, previousCursor - 1)
-		const nextCheckpointIndex = checkpointIndices[nextCursor]
-		checkpointJumpCursorRef.current = nextCursor
-
-		enterUserBrowsingHistory("keyboard-nav-up")
-		virtuosoRef.current?.scrollToIndex({
-			index: nextCheckpointIndex,
-			align: "center",
-			behavior: "smooth",
-		})
-	}, [checkpointIndices, enterUserBrowsingHistory])
 
 	const handleScrollToBottomAndResetCheckpointCursor = useCallback(() => {
 		checkpointJumpCursorRef.current = null

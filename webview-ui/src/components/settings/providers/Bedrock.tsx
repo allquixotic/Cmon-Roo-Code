@@ -233,10 +233,14 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 			},
 		[setApiConfigurationField],
 	)
+	const clearMaxOutputTokensOverride = useCallback(() => {
+		setApiConfigurationField("awsModelMaxOutputTokens", undefined)
+	}, [setApiConfigurationField])
 
 	const handleTargetChange = useCallback(
 		(value: string) => {
 			if (value === MANUAL_ARN_TARGET) {
+				clearMaxOutputTokensOverride()
 				setApiConfigurationField("awsBedrockTargetKind", "custom-arn")
 				setApiConfigurationField("awsBedrockInvokeTarget", apiConfiguration.awsCustomArn || "", false)
 				return
@@ -248,17 +252,19 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 			}
 
 			setApiConfigurationField("awsCustomArn", "")
+			clearMaxOutputTokensOverride()
 			setApiConfigurationField("awsBedrockInvokeTarget", selectedTarget.id)
 			setApiConfigurationField("awsBedrockTargetKind", selectedTarget.targetKind)
 			setApiConfigurationField("apiModelId", selectedTarget.baseModelId)
 		},
-		[apiConfiguration.awsCustomArn, availableTargets, setApiConfigurationField],
+		[apiConfiguration.awsCustomArn, availableTargets, clearMaxOutputTokensOverride, setApiConfigurationField],
 	)
 
 	const handleCustomArnChange = useCallback(
 		(event: Event) => {
 			const value = (event.target as HTMLInputElement).value
 			const baseModelId = parseBedrockBaseModelId(value)
+			clearMaxOutputTokensOverride()
 
 			setApiConfigurationField("awsCustomArn", value)
 			setApiConfigurationField("awsBedrockInvokeTarget", value, false)
@@ -267,7 +273,7 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 				setApiConfigurationField("apiModelId", baseModelId, false)
 			}
 		},
-		[setApiConfigurationField],
+		[clearMaxOutputTokensOverride, setApiConfigurationField],
 	)
 
 	return (
