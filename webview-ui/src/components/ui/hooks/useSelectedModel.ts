@@ -31,6 +31,8 @@ import {
 	isDynamicProvider,
 	isRetiredProvider,
 	getProviderDefaultModelId,
+	resolveBedrockInvokeTargetId,
+	resolveBedrockMaxOutputTokensOverride,
 	resolveBedrockModelInfo,
 } from "@roo-code/types"
 
@@ -190,7 +192,11 @@ function getSelectedModel({
 				baseModelId: apiConfiguration.apiModelId,
 				targetId,
 				optIn1MContext: apiConfiguration.awsBedrock1MContext,
-				maxOutputTokensOverride: apiConfiguration.awsModelMaxOutputTokens,
+				maxOutputTokensOverride: resolveBedrockMaxOutputTokensOverride({
+					currentTargetId: resolveBedrockInvokeTargetId(apiConfiguration),
+					overrideTargetId: apiConfiguration.awsModelMaxOutputTokensTargetId,
+					maxOutputTokensOverride: apiConfiguration.awsModelMaxOutputTokens,
+				}),
 				contextWindowOverride: apiConfiguration.awsModelContextWindow,
 			})
 			const displayId = apiConfiguration.apiModelId ?? resolved.baseModelId

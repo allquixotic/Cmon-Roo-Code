@@ -8,37 +8,47 @@ import {
 	BEDROCK_NATIVE_1M_CONTEXT_MODEL_IDS,
 	bedrockModels,
 	expandBedrockTargetsWith1MVariants,
+	guessBedrockModelInfoFromId,
 	hasBedrock1MContextIndicator,
+	resolveBedrockMaxOutputTokensOverride,
 	resolveBedrockModelInfo,
 	stripBedrock1MContextSuffix,
 } from "../providers/bedrock.js"
 
 describe("Bedrock model catalog", () => {
-	it("includes Claude Opus 4.7 with flat $5/$25 pricing across its 200K base and 1M tier", () => {
-		// `bedrockModels` is typed as a giant discriminated union across every model entry,
-		// so narrowing to `ModelInfo` lets us read the common fields without per-model checks.
-		const opus47 = bedrockModels["anthropic.claude-opus-4-7" as keyof typeof bedrockModels] as ModelInfo
-		expect(opus47).toBeDefined()
-		expect(opus47.contextWindow).toBe(200_000)
-		expect(opus47.supportsReasoningBudget).toBe(true)
-		expect(opus47.inputPrice).toBe(5.0)
-		expect(opus47.outputPrice).toBe(25.0)
+	it("includes Claude Opus 4.7 and 4.8 with flat $5/$25 pricing across 200K base and 1M tiers", () => {
+		for (const modelId of ["anthropic.claude-opus-4-7", "anthropic.claude-opus-4-8"] as const) {
+			// `bedrockModels` is typed as a giant discriminated union across every model entry,
+			// so narrowing to `ModelInfo` lets us read the common fields without per-model checks.
+			const opus = bedrockModels[modelId as keyof typeof bedrockModels] as ModelInfo
+			expect(opus).toBeDefined()
+			expect(opus.contextWindow).toBe(200_000)
+			expect(opus.maxTokens).toBe(128_000)
+			expect(opus.supportsReasoningBudget).toBe(true)
+			expect(opus.supportsImages).toBe(true)
+			expect(opus.supportsPromptCache).toBe(true)
+			expect(opus.inputPrice).toBe(5.0)
+			expect(opus.outputPrice).toBe(25.0)
 
-		// Tier exists only so the dropdown split can offer a 1M variant; pricing is flat.
-		const tier = opus47.tiers?.[0]
-		expect(tier).toBeDefined()
-		expect(tier?.contextWindow).toBe(1_000_000)
-		expect(tier?.inputPrice).toBe(5.0)
-		expect(tier?.outputPrice).toBe(25.0)
+			// Tier exists only so the dropdown split can offer a 1M variant; pricing is flat.
+			const tier = opus.tiers?.[0]
+			expect(tier).toBeDefined()
+			expect(tier?.contextWindow).toBe(1_000_000)
+			expect(tier?.inputPrice).toBe(5.0)
+			expect(tier?.outputPrice).toBe(25.0)
+		}
 	})
 
-	it("flags Opus 4.7 as a native-1M model (so beta flags are NOT sent at runtime)", () => {
+	it("flags Opus 4.7 and 4.8 as native-1M models (so beta flags are NOT sent at runtime)", () => {
 		expect(BEDROCK_NATIVE_1M_CONTEXT_MODEL_IDS).toContain("anthropic.claude-opus-4-7")
+		expect(BEDROCK_NATIVE_1M_CONTEXT_MODEL_IDS).toContain("anthropic.claude-opus-4-8")
 	})
 
-	it("includes Opus 4.7 in the 1M-capable and global-inference lists", () => {
+	it("includes Opus 4.7 and 4.8 in the 1M-capable and global-inference lists", () => {
 		expect(BEDROCK_1M_CONTEXT_MODEL_IDS).toContain("anthropic.claude-opus-4-7")
+		expect(BEDROCK_1M_CONTEXT_MODEL_IDS).toContain("anthropic.claude-opus-4-8")
 		expect(BEDROCK_GLOBAL_INFERENCE_MODEL_IDS).toContain("anthropic.claude-opus-4-7")
+		expect(BEDROCK_GLOBAL_INFERENCE_MODEL_IDS).toContain("anthropic.claude-opus-4-8")
 	})
 
 	it("makes every 1M-capable model opt-in (empty default list)", () => {
@@ -51,6 +61,7 @@ describe("Bedrock model catalog", () => {
 	it("matches per-model maxTokens to the documented Bedrock caps for current Anthropic models", () => {
 		// These caps mirror the Anthropic-direct entries in `anthropic.ts`. Bumping them lets the
 		// reasoning-budget slider extend past the legacy 8K cap (the original bug surfaced by Opus 4.7).
+		expect((bedrockModels["anthropic.claude-opus-4-8"] as ModelInfo).maxTokens).toBe(128_000)
 		expect((bedrockModels["anthropic.claude-opus-4-7"] as ModelInfo).maxTokens).toBe(128_000)
 		expect((bedrockModels["anthropic.claude-opus-4-6-v1"] as ModelInfo).maxTokens).toBe(128_000)
 		expect((bedrockModels["anthropic.claude-opus-4-5-20251101-v1:0"] as ModelInfo).maxTokens).toBe(32_000)
@@ -64,6 +75,11 @@ describe("Bedrock model catalog", () => {
 		expect((bedrockModels["anthropic.claude-sonnet-4-5-20250929-v1:0"] as ModelInfo).promptCacheTtl).toBe("1h")
 		expect((bedrockModels["anthropic.claude-haiku-4-5-20251001-v1:0"] as ModelInfo).promptCacheTtl).toBe("1h")
 		expect((bedrockModels["anthropic.claude-opus-4-5-20251101-v1:0"] as ModelInfo).promptCacheTtl).toBe("1h")
+	})
+
+	it("prefers specific guessed Opus patterns before generic Claude 4 patterns", () => {
+		const guessed = guessBedrockModelInfoFromId("arn:aws:bedrock:us-west-2::foundation-model/claude-4-opus-custom")
+		expect(guessed.maxTokens).toBe(4096)
 	})
 })
 
@@ -85,6 +101,26 @@ describe("resolveBedrockModelInfo", () => {
 		expect(info.maxTokens).toBe(256_000)
 	})
 
+	it("resolves Opus 4.8 to 200K by default and 1M with flat pricing when opted in", () => {
+		const defaultResult = resolveBedrockModelInfo({
+			baseModelId: "anthropic.claude-opus-4-8",
+			targetId: "anthropic.claude-opus-4-8",
+		})
+		expect(defaultResult.info.contextWindow).toBe(200_000)
+		expect(defaultResult.info.maxTokens).toBe(128_000)
+		expect(defaultResult.info.inputPrice).toBe(5.0)
+		expect(defaultResult.info.outputPrice).toBe(25.0)
+		expect(defaultResult.uses1MContext).toBe(false)
+
+		const oneMillionResult = resolveBedrockModelInfo({
+			baseModelId: "anthropic.claude-opus-4-8",
+			targetId: "anthropic.claude-opus-4-8:1m",
+		})
+		expect(oneMillionResult.info.contextWindow).toBe(1_000_000)
+		expect(oneMillionResult.info.inputPrice).toBe(5.0)
+		expect(oneMillionResult.info.outputPrice).toBe(25.0)
+		expect(oneMillionResult.uses1MContext).toBe(true)
+	})
 	it("lets request-time modelMaxTokens still override (lowering for cost control)", () => {
 		const { info } = resolveBedrockModelInfo({
 			baseModelId: "anthropic.claude-opus-4-7",
@@ -93,6 +129,24 @@ describe("resolveBedrockModelInfo", () => {
 			modelMaxTokens: 32_000,
 		})
 		expect(info.maxTokens).toBe(32_000)
+	})
+
+	it("applies max-output overrides only to the target that was probed", () => {
+		expect(
+			resolveBedrockMaxOutputTokensOverride({
+				currentTargetId: "global.anthropic.claude-opus-4-7",
+				overrideTargetId: "global.anthropic.claude-opus-4-7",
+				maxOutputTokensOverride: 128_000,
+			}),
+		).toBe(128_000)
+
+		expect(
+			resolveBedrockMaxOutputTokensOverride({
+				currentTargetId: "anthropic.claude-haiku-4-5-20251001-v1:0",
+				overrideTargetId: "global.anthropic.claude-opus-4-7",
+				maxOutputTokensOverride: 128_000,
+			}),
+		).toBeUndefined()
 	})
 })
 
@@ -123,18 +177,18 @@ describe("expandBedrockTargetsWith1MVariants", () => {
 	it("also emits two entries when AWS discovery returns a system profile id", () => {
 		const expanded = expandBedrockTargetsWith1MVariants([
 			makeTarget({
-				id: "us.anthropic.claude-opus-4-7",
-				baseModelId: "anthropic.claude-opus-4-7",
+				id: "us.anthropic.claude-opus-4-8",
+				baseModelId: "anthropic.claude-opus-4-8",
 				targetKind: "system-profile",
-				label: "Claude Opus 4.7 (us.anthropic.claude-opus-4-7)",
+				label: "Claude Opus 4.8 (us.anthropic.claude-opus-4-8)",
 			}),
 		])
 
 		expect(expanded).toHaveLength(2)
 		const oneM = expanded[1] as BedrockDiscoveredTarget
-		expect(oneM.id).toBe("us.anthropic.claude-opus-4-7:1m")
+		expect(oneM.id).toBe("us.anthropic.claude-opus-4-8:1m")
 		expect(hasBedrock1MContextIndicator(oneM.id)).toBe(true)
-		expect(stripBedrock1MContextSuffix(oneM.id)).toBe("us.anthropic.claude-opus-4-7")
+		expect(stripBedrock1MContextSuffix(oneM.id)).toBe("us.anthropic.claude-opus-4-8")
 	})
 
 	it("leaves non-1M-capable targets untouched", () => {

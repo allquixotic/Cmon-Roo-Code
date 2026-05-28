@@ -207,6 +207,33 @@ export const bedrockModels = {
 			},
 		],
 	},
+	"anthropic.claude-opus-4-8": {
+		// Opus 4.8 follows Opus 4.7's Bedrock shape: 128K max output,
+		// 200K default context, and native 1M context with no beta flag.
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoningBudget: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		minTokensPerCachePoint: 1024,
+		maxCachePoints: 4,
+		cachableFields: ["system", "messages", "tools"],
+		description: "Claude Opus 4.8 - latest Opus model for agentic coding (native 1M context)",
+		tiers: [
+			{
+				contextWindow: 1_000_000,
+				// Opus 4.8 pricing is flat, so the tier mirrors the base rates.
+				inputPrice: 5.0,
+				outputPrice: 25.0,
+				cacheWritesPrice: 6.25,
+				cacheReadsPrice: 0.5,
+			},
+		],
+	},
 	"anthropic.claude-opus-4-5-20251101-v1:0": {
 		// Mirrors anthropic-direct cap; AWS Bedrock accepts the same upstream maximum.
 		maxTokens: 32_000,
@@ -570,6 +597,7 @@ export const BEDROCK_1M_CONTEXT_MODEL_IDS = [
 	"anthropic.claude-sonnet-4-6",
 	"anthropic.claude-opus-4-6-v1",
 	"anthropic.claude-opus-4-7",
+	"anthropic.claude-opus-4-8",
 ] as const
 
 // Models whose 1M context window is NATIVE (no opt-in beta flag required). AWS Bedrock
@@ -578,7 +606,7 @@ export const BEDROCK_1M_CONTEXT_MODEL_IDS = [
 // betas like `fine-grained-tool-streaming-2025-05-14` — when invoking them.
 // See: https://github.com/continuedev/continue/pull/11969 for the Bedrock validation
 // behavior that surfaced this issue.
-export const BEDROCK_NATIVE_1M_CONTEXT_MODEL_IDS = ["anthropic.claude-opus-4-7"] as const
+export const BEDROCK_NATIVE_1M_CONTEXT_MODEL_IDS = ["anthropic.claude-opus-4-7", "anthropic.claude-opus-4-8"] as const
 
 // Models that REJECT the legacy `thinking: { type: "enabled", budget_tokens: N }` payload
 // on the Bedrock Converse API and instead require the newer adaptive thinking format:
@@ -588,7 +616,7 @@ export const BEDROCK_NATIVE_1M_CONTEXT_MODEL_IDS = ["anthropic.claude-opus-4-7"]
 // Attempting to send the legacy shape results in:
 //   invalid_request_error: "thinking.type.enabled" is not supported for this model.
 //   Use "thinking.type.adaptive" and "output_config.effort" to control thinking behavior.
-export const BEDROCK_ADAPTIVE_THINKING_MODEL_IDS = ["anthropic.claude-opus-4-7"] as const
+export const BEDROCK_ADAPTIVE_THINKING_MODEL_IDS = ["anthropic.claude-opus-4-7", "anthropic.claude-opus-4-8"] as const
 
 // Previously Claude 4.6 Sonnet/Opus auto-advertised 1M. With the new dual dropdown
 // (default-context + `:1m` variant) the UI always exposes both tiers explicitly, so
@@ -899,24 +927,6 @@ export const shouldUseBedrock1MContext = ({
 
 export const guessBedrockModelInfoFromId = (modelId: string): Partial<ModelInfo> => {
 	const modelConfigMap: Record<string, Partial<ModelInfo>> = {
-		"claude-4": {
-			maxTokens: 8192,
-			contextWindow: 200_000,
-			supportsImages: true,
-			supportsPromptCache: true,
-		},
-		"claude-3-7": {
-			maxTokens: 8192,
-			contextWindow: 200_000,
-			supportsImages: true,
-			supportsPromptCache: true,
-		},
-		"claude-3-5": {
-			maxTokens: 8192,
-			contextWindow: 200_000,
-			supportsImages: true,
-			supportsPromptCache: true,
-		},
 		"claude-4-opus": {
 			maxTokens: 4096,
 			contextWindow: 200_000,
@@ -931,6 +941,24 @@ export const guessBedrockModelInfoFromId = (modelId: string): Partial<ModelInfo>
 		},
 		"claude-3-haiku": {
 			maxTokens: 4096,
+			contextWindow: 200_000,
+			supportsImages: true,
+			supportsPromptCache: true,
+		},
+		"claude-4": {
+			maxTokens: 8192,
+			contextWindow: 200_000,
+			supportsImages: true,
+			supportsPromptCache: true,
+		},
+		"claude-3-7": {
+			maxTokens: 8192,
+			contextWindow: 200_000,
+			supportsImages: true,
+			supportsPromptCache: true,
+		},
+		"claude-3-5": {
+			maxTokens: 8192,
 			contextWindow: 200_000,
 			supportsImages: true,
 			supportsPromptCache: true,
@@ -950,6 +978,24 @@ export const guessBedrockModelInfoFromId = (modelId: string): Partial<ModelInfo>
 		supportsImages: false,
 		supportsPromptCache: false,
 	}
+}
+
+export const resolveBedrockMaxOutputTokensOverride = ({
+	currentTargetId,
+	overrideTargetId,
+	maxOutputTokensOverride,
+}: {
+	currentTargetId?: string
+	overrideTargetId?: string
+	maxOutputTokensOverride?: number
+}): number | undefined => {
+	if (!currentTargetId || !overrideTargetId || !maxOutputTokensOverride || maxOutputTokensOverride <= 0) {
+		return undefined
+	}
+
+	return stripBedrock1MContextSuffix(currentTargetId) === stripBedrock1MContextSuffix(overrideTargetId)
+		? maxOutputTokensOverride
+		: undefined
 }
 
 export const resolveBedrockModelInfo = ({
@@ -1030,6 +1076,7 @@ export const resolveBedrockModelInfo = ({
 // - Claude Opus 4.5
 // - Claude Opus 4.6
 // - Claude Opus 4.7
+// - Claude Opus 4.8
 export const BEDROCK_GLOBAL_INFERENCE_MODEL_IDS = [
 	"anthropic.claude-sonnet-4-20250514-v1:0",
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -1038,6 +1085,7 @@ export const BEDROCK_GLOBAL_INFERENCE_MODEL_IDS = [
 	"anthropic.claude-opus-4-5-20251101-v1:0",
 	"anthropic.claude-opus-4-6-v1",
 	"anthropic.claude-opus-4-7",
+	"anthropic.claude-opus-4-8",
 ] as const
 
 // Amazon Bedrock Service Tier types
