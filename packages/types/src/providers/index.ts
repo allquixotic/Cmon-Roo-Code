@@ -16,6 +16,7 @@ export * from "./openrouter.js"
 export * from "./poe.js"
 export * from "./qwen-code.js"
 export * from "./requesty.js"
+export * from "./roo.js"
 export * from "./sambanova.js"
 export * from "./unbound.js"
 export * from "./vertex.js"
@@ -41,6 +42,7 @@ import { openRouterDefaultModelId } from "./openrouter.js"
 import { poeDefaultModelId } from "./poe.js"
 import { qwenCodeDefaultModelId } from "./qwen-code.js"
 import { requestyDefaultModelId } from "./requesty.js"
+import { rooDefaultModelId } from "./roo.js"
 import { sambaNovaDefaultModelId } from "./sambanova.js"
 import { unboundDefaultModelId } from "./unbound.js"
 import { vertexDefaultModelId } from "./vertex.js"
@@ -69,6 +71,8 @@ export function getProviderDefaultModelId(
 			return openRouterDefaultModelId
 		case "requesty":
 			return requestyDefaultModelId
+		case "roo":
+			return rooDefaultModelId
 		case "litellm":
 			return litellmDefaultModelId
 		case "xai":

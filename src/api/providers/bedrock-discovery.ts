@@ -21,6 +21,8 @@ import {
 
 import { Package } from "../../shared/package"
 
+export const BEDROCK_DISCOVERY_TIMEOUT_MS = 30_000
+
 // The two AWS SDK packages we use here (`@aws-sdk/client-bedrock` for control-plane discovery
 // and `@aws-sdk/client-bedrock-runtime` for Converse probes) each ship their own discriminated
 // `Config` interface where `token`/`credentials` are tagged with package-private branded types.
@@ -152,7 +154,7 @@ const buildInferenceProfileTarget = (summary: InferenceProfileSummary): BedrockD
 	}
 }
 
-const listInferenceProfiles = async (client: BedrockClient) => {
+const listInferenceProfiles = async (client: BedrockClient, abortSignal?: AbortSignal) => {
 	const results: InferenceProfileSummary[] = []
 	let nextToken: string | undefined
 
@@ -162,6 +164,7 @@ const listInferenceProfiles = async (client: BedrockClient) => {
 				nextToken,
 				maxResults: 100,
 			}),
+			{ abortSignal },
 		)
 
 		results.push(...(response.inferenceProfileSummaries ?? []))
@@ -177,42 +180,59 @@ export const discoverBedrockTargets = async (options: ProviderSettings): Promise
 	}
 
 	const client = new BedrockClient(toBedrockClientConfig(options))
-
-	const [foundationModelsResponse, inferenceProfiles] = await Promise.all([
-		client.send(new ListFoundationModelsCommand({})),
-		listInferenceProfiles(client),
-	])
-
-	const targets = [
-		...(foundationModelsResponse.modelSummaries ?? [])
-			.map((summary) => buildFoundationTarget(summary))
-			.filter((target): target is BedrockDiscoveredTarget => Boolean(target)),
-		...inferenceProfiles
-			.filter((summary) => summary.status === "ACTIVE")
-			.map((summary) => buildInferenceProfileTarget(summary))
-			.filter((target): target is BedrockDiscoveredTarget => Boolean(target)),
-	]
-
-	const dedupedTargets = Array.from(new Map(targets.map((target) => [target.id, target])).values())
-
-	const sortedTargets = dedupedTargets.sort((a, b) => {
-		const kindOrder = { "foundation-model": 0, "system-profile": 1, "application-profile": 2 }
-		const kindCompare = kindOrder[a.targetKind] - kindOrder[b.targetKind]
-		if (kindCompare !== 0) {
-			return kindCompare
-		}
-
-		if (a.baseModelId !== b.baseModelId) {
-			return a.baseModelId.localeCompare(b.baseModelId)
-		}
-
-		return a.label.localeCompare(b.label)
+	const controller = new AbortController()
+	const timeout = setTimeout(() => controller.abort(), BEDROCK_DISCOVERY_TIMEOUT_MS)
+	const timeoutPromise = new Promise<never>((_, reject) => {
+		controller.signal.addEventListener(
+			"abort",
+			() => reject(new Error(`Bedrock discovery timed out after ${BEDROCK_DISCOVERY_TIMEOUT_MS}ms`)),
+			{ once: true },
+		)
 	})
 
-	// AWS often returns a single inference profile id for models that support both 128K
-	// and 1M context windows. Expand those into two dropdown entries so users can pick
-	// the context tier explicitly; the `:1m` suffix is round-tripped through the runtime.
-	return expandBedrockTargetsWith1MVariants(sortedTargets)
+	const discoveryPromise = (async () => {
+		const [foundationModelsResponse, inferenceProfiles] = await Promise.all([
+			client.send(new ListFoundationModelsCommand({}), { abortSignal: controller.signal }),
+			listInferenceProfiles(client, controller.signal),
+		])
+
+		const targets = [
+			...(foundationModelsResponse.modelSummaries ?? [])
+				.map((summary) => buildFoundationTarget(summary))
+				.filter((target): target is BedrockDiscoveredTarget => Boolean(target)),
+			...inferenceProfiles
+				.filter((summary) => summary.status === "ACTIVE")
+				.map((summary) => buildInferenceProfileTarget(summary))
+				.filter((target): target is BedrockDiscoveredTarget => Boolean(target)),
+		]
+
+		const dedupedTargets = Array.from(new Map(targets.map((target) => [target.id, target])).values())
+
+		const sortedTargets = dedupedTargets.sort((a, b) => {
+			const kindOrder = { "foundation-model": 0, "system-profile": 1, "application-profile": 2 }
+			const kindCompare = kindOrder[a.targetKind] - kindOrder[b.targetKind]
+			if (kindCompare !== 0) {
+				return kindCompare
+			}
+
+			if (a.baseModelId !== b.baseModelId) {
+				return a.baseModelId.localeCompare(b.baseModelId)
+			}
+
+			return a.label.localeCompare(b.label)
+		})
+
+		// AWS often returns a single inference profile id for models that support both 128K
+		// and 1M context windows. Expand those into two dropdown entries so users can pick
+		// the context tier explicitly; the `:1m` suffix is round-tripped through the runtime.
+		return expandBedrockTargetsWith1MVariants(sortedTargets)
+	})()
+
+	try {
+		return await Promise.race([discoveryPromise, timeoutPromise])
+	} finally {
+		clearTimeout(timeout)
+	}
 }
 
 /**

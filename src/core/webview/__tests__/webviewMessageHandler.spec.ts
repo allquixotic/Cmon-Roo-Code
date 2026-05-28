@@ -4,6 +4,9 @@ import type { Mock } from "vitest"
 
 // Mock dependencies - must come before imports
 vi.mock("../../../api/providers/fetchers/modelCache")
+vi.mock("../../../api/providers/fetchers/lmstudio", () => ({
+	getLMStudioModels: vi.fn(),
+}))
 vi.mock("../../../api/providers/bedrock-discovery", () => ({
 	discoverBedrockTargets: vi.fn(),
 }))
@@ -45,12 +48,14 @@ import type { ModelRecord } from "@roo-code/types"
 import { webviewMessageHandler } from "../webviewMessageHandler"
 import type { ClineProvider } from "../ClineProvider"
 import { getModels } from "../../../api/providers/fetchers/modelCache"
+import { getLMStudioModels } from "../../../api/providers/fetchers/lmstudio"
 import { discoverBedrockTargets } from "../../../api/providers/bedrock-discovery"
 import { getCommands } from "../../../services/command/commands"
 const { openAiCodexOAuthManager } = await import("../../../integrations/openai-codex/oauth")
 const { fetchOpenAiCodexRateLimitInfo } = await import("../../../integrations/openai-codex/rate-limits")
 
 const mockGetModels = getModels as Mock<typeof getModels>
+const mockGetLMStudioModels = vi.mocked(getLMStudioModels)
 const mockDiscoverBedrockTargets = vi.mocked(discoverBedrockTargets)
 const mockGetCommands = vi.mocked(getCommands)
 const mockGetAccessToken = vi.mocked(openAiCodexOAuthManager.getAccessToken)
@@ -466,6 +471,11 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 
 		// Verify getModels was called for each provider
 		expect(mockGetModels).toHaveBeenCalledWith({ provider: "openrouter" })
+		expect(mockGetModels).toHaveBeenCalledWith({
+			provider: "roo",
+			apiKey: undefined,
+			baseUrl: "https://api.roocode.com/proxy",
+		})
 		expect(mockGetModels).toHaveBeenCalledWith({ provider: "requesty", apiKey: "requesty-key" })
 		expect(mockGetModels).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -484,6 +494,7 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 			type: "routerModels",
 			routerModels: {
 				openrouter: mockModels,
+				roo: mockModels,
 				requesty: mockModels,
 				unbound: mockModels,
 				litellm: mockModels,
@@ -571,6 +582,7 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 			type: "routerModels",
 			routerModels: {
 				openrouter: mockModels,
+				roo: mockModels,
 				requesty: mockModels,
 				unbound: mockModels,
 				litellm: {},
@@ -598,6 +610,7 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 		// Mock some providers to succeed and others to fail
 		mockGetModels
 			.mockResolvedValueOnce(mockModels) // openrouter
+			.mockResolvedValueOnce(mockModels) // roo
 			.mockRejectedValueOnce(new Error("Requesty API error")) // requesty
 			.mockResolvedValueOnce(mockModels) // unbound
 			.mockResolvedValueOnce(mockModels) // vercel-ai-gateway
@@ -627,6 +640,7 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 			type: "routerModels",
 			routerModels: {
 				openrouter: mockModels,
+				roo: mockModels,
 				requesty: {},
 				unbound: mockModels,
 				litellm: {},
@@ -645,6 +659,7 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 		// Mock providers to fail with different error types
 		mockGetModels
 			.mockRejectedValueOnce(new Error("Structured error message")) // openrouter
+			.mockRejectedValueOnce(new Error("Roo API error")) // roo
 			.mockRejectedValueOnce(new Error("Requesty API error")) // requesty
 			.mockRejectedValueOnce(new Error("Unbound error")) // unbound
 			.mockRejectedValueOnce(new Error("Vercel AI Gateway error")) // vercel-ai-gateway
@@ -660,6 +675,12 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 			success: false,
 			error: "Structured error message",
 			values: { provider: "openrouter" },
+		})
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "singleRouterModelFetchResponse",
+			success: false,
+			error: "Roo API error",
+			values: { provider: "roo" },
 		})
 
 		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
@@ -691,16 +712,24 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 		})
 	})
 
-	it("returns an explicit removal error for requestRooModels", async () => {
+	it("returns CRC Router models for requestRooModels", async () => {
+		const mockModels: ModelRecord = {
+			"model-1": {
+				maxTokens: 4096,
+				contextWindow: 8192,
+				supportsPromptCache: false,
+				description: "Test model 1",
+			},
+		}
+		mockGetModels.mockResolvedValue(mockModels)
 		await webviewMessageHandler(mockClineProvider, {
 			type: "requestRooModels",
 		})
 
 		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
 			type: "singleRouterModelFetchResponse",
-			success: false,
-			error: "Roo Code Router has been removed. Please select and configure a different provider.",
-			values: { provider: "roo" },
+			success: true,
+			values: { provider: "roo", models: mockModels },
 		})
 	})
 

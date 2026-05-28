@@ -44,13 +44,11 @@ function patchMockMethods<T extends ReturnType<typeof vi.fn>>(mock: T): T {
 			continue
 		}
 
-		mock[methodName] = ((implementation: Parameters<typeof originalMethod>[0]) =>
-			originalMethod.call(
-				mock,
-				wrapConstructableImplementation(implementation),
-			)) as (typeof mock)[typeof methodName]
+		const patchedMethod = ((implementation: Parameters<typeof originalMethod>[0]) =>
+			originalMethod.call(mock, wrapConstructableImplementation(implementation))) as typeof originalMethod
+		;(mock as any)[methodName] = patchedMethod
 		;(
-			mock[methodName] as (typeof mock)[typeof methodName] & { __ozConstructablePatched?: boolean }
+			(mock as any)[methodName] as typeof originalMethod & { __ozConstructablePatched?: boolean }
 		).__ozConstructablePatched = true
 	}
 

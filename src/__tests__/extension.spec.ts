@@ -3,6 +3,8 @@
 import type * as vscode from "vscode"
 import type { AuthState } from "@roo-code/types"
 
+const mockRefreshModels = vi.hoisted(() => vi.fn().mockResolvedValue({}))
+
 vi.mock("vscode", () => ({
 	window: {
 		createOutputChannel: vi.fn().mockReturnValue({
@@ -189,7 +191,7 @@ vi.mock("../api/providers/fetchers/modelCache", () => ({
 	flushModels: vi.fn(),
 	getModels: vi.fn().mockResolvedValue([]),
 	initializeModelCacheRefresh: vi.fn(),
-	refreshModels: vi.fn().mockResolvedValue({}),
+	refreshModels: mockRefreshModels,
 }))
 
 describe("extension.ts", () => {

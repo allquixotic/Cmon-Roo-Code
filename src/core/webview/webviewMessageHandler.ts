@@ -958,6 +958,7 @@ export const webviewMessageHandler = async (
 						"vercel-ai-gateway": {},
 						litellm: {},
 						requesty: {},
+						roo: {},
 						unbound: {},
 						ollama: {},
 						lmstudio: {},
@@ -982,6 +983,18 @@ export const webviewMessageHandler = async (
 			// Base candidates (only those handled by this aggregate fetcher)
 			const candidates: { key: RouterName; options: GetModelsOptions }[] = [
 				{ key: "openrouter", options: { provider: "openrouter" } },
+				{
+					key: "roo",
+					options: {
+						provider: "roo",
+						apiKey:
+							apiConfiguration.rooApiKey ??
+							(CloudService.hasInstance()
+								? CloudService.instance.authService?.getSessionToken()
+								: undefined),
+						baseUrl: process.env.ROO_CODE_PROVIDER_URL ?? "https://api.roocode.com/proxy",
+					},
+				},
 				{
 					key: "requesty",
 					options: {

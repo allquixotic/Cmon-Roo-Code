@@ -18,7 +18,7 @@ if (fs.existsSync(envPath)) {
 }
 
 import type { CloudUserInfo, AuthState } from "@roo-code/types"
-import { CloudService } from "@roo-code/cloud"
+import { CloudService, getRooCodeApiUrl } from "@roo-code/cloud"
 import { customToolRegistry } from "@roo-code/core"
 
 import "./utils/path" // Necessary to have access to String.prototype.toPosix.
@@ -47,7 +47,7 @@ import {
 	CodeActionProvider,
 } from "./activate"
 import { initializeI18n } from "./i18n"
-import { initializeModelCacheRefresh } from "./api/providers/fetchers/modelCache"
+import { flushModels, initializeModelCacheRefresh, refreshModels } from "./api/providers/fetchers/modelCache"
 import { initZooCodeAuth } from "./services/zoo-code-auth"
 
 /**
@@ -194,7 +194,25 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Initialize CRC Cloud service.
 	const postStateListener = () => ClineProvider.getVisibleInstance()?.postStateToWebviewWithoutClineMessages()
 
-	authStateChangedHandler = async (_data: { state: AuthState; previousState: AuthState }) => {
+	authStateChangedHandler = async ({ state }: { state: AuthState; previousState: AuthState }) => {
+		try {
+			if (state === "active-session" && CloudService.hasInstance()) {
+				const token = CloudService.instance.authService?.getSessionToken()
+				if (token) {
+					await refreshModels({
+						provider: "roo",
+						baseUrl: process.env.ROO_CODE_PROVIDER_URL ?? getRooCodeApiUrl(),
+						apiKey: token,
+					})
+				}
+			} else if (state === "logged-out") {
+				await flushModels({ provider: "roo" }, true)
+			}
+		} catch (error) {
+			outputChannel.appendLine(
+				`[CloudService] Error refreshing CRC Router models after auth state change: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
 		postStateListener()
 	}
 
@@ -206,17 +224,17 @@ export async function activate(context: vscode.ExtensionContext) {
 		postStateListener()
 	}
 
-	cloudService = await CloudService.createInstance(context, cloudLogger, {
-		"auth-state-changed": authStateChangedHandler,
-		"settings-updated": settingsUpdatedHandler,
-		"user-info": userInfoHandler,
-	})
-
-	// Add to subscriptions for proper cleanup on deactivate.
-	context.subscriptions.push(cloudService)
-
-	// Trigger initial cloud profile sync now that CloudService is ready.
 	try {
+		cloudService = await CloudService.createInstance(context, cloudLogger, {
+			"auth-state-changed": authStateChangedHandler,
+			"settings-updated": settingsUpdatedHandler,
+			"user-info": userInfoHandler,
+		})
+
+		// Add to subscriptions for proper cleanup on deactivate.
+		context.subscriptions.push(cloudService)
+
+		// Trigger initial cloud profile sync now that CloudService is ready.
 		await provider.initializeCloudProfileSyncWhenReady()
 	} catch (error) {
 		cloudService = undefined

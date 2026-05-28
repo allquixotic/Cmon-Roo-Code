@@ -82,14 +82,13 @@ describe("webviewMessageHandler - requestRouterModels provider filter", () => {
 		})
 	})
 
-	it("returns explicit removal error for requestRooModels", async () => {
+	it("returns CRC Router models for requestRooModels", async () => {
 		await webviewMessageHandler(mockProvider as any, { type: "requestRooModels" } as any)
 
 		expect(mockProvider.postMessageToWebview).toHaveBeenCalledWith({
 			type: "singleRouterModelFetchResponse",
-			success: false,
-			error: "Roo Code Router has been removed. Please select and configure a different provider.",
-			values: { provider: "roo" },
+			success: true,
+			values: { provider: "roo", models: {} },
 		})
 	})
 

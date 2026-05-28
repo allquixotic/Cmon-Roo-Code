@@ -15,6 +15,7 @@ import type { ApiHandlerOptions } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { getModelParams } from "../transform/model-params"
 import { filterNonAnthropicBlocks } from "../transform/anthropic-filter"
+import { getAnthropicProviderReasoning } from "../transform/reasoning"
 
 import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
@@ -119,7 +120,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 						model: modelId,
 						max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
 						temperature,
-						thinking,
+						thinking: thinking as unknown as Anthropic.Messages.MessageCreateParams["thinking"],
 						// Setting cache breakpoint for system prompt so new tasks can reuse it.
 						system: [{ text: systemPrompt, type: "text", cache_control: cacheControl }],
 						messages: sanitizedMessages.map((message, index) => {

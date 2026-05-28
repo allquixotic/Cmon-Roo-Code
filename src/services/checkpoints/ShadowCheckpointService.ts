@@ -97,7 +97,7 @@ function createSanitizedGit(baseDir: string): SimpleGit {
 		// GIT_TEMPLATE_DIR is stripped from the env above to block the env-var path (axis 2).
 		// allowUnsafeTemplateDir opts out of simple-git ≥3.36's blockUnsafeOperationsPlugin
 		// so the --template arg is not rejected before reaching git.
-		unsafe: { allowUnsafeTemplateDir: true },
+		unsafe: { allowUnsafeTemplateDir: true } as SimpleGitOptions["unsafe"] & { allowUnsafeTemplateDir: boolean },
 	}
 
 	// Create git instance and set the sanitized environment

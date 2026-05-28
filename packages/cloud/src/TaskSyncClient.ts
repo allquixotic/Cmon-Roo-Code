@@ -1,11 +1,6 @@
 import { z } from "zod"
 
-import {
-	type AuthService,
-	type ClineMessage,
-	type SettingsService,
-	clineMessageSchema,
-} from "@roo-code/types"
+import { type AuthService, type ClineMessage, type SettingsService, clineMessageSchema } from "@roo-code/types"
 
 import { getRooCodeApiUrl } from "./config.js"
 import type { RetryQueue } from "./retry-queue/index.js"
@@ -52,12 +47,16 @@ export class TaskSyncClient {
 		}
 
 		const url = `${getRooCodeApiUrl()}/api/${path}`
-		const requestHeaders =
-			options.headers instanceof Headers
-				? Object.fromEntries(options.headers.entries())
-				: Array.isArray(options.headers)
-					? Object.fromEntries(options.headers)
-					: ((options.headers as Record<string, string> | undefined) ?? {})
+		const requestHeaders: Record<string, string> = {}
+		if (options.headers instanceof Headers) {
+			options.headers.forEach((value, key) => {
+				requestHeaders[key] = value
+			})
+		} else if (Array.isArray(options.headers)) {
+			Object.assign(requestHeaders, Object.fromEntries(options.headers))
+		} else {
+			Object.assign(requestHeaders, (options.headers as Record<string, string> | undefined) ?? {})
+		}
 
 		const fetchOptions: RequestInit = {
 			...options,
@@ -80,7 +79,9 @@ export class TaskSyncClient {
 			const response = await fetch(url, fetchOptions)
 
 			if (!response.ok) {
-				console.error(`[TaskSyncClient#fetch] ${options.method} ${path} -> ${response.status} ${response.statusText}`)
+				console.error(
+					`[TaskSyncClient#fetch] ${options.method} ${path} -> ${response.status} ${response.statusText}`,
+				)
 
 				if (this.retryQueue && allowQueueing && (response.status >= 500 || response.status === 429)) {
 					await this.retryQueue.enqueue(url, fetchOptions, "task-sync", path)

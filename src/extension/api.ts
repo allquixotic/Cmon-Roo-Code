@@ -156,12 +156,10 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		}
 	}
 
-	public override emit(eventName: string | symbol, ...args: any[]): boolean {
-		if (typeof eventName === "string") {
-			const data = { eventName: eventName as RooCodeEventName, payload: args } as TaskEvent
-			this.ipc?.broadcast({ type: IpcMessageType.TaskEvent, origin: IpcOrigin.Server, data })
-		}
-		return super.emit(eventName as any, ...args)
+	public override emit<K extends keyof RooCodeEvents>(eventName: K, ...args: RooCodeEvents[K]): boolean {
+		const data = { eventName: eventName as RooCodeEventName, payload: args } as TaskEvent
+		this.ipc?.broadcast({ type: IpcMessageType.TaskEvent, origin: IpcOrigin.Server, data })
+		return EventEmitter.prototype.emit.call(this, eventName, ...args)
 	}
 
 	public async startNewTask({

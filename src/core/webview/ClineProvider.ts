@@ -103,6 +103,7 @@ import { getUri } from "./getUri"
 import { REQUESTY_BASE_URL } from "../../shared/utils/requesty"
 import { validateAndFixToolResultIds } from "../task/validateToolResultIds"
 import { checkAutoApproval } from "../auto-approval"
+import { PendingEditOperationStore, type PendingEditOperationInput } from "./PendingEditOperationStore"
 
 /**
  * https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -149,6 +150,7 @@ export class ClineProvider
 	private static readonly PENDING_OPERATION_TIMEOUT_MS = 30000 // 30 seconds
 	private activeConversationsUpdateTimer: ReturnType<typeof setTimeout> | null = null
 	private static readonly ACTIVE_CONVERSATIONS_UPDATE_DEBOUNCE_MS = 250
+	private readonly pendingEditOperations: PendingEditOperationStore
 
 	private cloudOrganizationsCache: CloudOrganizationMembership[] | null = null
 	private cloudOrganizationsCacheTimestamp: number | null = null
@@ -349,195 +351,6 @@ export class ClineProvider
 				() => instance.off(RooCodeEventName.TaskTokenUsageUpdated, onTaskTokenUsageUpdated),
 			])
 		}
-	}
-
-	private getTaskById(taskId?: string): Task | undefined {
-		if (!taskId) {
-			return undefined
-		}
-
-		return this.clineStack.find((task) => task.taskId === taskId)
-	}
-
-	private getRootTaskId(task: Pick<Task, "taskId" | "rootTaskId">): string {
-		return task.rootTaskId ?? task.taskId
-	}
-
-	private getTaskActivityTs(task: Task): number {
-		return (
-			this.taskHistoryStore.get(task.taskId)?.ts ??
-			this.taskHistoryStore.get(this.getRootTaskId(task))?.ts ??
-			task.clineMessages.at(-1)?.ts ??
-			0
-		)
-	}
-
-	public isTaskVisible(taskId: string): boolean {
-		return this.visibleTaskId === taskId
-	}
-
-	private async syncVisibleTaskContext(task: Task): Promise<void> {
-		const [mode, currentApiConfigName] = await Promise.all([
-			typeof task.getTaskMode === "function"
-				? task.getTaskMode().catch(() => defaultModeSlug)
-				: Promise.resolve(task.taskMode ?? defaultModeSlug),
-			typeof task.getTaskApiConfigName === "function"
-				? task.getTaskApiConfigName().catch(() => undefined)
-				: Promise.resolve(task.taskApiConfigName),
-		])
-
-		await this.contextProxy.setValue("mode", mode)
-		if (task.apiConfiguration) {
-			await this.contextProxy.setProviderSettings(task.apiConfiguration)
-		}
-
-		if (currentApiConfigName !== undefined) {
-			await this.contextProxy.setValue("currentApiConfigName", currentApiConfigName)
-		}
-
-		this.emit(RooCodeEventName.ModeChanged, mode)
-
-		if (task.apiConfiguration?.apiProvider) {
-			this.emit(RooCodeEventName.ProviderProfileChanged, {
-				name: currentApiConfigName ?? "default",
-				provider: task.apiConfiguration.apiProvider,
-			})
-		}
-	}
-
-	private getActiveConversationSummaries(): ActiveConversationSummary[] {
-		const taskByRoot = new Map<string, Task>()
-
-		for (const task of this.clineStack) {
-			const rootTaskId = this.getRootTaskId(task)
-			const existing = taskByRoot.get(rootTaskId)
-
-			if (!existing || this.getTaskActivityTs(task) >= this.getTaskActivityTs(existing)) {
-				taskByRoot.set(rootTaskId, task)
-			}
-		}
-
-		return Array.from(taskByRoot.values())
-			.map((task) => {
-				const rootTaskId = this.getRootTaskId(task)
-				const rootTaskItem = this.taskHistoryStore.get(rootTaskId)
-				const activeTaskItem = this.taskHistoryStore.get(task.taskId)
-				const taskMetadata = task.metadata
-				const queuedMessages = task.queuedMessages ?? []
-				const steerMessageCount = queuedMessages.filter(
-					(message) => (message as { deliveryMode?: string }).deliveryMode === "steer",
-				).length
-
-				return {
-					rootTaskId,
-					activeTaskId: task.taskId,
-					rootTask: rootTaskItem?.task ?? activeTaskItem?.task ?? taskMetadata?.task ?? rootTaskId,
-					activeTask: activeTaskItem?.task ?? taskMetadata?.task ?? rootTaskItem?.task ?? task.taskId,
-					ts: this.getTaskActivityTs(task),
-					status: task.taskStatus ?? "running",
-					parentTaskId: task.parentTaskId,
-					queuedMessageCount: queuedMessages.length,
-					steerMessageCount,
-				} satisfies ActiveConversationSummary
-			})
-			.sort((a, b) => {
-				if (a.activeTaskId === this.visibleTaskId) {
-					return -1
-				}
-				if (b.activeTaskId === this.visibleTaskId) {
-					return 1
-				}
-				return b.ts - a.ts
-			})
-	}
-
-	private postActiveConversationsStateToWebview(): void {
-		const taskStateSeq = ++this.clineMessagesSeq
-		this.postMessageToWebview({
-			type: "state",
-			state: {
-				clineMessagesSeq: taskStateSeq,
-				activeConversations: this.getActiveConversationSummaries(),
-			},
-		})
-	}
-
-	private scheduleActiveConversationsStateToWebview(options: { immediate?: boolean } = {}): void {
-		if (this._disposed) {
-			return
-		}
-
-		const flush = () => {
-			this.activeConversationsUpdateTimer = null
-			if (!this._disposed) {
-				this.postActiveConversationsStateToWebview()
-			}
-		}
-
-		if (options.immediate) {
-			if (this.activeConversationsUpdateTimer) {
-				clearTimeout(this.activeConversationsUpdateTimer)
-				this.activeConversationsUpdateTimer = null
-			}
-			flush()
-			return
-		}
-
-		if (!this.activeConversationsUpdateTimer) {
-			this.activeConversationsUpdateTimer = setTimeout(
-				flush,
-				ClineProvider.ACTIVE_CONVERSATIONS_UPDATE_DEBOUNCE_MS,
-			)
-		}
-	}
-
-	public async selectTask(taskId?: string, options?: { broadcast?: boolean }): Promise<void> {
-		const { broadcast = true } = options ?? {}
-		const previousTask = this.getTaskById(this.visibleTaskId)
-		const nextTask = this.getTaskById(taskId)
-		const nextSelectionCleared = taskId === undefined && nextTask === undefined
-
-		if (previousTask?.taskId === nextTask?.taskId && this.hasExplicitTaskSelectionClear === nextSelectionCleared) {
-			if (broadcast) {
-				if (nextTask) {
-					await this.syncVisibleTaskContext(nextTask)
-				}
-				await this.postStateToWebviewWithoutTaskHistory()
-			}
-			return
-		}
-
-		if (previousTask) {
-			previousTask.emit(RooCodeEventName.TaskUnfocused)
-		}
-
-		this.visibleTaskId = nextTask?.taskId
-		this.hasExplicitTaskSelectionClear = nextSelectionCleared
-
-		if (nextTask) {
-			await this.syncVisibleTaskContext(nextTask)
-			nextTask.emit(RooCodeEventName.TaskFocused)
-		}
-
-		if (broadcast) {
-			await this.postStateToWebviewWithoutTaskHistory()
-		}
-	}
-
-	public async postTaskStateToWebview(taskId: string): Promise<void> {
-		if (this.isTaskVisible(taskId)) {
-			await this.postStateToWebviewWithoutTaskHistory()
-			return
-		}
-		this.scheduleActiveConversationsStateToWebview({ immediate: true })
-	}
-
-	public async postTaskMessageToWebview(taskId: string, message: ExtensionMessage): Promise<void> {
-		if (this.isTaskVisible(taskId)) {
-			await this.postMessageToWebview(message)
-			return
-		}
-		this.scheduleActiveConversationsStateToWebview()
 	}
 
 	private getTaskById(taskId?: string): Task | undefined {
@@ -2867,7 +2680,6 @@ export class ClineProvider
 					return false
 				}
 			})(),
-			...zooCodeState,
 			debug: vscode.workspace.getConfiguration(Package.name).get<boolean>("debug", false),
 		}
 	}
