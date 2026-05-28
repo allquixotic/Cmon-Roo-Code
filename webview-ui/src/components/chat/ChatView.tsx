@@ -97,7 +97,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		setMode,
 		alwaysAllowModeSwitch,
 		customModes,
-		telemetrySetting,
 		soundEnabled,
 		soundVolume,
 		messageQueue = [],
