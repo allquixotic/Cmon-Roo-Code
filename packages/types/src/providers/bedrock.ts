@@ -234,6 +234,24 @@ export const bedrockModels = {
 			},
 		],
 	},
+	"anthropic.claude-fable-5": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoningBudget: true,
+		supportsReasoningBinary: true,
+		supportsTemperature: false,
+		inputPrice: 10.0,
+		outputPrice: 50.0,
+		cacheWritesPrice: 12.5,
+		cacheReadsPrice: 1.0,
+		minTokensPerCachePoint: 1024,
+		maxCachePoints: 4,
+		cachableFields: ["system", "messages", "tools"],
+		description:
+			"Claude Fable 5 is Anthropic's most capable widely released model for the most demanding reasoning and long-horizon agentic work.",
+	},
 	"anthropic.claude-opus-4-5-20251101-v1:0": {
 		// Mirrors anthropic-direct cap; AWS Bedrock accepts the same upstream maximum.
 		maxTokens: 32_000,
@@ -616,7 +634,7 @@ export const BEDROCK_NATIVE_1M_CONTEXT_MODEL_IDS = ["anthropic.claude-opus-4-7",
 // Attempting to send the legacy shape results in:
 //   invalid_request_error: "thinking.type.enabled" is not supported for this model.
 //   Use "thinking.type.adaptive" and "output_config.effort" to control thinking behavior.
-export const BEDROCK_ADAPTIVE_THINKING_MODEL_IDS = ["anthropic.claude-opus-4-7", "anthropic.claude-opus-4-8"] as const
+export const BEDROCK_ADAPTIVE_THINKING_MODEL_IDS = ["anthropic.claude-opus-4-7", "anthropic.claude-opus-4-8", "anthropic.claude-fable-5"] as const
 
 // Previously Claude 4.6 Sonnet/Opus auto-advertised 1M. With the new dual dropdown
 // (default-context + `:1m` variant) the UI always exposes both tiers explicitly, so
@@ -1059,6 +1077,7 @@ export const resolveBedrockModelInfo = ({
 // - Claude Opus 4.6
 // - Claude Opus 4.7
 // - Claude Opus 4.8
+// - Claude Fable 5 (cross-region inference only — can only be used through an inference profile)
 export const BEDROCK_GLOBAL_INFERENCE_MODEL_IDS = [
 	"anthropic.claude-sonnet-4-20250514-v1:0",
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -1068,6 +1087,7 @@ export const BEDROCK_GLOBAL_INFERENCE_MODEL_IDS = [
 	"anthropic.claude-opus-4-6-v1",
 	"anthropic.claude-opus-4-7",
 	"anthropic.claude-opus-4-8",
+	"anthropic.claude-fable-5",
 ] as const
 
 // Amazon Bedrock Service Tier types

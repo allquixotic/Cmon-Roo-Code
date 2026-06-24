@@ -18,11 +18,11 @@ import type {
 	AudioType,
 	TodoItem,
 	QueuedMessage,
+	SuggestionItem,
 } from "@roo-code/types"
-import { isRetiredProvider } from "@roo-code/types"
+import { getSuggestionMode, isRetiredProvider } from "@roo-code/types"
 
 import { findLast } from "@roo/array"
-import { SuggestionItem } from "@roo-code/types"
 import { combineApiRequests } from "@roo/combineApiRequests"
 import { combineCommandSequences } from "@roo/combineCommandSequences"
 import { checkExistKey } from "@roo/checkExistApiConfig"
@@ -62,6 +62,9 @@ export interface ChatViewRef {
 }
 
 export const MAX_IMAGES_PER_MESSAGE = 20 // This is the Anthropic limit.
+const CHAT_DEFAULT_ITEM_HEIGHT = 180
+// Keep the off-screen render buffer tight to bound memory on large transcripts (zoo #153).
+const CHAT_VIEWPORT_BUFFER = { top: 600, bottom: 800 } as const
 
 const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0
 
@@ -405,6 +408,13 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		if (lastMessage) {
 			switch (lastMessage.type) {
 				case "ask":
+					// Skip button setup when the ask was already resolved by the backend
+					// before the state snapshot reached the webview. isAnswered:true is
+					// stamped on the message atomically with addToClineMessages, so the
+					// webview never needs to show -- and then clear -- approval buttons.
+					if (lastMessage.isAnswered) {
+						break
+					}
 					// Reset user response flag when a new ask arrives to allow auto-approval
 					userRespondedRef.current = false
 					const isPartial = lastMessage.partial === true
@@ -1013,6 +1023,18 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		setDidClickCancel(true)
 	}, [currentTaskId, setDidClickCancel])
 
+	// Resets the approval button UI to its hidden/disabled state. Shared by the
+	// manual click handlers and by the backend-driven clearApprovalButtons
+	// message so auto-approved/denied asks hide the buttons through the same
+	// pathway a manual click uses.
+	const clearApprovalButtons = useCallback(() => {
+		setSendingDisabled(true)
+		setClineAsk(undefined)
+		setEnableButtons(false)
+		setPrimaryButtonText(undefined)
+		setSecondaryButtonText(undefined)
+	}, [])
+
 	// This logic depends on the useEffect[messages] above to set clineAsk,
 	// after which buttons are shown and we then send an askResponse to the
 	// extension.
@@ -1129,11 +1151,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					break
 			}
 
-			setSendingDisabled(true)
-			setClineAsk(undefined)
-			setEnableButtons(false)
-			setPrimaryButtonText(undefined)
-			setSecondaryButtonText(undefined)
+			clearApprovalButtons()
 		},
 		[
 			clineAsk,
@@ -1143,6 +1161,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			cwd,
 			handleSendMessage,
 			startNewTask,
+			clearApprovalButtons,
 		],
 	)
 
@@ -1202,11 +1221,18 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					})
 					break
 			}
-			setSendingDisabled(true)
-			setClineAsk(undefined)
-			setEnableButtons(false)
+			clearApprovalButtons()
 		},
-		[clineAsk, startNewTask, isStreaming, setDidClickCancel, currentTaskId, currentTaskItem?.id, cwd],
+		[
+			clineAsk,
+			startNewTask,
+			isStreaming,
+			setDidClickCancel,
+			currentTaskId,
+			currentTaskItem?.id,
+			cwd,
+			clearApprovalButtons,
+		],
 	)
 
 	const { info: model } = useSelectedModel(apiConfiguration)
@@ -1709,13 +1735,17 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 	const switchToMode = useCallback(
 		(modeSlug: string): void => {
+			if (!getAllModes(customModes).some((modeConfig) => modeConfig.slug === modeSlug)) {
+				return
+			}
+
 			// Update local state and notify extension to sync mode change.
 			setMode(modeSlug)
 
 			// Send the mode switch message.
 			vscode.postMessage({ type: "mode", text: modeSlug })
 		},
-		[setMode],
+		[customModes, setMode],
 	)
 
 	const handleSuggestionClickInRow = useCallback(
@@ -1731,12 +1761,13 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			}
 
 			// Check if we need to switch modes
-			if (suggestion.mode) {
+			const suggestionMode = getSuggestionMode(suggestion.mode)
+			if (suggestionMode) {
 				// Only switch modes if it's a manual click (event exists) or auto-approval is allowed
 				const isManualClick = !!event
 				if (isManualClick || alwaysAllowModeSwitch) {
 					// Switch mode without waiting
-					switchToMode(suggestion.mode)
+					switchToMode(suggestionMode)
 				}
 			}
 
@@ -1861,6 +1892,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			shouldHideAutoDecisionButtons,
 			handleScrollToLatestCheckpoint,
 		],
+	)
+
+	const computeMessageKey = useCallback(
+		(index: number, messageOrGroup: ClineMessage) => `${messageOrGroup.ts}-${index}`,
+		[],
 	)
 
 	// Function to handle mode switching
@@ -2062,7 +2098,9 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 									ref={virtuosoRef}
 									key={task.ts}
 									className="scrollable grow overflow-y-scroll mb-1"
-									increaseViewportBy={{ top: 3_000, bottom: 1000 }}
+									computeItemKey={computeMessageKey}
+									defaultItemHeight={CHAT_DEFAULT_ITEM_HEIGHT}
+									increaseViewportBy={CHAT_VIEWPORT_BUFFER}
 									data={groupedMessages}
 									itemContent={itemContent}
 									followOutput={followOutputCallback}

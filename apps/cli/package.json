@@ -9,8 +9,6 @@
 		"roo": "dist/index.js"
 	},
 	"scripts": {
-		"predev": "pnpm --dir ../../packages/types build",
-		"prebuild": "pnpm --dir ../../packages/types build",
 		"format": "prettier --write 'src/**/*.ts'",
 		"lint": "eslint src --ext .ts --max-warnings=0",
 		"check-types": "tsc --noEmit",
@@ -18,7 +16,7 @@
 		"test:coverage": "vitest run --coverage",
 		"test:integration": "tsx scripts/integration/run.ts",
 		"build": "tsup",
-		"build:extension": "pnpm --filter crc bundle",
+		"build:extension": "pnpm --filter ./src bundle",
 		"dev": "ROO_AUTH_BASE_URL=https://app.roocode.com ROO_SDK_BASE_URL=https://cloud-api.roocode.com ROO_CODE_PROVIDER_URL=https://api.roocode.com/proxy tsx src/index.ts",
 		"dev:local": "ROO_AUTH_BASE_URL=http://localhost:3000 ROO_SDK_BASE_URL=http://localhost:3001 ROO_CODE_PROVIDER_URL=http://localhost:8080/proxy tsx src/index.ts",
 		"clean": "rimraf dist .turbo"
@@ -43,11 +41,13 @@
 	"devDependencies": {
 		"@roo-code/config-eslint": "workspace:^",
 		"@roo-code/config-typescript": "workspace:^",
-		"@types/node": "^25.5.2",
-		"@types/react": "^19.2.14",
-		"ink-testing-library": "^4.0.0",
-		"rimraf": "^6.1.3",
-		"tsup": "^8.5.1",
-		"vitest": "^4.1.2"
+		"@types/node": "20.19.43",
+		"@types/react": "18.3.23",
+		"@vitest/coverage-v8": "4.1.0",
+		"ink-testing-library": "4.0.0",
+		"rimraf": "6.0.1",
+		"tsup": "8.5.0",
+		"tsx": "4.19.4",
+		"vitest": "4.1.0"
 	}
 }

@@ -33,6 +33,7 @@ import {
 	FireworksHandler,
 	VercelAiGatewayHandler,
 	OpencodeGoHandler,
+	ZooGatewayHandler,
 	MiniMaxHandler,
 	MimoHandler,
 	BasetenHandler,
@@ -101,6 +102,12 @@ export interface ApiHandlerCreateMessageMetadata {
 	 * calls this; other providers ignore it.
 	 */
 	markModelStructuredOutputUnsupported?: (modelId: string) => void
+	/**
+	 * Abort signal for cancelling the HTTP request mid-stream.
+	 * Passed through to AI SDK's streamText() so the underlying HTTP request is aborted
+	 * when the user clicks stop, preventing wasted API tokens/compute on the provider side.
+	 */
+	abortSignal?: AbortSignal
 }
 
 export interface ApiHandler {
@@ -189,6 +196,8 @@ export function buildApiHandler(configuration: ProviderSettings): ApiHandler {
 			return new VercelAiGatewayHandler(options)
 		case "opencode-go":
 			return new OpencodeGoHandler(options)
+		case "zoo-gateway":
+			return new ZooGatewayHandler(options)
 		case "minimax":
 			return new MiniMaxHandler(options)
 		case "baseten":

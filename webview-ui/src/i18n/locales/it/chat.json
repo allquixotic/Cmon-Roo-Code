@@ -221,6 +221,7 @@
 		"running": "In esecuzione",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "Uscito con stato {{exitCode}}",
+		"malformedCommand": "Comando non valido: errore di sintassi della shell",
 		"manageCommands": "Comandi approvati automaticamente",
 		"addToAllowed": "Aggiungi alla lista dei permessi",
 		"removeFromAllowed": "Rimuovi dalla lista dei permessi",
@@ -327,6 +328,22 @@
 		"copyToInput": "Copia nell'input (o Shift + clic)",
 		"timerPrefix": "Approvazione automatica abilitata. Selezione tra {{seconds}}s…"
 	},
+	"announcement": {
+		"title": "Rilasciato Zoo Code {{version}}",
+		"support": "Sostieni Zoo Code lasciandoci una stella su <githubLink>GitHub</githubLink>.",
+		"release": {
+			"heading": "Novità:",
+			"highlight1": "Supporto GLM-5.2 — l'ultimo modello GLM è ora disponibile nelle impostazioni del provider.",
+			"highlight2": "Miglioramenti di OpenCode-Go — parametri del modello nativi, routing in formato Anthropic e correzione del context-token per risposte più affidabili.",
+			"highlight3": "Modalità tool-writer — una nuova modalità specializzata per scrivere e mantenere le definizioni degli strumenti, ora disponibile nel Marketplace."
+		},
+		"cloudAgents": {
+			"heading": "Novità nel Cloud:",
+			"specialized": "Presentazione di <bold>Explainer</bold>, <bold>Planner</bold> e <bold>Coder</bold> - tre agenti cloud specializzati per migliorare i tuoi flussi di lavoro.",
+			"description": "Gli agenti lavorano insieme nel cloud e possono essere attivati dal web o tramite Slack.",
+			"tryButton": "Prova gli Agenti Cloud"
+		}
+	},
 	"costs": {
 		"totalWithSubtasks": "Costo totale (sottoattività incluse): ${{cost}}",
 		"total": "Costo totale: ${{cost}}",
@@ -398,6 +415,11 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "Version {{version}}"
+	},
+	"rooCloudCTA": {
+		"title": "Zoo Code Cloud si sta evolvendo!",
+		"description": "Esegui agenti remoti nel cloud, accedi alle tue attività da qualsiasi luogo, collabora con altri e molto altro.",
+		"joinWaitlist": "Registrati per ricevere gli ultimi aggiornamenti."
 	},
 	"editMessage": {
 		"placeholder": "Modifica il tuo messaggio..."

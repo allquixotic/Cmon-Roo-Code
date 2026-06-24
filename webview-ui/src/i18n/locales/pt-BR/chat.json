@@ -221,6 +221,7 @@
 		"abort": "Interromper",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "Saiu com o status {{exitCode}}",
+		"malformedCommand": "Comando malformado: erro de sintaxe do shell",
 		"manageCommands": "Comandos aprovados automaticamente",
 		"addToAllowed": "Adicionar à lista de permitidos",
 		"removeFromAllowed": "Remover da lista de permitidos",
@@ -327,6 +328,22 @@
 		"copyToInput": "Copiar para entrada (ou Shift + clique)",
 		"timerPrefix": "Aprovação automática ativada. Selecionando em {{seconds}}s…"
 	},
+	"announcement": {
+		"title": "Zoo Code {{version}} lançado",
+		"support": "Apoie o Zoo Code nos dando uma estrela no <githubLink>GitHub</githubLink>.",
+		"release": {
+			"heading": "Novidades:",
+			"highlight1": "Suporte a GLM-5.2 — o modelo GLM mais recente já está disponível nas configurações do provedor.",
+			"highlight2": "Melhorias no OpenCode-Go — parâmetros de modelo nativos, roteamento em formato Anthropic e correção de context-token para respostas mais confiáveis.",
+			"highlight3": "Modo tool-writer — um novo modo especializado para escrever e manter definições de ferramentas, agora disponível no Marketplace."
+		},
+		"cloudAgents": {
+			"heading": "Novidades na Nuvem:",
+			"specialized": "Apresentando <bold>Explainer</bold>, <bold>Planner</bold> e <bold>Coder</bold> - três agentes em nuvem especializados para aprimorar seus fluxos de trabalho.",
+			"description": "Os agentes trabalham juntos na nuvem e podem ser acionados a partir da web ou por meio do Slack.",
+			"tryButton": "Experimentar Agentes em Nuvem"
+		}
+	},
 	"costs": {
 		"totalWithSubtasks": "Custo Total (incluindo subtarefas): ${{cost}}",
 		"total": "Custo Total: ${{cost}}",
@@ -398,6 +415,11 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "Version {{version}}"
+	},
+	"rooCloudCTA": {
+		"title": "Zoo Code Cloud está evoluindo!",
+		"description": "Execute agentes remotos na nuvem, acesse suas tarefas de qualquer lugar, colabore com outros e muito mais.",
+		"joinWaitlist": "Cadastre-se para receber as últimas atualizações."
 	},
 	"editMessage": {
 		"placeholder": "Edite sua mensagem..."

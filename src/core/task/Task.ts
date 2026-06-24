@@ -6,6 +6,7 @@ import { v7 as uuidv7 } from "uuid"
 import EventEmitter from "events"
 
 import { AskIgnoredError } from "./AskIgnoredError"
+import { RateLimitClock, createRateLimitClock } from "./RateLimitClock"
 
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
@@ -54,6 +55,7 @@ import {
 	countEnabledMcpTools,
 } from "@roo-code/types"
 import { CloudService } from "@roo-code/cloud"
+import { TelemetryService } from "@roo-code/telemetry"
 
 // api
 import { ApiHandler, ApiHandlerCreateMessageMetadata, buildApiHandler } from "../../api"
@@ -160,6 +162,8 @@ export interface TaskOptions extends CreateTaskOptions {
 	workspacePath?: string
 	/** Initial status for the task's history item (e.g., "active" for child tasks) */
 	initialStatus?: "active" | "delegated" | "completed"
+	rateLimitClock?: RateLimitClock
+	diffFuzzyThreshold?: number
 }
 
 export class Task extends EventEmitter<TaskEvents> implements TaskLike {
@@ -286,19 +290,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	// API
 	apiConfiguration: ProviderSettings
 	api: ApiHandler
-	// Kept for backward-compatible tests and diagnostics. Rate limiting itself is keyed by provider/profile/model.
-	private static lastGlobalApiRequestTime?: number
-	private static lastApiRequestTimeByRateLimitKey = new Map<string, number>()
+	private rateLimitClock: RateLimitClock
 	private autoApprovalHandler: AutoApprovalHandler
-
-	/**
-	 * Reset the global API request timestamp. This should only be used for testing.
-	 * @internal
-	 */
-	static resetGlobalApiRequestTime(): void {
-		Task.lastGlobalApiRequestTime = undefined
-		Task.lastApiRequestTimeByRateLimitKey.clear()
-	}
 
 	toolRepetitionDetector: ToolRepetitionDetector
 	rooIgnoreController?: RooIgnoreController
@@ -446,6 +439,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		initialTodos,
 		workspacePath,
 		initialStatus,
+		rateLimitClock,
+		diffFuzzyThreshold,
 	}: TaskOptions) {
 		super()
 
@@ -495,6 +490,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		this.apiConfiguration = apiConfiguration
 		this.api = buildApiHandler(this.apiConfiguration)
+		this.rateLimitClock = rateLimitClock ?? createRateLimitClock()
 		this.autoApprovalHandler = new AutoApprovalHandler()
 
 		this.consecutiveMistakeLimit = consecutiveMistakeLimit ?? DEFAULT_CONSECUTIVE_MISTAKE_LIMIT
@@ -540,7 +536,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.setupProviderProfileChangeListener(provider)
 
 		// Set up diff strategy
-		this.diffStrategy = new MultiSearchReplaceDiffStrategy()
+		this.diffStrategy = new MultiSearchReplaceDiffStrategy(diffFuzzyThreshold)
 
 		this.toolRepetitionDetector = new ToolRepetitionDetector(this.consecutiveMistakeLimit)
 
@@ -1223,6 +1219,16 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		let askTs: number
 
+		// Resolve auto-approval before adding the message so the state snapshot
+		// sent to the webview already carries isAnswered:true when the ask will
+		// be immediately resolved. This eliminates the race between the state
+		// update (which shows approval buttons) and the former separate
+		// clearApprovalButtons message (which could arrive before buttons were
+		// rendered, leaving them stuck on-screen).
+		const state = await this.getTaskScopedState()
+		const approval = await checkAutoApproval({ state, ask: type, text, isProtected })
+		const isAutoAnswered = approval.decision === "approve" || approval.decision === "deny"
+
 		if (partial !== undefined) {
 			const lastMessage = this.clineMessages.at(-1)
 
@@ -1277,6 +1283,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					lastMessage.partial = false
 					lastMessage.progressStatus = progressStatus
 					lastMessage.isProtected = isProtected
+					if (isAutoAnswered) {
+						lastMessage.isAnswered = true
+					}
 					await this.saveClineMessages()
 					this.updateClineMessage(lastMessage)
 				} else {
@@ -1286,7 +1295,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					this.askResponseImages = undefined
 					askTs = Date.now()
 					this.lastMessageTs = askTs
-					await this.addToClineMessages({ ts: askTs, type: "ask", ask: type, text, isProtected })
+					await this.addToClineMessages({
+						ts: askTs,
+						type: "ask",
+						ask: type,
+						text,
+						isProtected,
+						isAnswered: isAutoAnswered || undefined,
+					})
 				}
 			}
 		} else {
@@ -1296,15 +1312,19 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			this.askResponseImages = undefined
 			askTs = Date.now()
 			this.lastMessageTs = askTs
-			await this.addToClineMessages({ ts: askTs, type: "ask", ask: type, text, isProtected })
+			await this.addToClineMessages({
+				ts: askTs,
+				type: "ask",
+				ask: type,
+				text,
+				isProtected,
+				isAnswered: isAutoAnswered || undefined,
+			})
 		}
 
-		let timeouts: NodeJS.Timeout[] = []
+		const timeouts: NodeJS.Timeout[] = []
 
-		// Automatically approve if the ask according to the user's settings.
-		const state = await this.getTaskScopedState()
-		const approval = await checkAutoApproval({ state, ask: type, text, isProtected })
-
+		// Auto-approval (state/approval) was resolved above before the message was added.
 		if (approval.decision === "approve") {
 			this.approveAsk()
 		} else if (approval.decision === "deny") {
@@ -1752,6 +1772,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			mode,
 			taskId: this.taskId,
 			...this.getBedrockStructuredOutputAccessors(),
+			...(this.currentRequestAbortController?.signal
+				? {
+						abortSignal: this.currentRequestAbortController.signal,
+					}
+				: {}),
 			...(allTools.length > 0
 				? {
 						tools: allTools,
@@ -2163,7 +2188,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			// Make sure that the api conversation history can be resumed by the API,
 			// even if it goes out of sync with cline messages.
-			let existingApiConversationHistory: ApiMessage[] = await this.getSavedApiConversationHistory()
+			const existingApiConversationHistory: ApiMessage[] = await this.getSavedApiConversationHistory()
 
 			// Tool blocks are always preserved; native tool calling only.
 
@@ -2260,7 +2285,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				throw new Error("Unexpected: No existing API conversation history")
 			}
 
-			let newUserContent: Anthropic.Messages.ContentBlockParam[] = [...modifiedOldUserContent]
+			const newUserContent: Anthropic.Messages.ContentBlockParam[] = [...modifiedOldUserContent]
 
 			const agoText = ((): string => {
 				const timestamp = lastClineMessage?.ts ?? Date.now()
@@ -2660,12 +2685,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// This prevents the UI from showing an "API Request..." spinner while we are
 			// intentionally waiting due to the rate limit slider.
 			//
-			// NOTE: We also reserve the rate-limit slot here
-			// before we build environment details (which can take time).
-			// This ensures subsequent requests (including subtasks) still honour the
+			// NOTE: We also record the request time here to reserve this slot before
+			// we build environment details (which can take time). This ensures
+			// subsequent requests (including subtasks) still honour the
 			// provider rate-limit window.
-			const rateLimitState = await this.maybeWaitForProviderRateLimit(currentItem.retryAttempt ?? 0)
-			this.recordProviderRateLimitRequestTime(rateLimitState)
+			await this.maybeWaitForProviderRateLimit(currentItem.retryAttempt ?? 0)
+			this.rateLimitClock.recordRequest()
 
 			await this.say(
 				"api_req_started",
@@ -2723,7 +2748,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			// Add environment details as its own text block, separate from tool
 			// results.
-			let finalUserContent = [...contentWithoutEnvDetails, { type: "text" as const, text: environmentDetails }]
+			const finalUserContent = [...contentWithoutEnvDetails, { type: "text" as const, text: environmentDetails }]
 			// Only add user message to conversation history if:
 			// 1. This is the first attempt (retryAttempt === 0), AND
 			// 2. The original userContent was not empty (empty signals delegation resume where
@@ -2870,7 +2895,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				const stream = this.attemptApiRequest(currentItem.retryAttempt ?? 0, { skipProviderRateLimit: true })
 				let assistantMessage = ""
 				let reasoningMessage = ""
-				let pendingGroundingSources: GroundingSource[] = []
+				const pendingGroundingSources: GroundingSource[] = []
 				this.isStreaming = true
 
 				try {
@@ -2889,7 +2914,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 								} else {
 									signal.addEventListener("abort", () => {
 										reject(new Error("Request cancelled by user"))
-									})
+									}, { once: true })
 								}
 							})
 							return await Promise.race([nextPromise, abortPromise])
@@ -3212,6 +3237,40 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 								if (apiReqMessage) {
 									await this.updateClineMessage(apiReqMessage)
 								}
+
+								// Capture telemetry with provider-aware cost calculation
+								const modelId = getModelId(this.apiConfiguration)
+								const apiProvider = this.apiConfiguration.apiProvider
+								const apiProtocol = getApiProtocol(
+									apiProvider && !isRetiredProvider(apiProvider) ? apiProvider : undefined,
+									modelId,
+								)
+
+								// Use the appropriate cost function based on the API protocol
+								const costResult =
+									apiProtocol === "anthropic"
+										? calculateApiCostAnthropic(
+												streamModelInfo,
+												tokens.input,
+												tokens.output,
+												tokens.cacheWrite,
+												tokens.cacheRead,
+											)
+										: calculateApiCostOpenAI(
+												streamModelInfo,
+												tokens.input,
+												tokens.output,
+												tokens.cacheWrite,
+												tokens.cacheRead,
+											)
+
+								TelemetryService.instance.captureLlmCompletion(this.taskId, {
+									inputTokens: costResult.totalInputTokens,
+									outputTokens: costResult.totalOutputTokens,
+									cacheWriteTokens: tokens.cacheWrite,
+									cacheReadTokens: tokens.cacheRead,
+									cost: tokens.total ?? costResult.totalCost,
+								})
 							}
 						}
 
@@ -3648,7 +3707,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					// 	this.userMessageContentReady = true
 					// }
 
-					await pWaitFor(() => this.userMessageContentReady)
+					await pWaitFor(() => this.userMessageContentReady || this.abort || this.abandoned)
+
+					if (this.abort || this.abandoned) {
+						throw new Error(
+							`[RooCode#recursivelyMakeRooRequests] task ${this.taskId}.${this.instanceId} aborted`,
+						)
+					}
 
 					// If the model did not tool use, then we need to tell it to
 					// either use a tool or attempt_completion.
@@ -3710,7 +3775,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					// apiConversationHistory at line 1876. Since the assistant failed to respond,
 					// we need to remove that message before retrying to avoid having two consecutive
 					// user messages (which would cause tool_result validation errors).
-					let state = await this.getTaskScopedState()
+					const state = await this.getTaskScopedState()
 					if (this.apiConversationHistory.length > 0) {
 						const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
 						if (lastMessage.role === "user") {
@@ -3889,43 +3954,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		)
 	}
 
-	private getProviderRateLimitKey(state?: any): string {
-		const apiConfiguration = state?.apiConfiguration ?? this.apiConfiguration
-		const settings = (apiConfiguration ?? {}) as Record<string, unknown>
-		const endpointParts = [
-			settings.awsRegion,
-			settings.awsUseCrossRegionInference,
-			settings.awsUseProfile,
-			settings.awsProfile,
-			settings.openAiBaseUrl,
-			settings.openAiNativeBaseUrl,
-			settings.openRouterBaseUrl,
-			settings.ollamaBaseUrl,
-			settings.lmStudioBaseUrl,
-			settings.vsCodeLmModelSelector,
-			settings.vertexProjectId,
-			settings.vertexRegion,
-		].filter((part) => part !== undefined && part !== null && part !== "")
-
-		return JSON.stringify({
-			profileId: this.getCurrentProfileId(state),
-			profileName: state?.currentApiConfigName ?? this._taskApiConfigName ?? "default",
-			provider: settings.apiProvider ?? "unknown",
-			modelId: getModelId(apiConfiguration),
-			endpointParts,
-		})
-	}
-
-	private getLastProviderRateLimitRequestTime(state?: any): number | undefined {
-		return Task.lastApiRequestTimeByRateLimitKey.get(this.getProviderRateLimitKey(state))
-	}
-
-	private recordProviderRateLimitRequestTime(state?: any): void {
-		const now = performance.now()
-		Task.lastGlobalApiRequestTime = now
-		Task.lastApiRequestTimeByRateLimitKey.set(this.getProviderRateLimitKey(state), now)
-	}
-
 	/**
 	 * Build the Bedrock structured-output cache accessors for inclusion in
 	 * `ApiHandlerCreateMessageMetadata`. These closures are populated unconditionally;
@@ -4006,6 +4034,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			mode,
 			taskId: this.taskId,
 			...this.getBedrockStructuredOutputAccessors(),
+			...(this.currentRequestAbortController?.signal
+				? {
+						abortSignal: this.currentRequestAbortController.signal,
+					}
+				: {}),
 			...(allTools.length > 0
 				? {
 						tools: allTools,
@@ -4086,14 +4119,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	 * NOTE: This is intentionally treated as expected behavior and is surfaced via
 	 * the `api_req_rate_limit_wait` say type (not an error).
 	 */
-	private async maybeWaitForProviderRateLimit(retryAttempt: number, state?: any): Promise<any> {
-		state ??= await this.getTaskScopedState()
+	private async maybeWaitForProviderRateLimit(retryAttempt: number): Promise<void> {
+		const state = await this.getTaskScopedState()
 		const rateLimitSeconds =
 			state?.apiConfiguration?.rateLimitSeconds ?? this.apiConfiguration?.rateLimitSeconds ?? 0
 
-		const lastRequestTime = this.getLastProviderRateLimitRequestTime(state)
-		if (rateLimitSeconds <= 0 || lastRequestTime === undefined) {
-			return state
+		const lastRequestTime = this.rateLimitClock.getLastRequestTime()
+		if (rateLimitSeconds <= 0 || !lastRequestTime) {
+			return
 		}
 
 		const now = performance.now()
@@ -4113,8 +4146,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// Finalize the partial message so the UI doesn't keep rendering an in-progress spinner.
 			await this.say("api_req_rate_limit_wait", undefined, undefined, false)
 		}
-
-		return state
 	}
 
 	public async *attemptApiRequest(
@@ -4137,11 +4168,17 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const customCondensingPrompt = state?.customSupportPrompts?.CONDENSE
 
 		if (!options.skipProviderRateLimit) {
-			await this.maybeWaitForProviderRateLimit(retryAttempt, state)
-			// Update last request time right before making the request so that subsequent
-			// requests — even from new subtasks — will honour the provider's rate-limit.
-			this.recordProviderRateLimitRequestTime(state)
+			await this.maybeWaitForProviderRateLimit(retryAttempt)
 		}
+
+		// Update last request time right before making the request so that subsequent
+		// requests — even from new subtasks — will honour the provider's rate-limit.
+		//
+		// NOTE: When recursivelyMakeClineRequests handles rate limiting, it sets the
+		// timestamp earlier to include the environment details build. We still set it
+		// here for direct callers (tests) and for the case where we didn't rate-limit
+		// in the caller.
+		this.rateLimitClock.recordRequest()
 
 		const systemPrompt = await this.getSystemPrompt()
 		const { contextTokens } = this.getTokenUsage()
@@ -4215,6 +4252,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				mode,
 				taskId: this.taskId,
 				...this.getBedrockStructuredOutputAccessors(),
+				...(this.currentRequestAbortController?.signal
+					? {
+							abortSignal: this.currentRequestAbortController.signal,
+						}
+					: {}),
 				...(contextMgmtTools.length > 0
 					? {
 							tools: contextMgmtTools,
@@ -4380,11 +4422,16 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		const shouldIncludeTools = allTools.length > 0
 
+		// Create an AbortController to allow cancelling the request mid-stream
+		this.currentRequestAbortController = new AbortController()
+		const abortSignal = this.currentRequestAbortController.signal
+
 		const metadata: ApiHandlerCreateMessageMetadata = {
 			mode: mode,
 			taskId: this.taskId,
 			suppressPreviousResponseId: this.skipPrevResponseIdOnce,
 			...this.getBedrockStructuredOutputAccessors(),
+			abortSignal,
 			// Include tools whenever they are present.
 			...(shouldIncludeTools
 				? {
@@ -4397,10 +4444,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					}
 				: {}),
 		}
-
-		// Create an AbortController to allow cancelling the request mid-stream
-		this.currentRequestAbortController = new AbortController()
-		const abortSignal = this.currentRequestAbortController.signal
 		// Reset the flag after using it
 		this.skipPrevResponseIdOnce = false
 
@@ -4416,7 +4459,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		abortSignal.addEventListener("abort", () => {
 			console.log(`[Task#${this.taskId}.${this.instanceId}] AbortSignal triggered for current request`)
 			this.currentRequestAbortController = undefined
-		})
+		}, { once: true })
 
 		try {
 			// Awaiting first chunk to see if it will throw an error.
@@ -4430,7 +4473,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				} else {
 					abortSignal.addEventListener("abort", () => {
 						reject(new Error("Request cancelled by user"))
-					})
+					}, { once: true })
 				}
 			})
 
@@ -4439,8 +4482,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			this.isWaitingForFirstChunk = false
 		} catch (error) {
 			this.isWaitingForFirstChunk = false
-			this.currentRequestAbortController = undefined
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
+
+			if (!isContextWindowExceededError) {
+				this.currentRequestAbortController = undefined
+			}
 
 			// If it's a context window error and we haven't exceeded max retries for this error type
 			if (isContextWindowExceededError && retryAttempt < MAX_CONTEXT_WINDOW_RETRIES) {
@@ -4521,8 +4567,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// Respect provider rate limit window
 			let rateLimitDelay = 0
 			const rateLimit = (state?.apiConfiguration ?? this.apiConfiguration)?.rateLimitSeconds || 0
-			const lastRequestTime = this.getLastProviderRateLimitRequestTime(state)
-			if (lastRequestTime !== undefined && rateLimit > 0) {
+			const lastRequestTime = this.rateLimitClock.getLastRequestTime()
+			if (lastRequestTime && rateLimit > 0) {
 				const elapsed = performance.now() - lastRequestTime
 				rateLimitDelay = Math.ceil(Math.min(rateLimit, Math.max(0, rateLimit * 1000 - elapsed) / 1000))
 			}

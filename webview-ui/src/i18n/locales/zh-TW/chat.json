@@ -267,6 +267,7 @@
 		"running": "執行中",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "已結束，狀態碼 {{exitCode}}",
+		"malformedCommand": "命令格式錯誤：shell 語法錯誤",
 		"manageCommands": "自動核准的命令",
 		"addToAllowed": "新增至允許清單",
 		"removeFromAllowed": "從允許清單中移除",
@@ -348,6 +349,22 @@
 		"triggerLabel_one": "1 個自動核准",
 		"triggerLabel_other": "{{count}} 個自動核准",
 		"triggerLabelAll": "BRRR"
+	},
+	"announcement": {
+		"title": "Zoo Code {{version}} 已發布",
+		"support": "請在 <githubLink>GitHub</githubLink> 上為 Zoo Code 加星支持我們。",
+		"release": {
+			"heading": "新增功能：",
+			"highlight1": "GLM-5.2 支援 — 最新 GLM 模型現已在提供商設定中可用。",
+			"highlight2": "OpenCode-Go 改進 — 原生模型參數、Anthropic 格式路由和 context-token 修復，提供更可靠的回應。",
+			"highlight3": "Tool-writer 模式 — 用於編寫和維護工具定義的新專用模式，現已在 Marketplace 中可用。"
+		},
+		"cloudAgents": {
+			"heading": "雲端的新功能：",
+			"specialized": "推出 <bold>Explainer</bold>、<bold>Planner</bold> 和 <bold>Coder</bold>，三個專業雲端代理用來強化工作流程。",
+			"description": "代理在雲端協同工作，可從網頁或透過 Slack 觸發。",
+			"tryButton": "試用雲端代理"
+		}
 	},
 	"reasoning": {
 		"thinking": "思考中",

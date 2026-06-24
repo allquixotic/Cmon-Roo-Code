@@ -30,41 +30,11 @@
 
 Roo Code から Zoo Code へ移行するためのクイックガイドは、[Roo→Zoo 移行ガイド](https://docs.zoocode.dev/roo-to-zoo-migration) で確認できます。移行中のユーザーをできるだけ支援したいと考えていて、そのために [Reddit](https://www.reddit.com/r/ZooCode) と [Discord](https://discord.gg/VxfP4Vx3gX) を用意しています。困ったことや質問があれば、気軽に参加して聞いてください。
 
-## v3.55.0 の新機能
+## v3.62.0 の新機能
 
-**Zoo Code 初の機能リリース** では、Marketplace への移行を土台に、新しいプロバイダー、Roo Code の upstream sunset merge、そしてチャット、プロバイダー設定、レンダリング周りのユーザー向け修正をまとめて取り込みました。
-
-- Xiaomi MiMo を正式な API プロバイダーとして追加。
-- Roo Code の upstream sunset merge と関連するプラットフォーム更新を取り込み。
-- MCP サインイン文言、Gemini のフルツールリクエスト、未対応モデルに対する OpenAI temperature 処理を修正。
-- Markdown の単一チルダ描画と diagnostics 用一時ファイル名を修正。
-- Z.AI、GLM、Vertex AI のプロバイダー既定値とリージョン対応を改善。
-
-<details>
-  <summary>🌐 利用可能な言語</summary>
-
-- [English](../../README.md)
-- [Català](../ca/README.md)
-- [Deutsch](../de/README.md)
-- [Español](../es/README.md)
-- [Français](../fr/README.md)
-- [हिंदी](../hi/README.md)
-- [Bahasa Indonesia](../id/README.md)
-- [Italiano](../it/README.md)
-- [日本語](../ja/README.md)
-- [한국어](../ko/README.md)
-- [Nederlands](../nl/README.md)
-- [Polski](../pl/README.md)
-- [Português (BR)](../pt-BR/README.md)
-- [Русский](../ru/README.md)
-- [Türkçe](../tr/README.md)
-- [Tiếng Việt](../vi/README.md)
-- [简体中文](../zh-CN/README.md)
-- [繁體中文](../zh-TW/README.md)
-- ...
-      </details>
-
----
+- **GLM-5.2 サポート** — 最新の GLM モデルがプロバイダー設定で利用可能になりました
+- **OpenCode-Go の改善** — ネイティブモデルパラメータ、Anthropic フォーマットルーティング、より信頼性の高い応答のための context-token 修正
+- **Tool-writer モード** — ツール定義の作成と保守のための新しい専門モードが Marketplace で利用可能になりました
 
 ## Zoo Codeがあなたのためにできること
 

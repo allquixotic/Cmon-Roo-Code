@@ -221,6 +221,7 @@
 		"abort": "Przerwij",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "Zakończono ze statusem {{exitCode}}",
+		"malformedCommand": "Nieprawidlowe polecenie: blad skladni shell",
 		"manageCommands": "Polecenia zatwierdzone automatycznie",
 		"addToAllowed": "Dodaj do listy dozwolonych",
 		"removeFromAllowed": "Usuń z listy dozwolonych",
@@ -327,6 +328,22 @@
 		"copyToInput": "Kopiuj do pola wprowadzania (lub Shift + kliknięcie)",
 		"timerPrefix": "Automatyczne zatwierdzanie włączone. Zaznaczanie za {{seconds}}s…"
 	},
+	"announcement": {
+		"title": "Zoo Code {{version}} wydany",
+		"support": "Wesprzyj Zoo Code, dając nam gwiazdkę na <githubLink>GitHub</githubLink>.",
+		"release": {
+			"heading": "Co nowego:",
+			"highlight1": "Obsługa GLM-5.2 — najnowszy model GLM jest teraz dostępny w ustawieniach dostawcy.",
+			"highlight2": "Ulepszenia OpenCode-Go — natywne parametry modelu, routing w formacie Anthropic i poprawka context-token dla bardziej niezawodnych odpowiedzi.",
+			"highlight3": "Tryb tool-writer — nowy specjalistyczny tryb do pisania i utrzymania definicji narzędzi, teraz dostępny w Marketplace."
+		},
+		"cloudAgents": {
+			"heading": "Nowości w chmurze:",
+			"specialized": "Przedstawiamy <bold>Explainer</bold>, <bold>Planner</bold> i <bold>Coder</bold> - trzech wyspecjalizowanych agentów chmurowych, aby ulepszyć Twoje przepływy pracy.",
+			"description": "Agenci pracują razem w chmurze i mogą być uruchamiani z sieci lub przez Slack.",
+			"tryButton": "Wypróbuj agentów chmurowych"
+		}
+	},
 	"costs": {
 		"totalWithSubtasks": "Całkowity koszt (w tym podzadania): ${{cost}}",
 		"total": "Całkowity koszt: ${{cost}}",
@@ -398,6 +415,11 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "Version {{version}}"
+	},
+	"rooCloudCTA": {
+		"title": "Zoo Code Cloud się rozwija!",
+		"description": "Uruchamiaj zdalne agenty w chmurze, uzyskuj dostęp do swoich zadań z dowolnego miejsca, współpracuj z innymi i wiele więcej.",
+		"joinWaitlist": "Zarejestruj się, aby otrzymywać najnowsze aktualizacje."
 	},
 	"editMessage": {
 		"placeholder": "Edytuj swoją wiadomość..."

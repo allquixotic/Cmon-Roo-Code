@@ -30,41 +30,11 @@
 
 Você encontra um guia rápido para migrar do Roo Code para o Zoo Code no [guia de migração Roo→Zoo](https://docs.zoocode.dev/roo-to-zoo-migration). Queremos ajudar os usuários durante essa transição da melhor forma possível, e é exatamente para isso que temos nosso [Reddit](https://www.reddit.com/r/ZooCode) e nosso [Discord](https://discord.gg/VxfP4Vx3gX). Se você tiver algum problema ou dúvida, apareça por lá e pergunte.
 
-## Novidades na v3.55.0
+## Novidades na v3.62.0
 
-**A primeira release de funcionalidades do Zoo Code** avança o handoff para o Marketplace com um novo provedor, o merge upstream do sunset do Roo Code e uma rodada de correções visíveis para o usuário em chat, configurações de provedores e renderização.
-
-- Adicionado o Xiaomi MiMo como provedor de API de primeira classe.
-- Incorporado o merge upstream do sunset do Roo Code e as atualizações relacionadas de plataforma.
-- Corrigidos os textos de sign-in do MCP, as requisições do Gemini com o conjunto completo de tools e o tratamento de temperatura da OpenAI para modelos que não a suportam.
-- Corrigidos a renderização de til única em Markdown e o nome dos arquivos temporários de diagnóstico.
-- Melhorados os defaults de provedores e a cobertura regional para Z.AI, GLM e Vertex AI.
-
-<details>
-  <summary>🌐 Idiomas disponíveis</summary>
-
-- [English](../../README.md)
-- [Català](../ca/README.md)
-- [Deutsch](../de/README.md)
-- [Español](../es/README.md)
-- [Français](../fr/README.md)
-- [हिंदी](../hi/README.md)
-- [Bahasa Indonesia](../id/README.md)
-- [Italiano](../it/README.md)
-- [日本語](../ja/README.md)
-- [한국어](../ko/README.md)
-- [Nederlands](../nl/README.md)
-- [Polski](../pl/README.md)
-- [Português (BR)](../pt-BR/README.md)
-- [Русский](../ru/README.md)
-- [Türkçe](../tr/README.md)
-- [Tiếng Việt](../vi/README.md)
-- [简体中文](../zh-CN/README.md)
-- [繁體中文](../zh-TW/README.md)
-- ...
-      </details>
-
----
+- **Suporte a GLM-5.2** — o modelo GLM mais recente já está disponível nas configurações do provedor
+- **Melhorias no OpenCode-Go** — parâmetros de modelo nativos, roteamento em formato Anthropic e correção de context-token para respostas mais confiáveis
+- **Modo tool-writer** — um novo modo especializado para escrever e manter definições de ferramentas, agora disponível no Marketplace
 
 ## O que o Zoo Code pode fazer por VOCÊ?
 

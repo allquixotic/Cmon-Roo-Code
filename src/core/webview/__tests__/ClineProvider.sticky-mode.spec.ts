@@ -32,9 +32,11 @@ vi.mock("vscode", () => ({
 			get: vi.fn().mockReturnValue([]),
 			update: vi.fn(),
 		}),
-		onDidChangeConfiguration: vi.fn().mockImplementation(() => ({
-			dispose: vi.fn(),
-		})),
+		onDidChangeConfiguration: vi.fn().mockImplementation(() => {
+			return {
+				dispose: vi.fn(),
+			}
+		}),
 		onDidSaveTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
 		onDidChangeTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
 		onDidOpenTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
@@ -112,17 +114,21 @@ vi.mock("../../../api", () => ({
 }))
 
 vi.mock("../../../integrations/workspace/WorkspaceTracker", () => ({
-	default: vi.fn().mockImplementation(() => ({
-		initializeFilePaths: vi.fn(),
-		dispose: vi.fn(),
-	})),
+	default: vi.fn().mockImplementation(function () {
+		return {
+			initializeFilePaths: vi.fn(),
+			dispose: vi.fn(),
+		}
+	}),
 }))
 
 vi.mock("../../diff/strategies/multi-search-replace", () => ({
-	MultiSearchReplaceDiffStrategy: vi.fn().mockImplementation(() => ({
-		getName: () => "test-strategy",
-		applyDiff: vi.fn(),
-	})),
+	MultiSearchReplaceDiffStrategy: vi.fn().mockImplementation(function () {
+		return {
+			getName: () => "test-strategy",
+			applyDiff: vi.fn(),
+		}
+	}),
 }))
 
 vi.mock("@roo-code/cloud", () => ({
@@ -195,7 +201,9 @@ vi.mock("../../../utils/storage", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../../../utils/storage")>()
 	return {
 		...actual,
-		getStorageBasePath: vi.fn().mockImplementation((defaultPath: string) => defaultPath),
+		getStorageBasePath: vi.fn().mockImplementation((defaultPath: string) => {
+			return defaultPath
+		}),
 		getSettingsDirectoryPath: vi.fn().mockResolvedValue("/test/settings/path"),
 		getTaskDirectoryPath: vi.fn().mockResolvedValue("/test/task/path"),
 	}
@@ -222,15 +230,21 @@ describe("ClineProvider - Sticky Mode", () => {
 			extensionPath: "/test/path",
 			extensionUri: { fsPath: "/test/path" } as vscode.Uri,
 			globalState: {
-				get: vi.fn().mockImplementation((key: string) => globalState[key]),
+				get: vi.fn().mockImplementation((key: string) => {
+					return globalState[key]
+				}),
 				update: vi.fn().mockImplementation((key: string, value: string | undefined) => {
 					globalState[key] = value
 					return Promise.resolve()
 				}),
-				keys: vi.fn().mockImplementation(() => Object.keys(globalState)),
+				keys: vi.fn().mockImplementation(() => {
+					return Object.keys(globalState)
+				}),
 			},
 			secrets: {
-				get: vi.fn().mockImplementation((key: string) => secrets[key]),
+				get: vi.fn().mockImplementation((key: string) => {
+					return secrets[key]
+				}),
 				store: vi.fn().mockImplementation((key: string, value: string | undefined) => {
 					secrets[key] = value
 					return Promise.resolve()
@@ -276,7 +290,9 @@ describe("ClineProvider - Sticky Mode", () => {
 				callback()
 				return { dispose: vi.fn() }
 			}),
-			onDidChangeVisibility: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+			onDidChangeVisibility: vi.fn().mockImplementation(() => {
+				return { dispose: vi.fn() }
+			}),
 		} as unknown as vscode.WebviewView
 
 		provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
@@ -325,9 +341,9 @@ describe("ClineProvider - Sticky Mode", () => {
 			])
 
 			// Mock updateTaskHistory to track calls
-			const updateTaskHistorySpy = vi
-				.spyOn(provider, "updateTaskHistory")
-				.mockImplementation(() => Promise.resolve([]))
+			const updateTaskHistorySpy = vi.spyOn(provider, "updateTaskHistory").mockImplementation(() => {
+				return Promise.resolve([])
+			})
 
 			// Add task to provider stack
 			await provider.addClineToStack(mockTask)
@@ -378,7 +394,9 @@ describe("ClineProvider - Sticky Mode", () => {
 			])
 
 			// Mock updateTaskHistory
-			vi.spyOn(provider, "updateTaskHistory").mockImplementation(() => Promise.resolve([]))
+			vi.spyOn(provider, "updateTaskHistory").mockImplementation(() => {
+				return Promise.resolve([])
+			})
 
 			// Switch mode
 			await provider.handleModeSwitch("architect")
@@ -416,9 +434,9 @@ describe("ClineProvider - Sticky Mode", () => {
 			])
 
 			// Mock updateTaskHistory to track calls
-			const updateTaskHistorySpy = vi
-				.spyOn(provider, "updateTaskHistory")
-				.mockImplementation(() => Promise.resolve([]))
+			const updateTaskHistorySpy = vi.spyOn(provider, "updateTaskHistory").mockImplementation(() => {
+				return Promise.resolve([])
+			})
 
 			// Add task to provider stack
 			await provider.addClineToStack(mockTask)
@@ -850,9 +868,9 @@ describe("ClineProvider - Sticky Mode", () => {
 			])
 
 			// Mock updateTaskHistory
-			const updateTaskHistorySpy = vi
-				.spyOn(provider, "updateTaskHistory")
-				.mockImplementation(() => Promise.resolve([]))
+			const updateTaskHistorySpy = vi.spyOn(provider, "updateTaskHistory").mockImplementation(() => {
+				return Promise.resolve([])
+			})
 
 			// Clear previous calls to globalState.update
 			vi.mocked(mockContext.globalState.update).mockClear()
@@ -918,7 +936,9 @@ describe("ClineProvider - Sticky Mode", () => {
 			])
 
 			// Mock updateTaskHistory
-			vi.spyOn(provider, "updateTaskHistory").mockImplementation(() => Promise.resolve([]))
+			vi.spyOn(provider, "updateTaskHistory").mockImplementation(() => {
+				return Promise.resolve([])
+			})
 
 			// Start a save operation
 			const savePromise = mockTask.saveClineMessages()
@@ -1004,7 +1024,9 @@ describe("ClineProvider - Sticky Mode", () => {
 			])
 
 			// Mock updateTaskHistory
-			vi.spyOn(provider, "updateTaskHistory").mockImplementation(() => Promise.resolve([]))
+			vi.spyOn(provider, "updateTaskHistory").mockImplementation(() => {
+				return Promise.resolve([])
+			})
 
 			// Mock console.error to suppress error output
 			const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
@@ -1154,9 +1176,9 @@ describe("ClineProvider - Sticky Mode", () => {
 			])
 
 			// Mock updateTaskHistory
-			const updateTaskHistorySpy = vi
-				.spyOn(provider, "updateTaskHistory")
-				.mockImplementation(() => Promise.resolve([]))
+			const updateTaskHistorySpy = vi.spyOn(provider, "updateTaskHistory").mockImplementation(() => {
+				return Promise.resolve([])
+			})
 
 			// Mock getCurrentTask to return different tasks
 			const getCurrentTaskSpy = vi.spyOn(provider, "getCurrentTask")

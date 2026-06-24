@@ -198,7 +198,7 @@ const mockPostMessage = (state: Partial<ExtensionState>) => {
 				version: "1.0.0",
 				clineMessages: [],
 				taskHistory: [],
-				apiConfiguration: { apiProvider: "roo" },
+				apiConfiguration: { apiProvider: "anthropic", apiKey: "test-key" },
 				allowedCommands: [],
 				alwaysAllowExecute: false,
 				cloudIsAuthenticated: false,

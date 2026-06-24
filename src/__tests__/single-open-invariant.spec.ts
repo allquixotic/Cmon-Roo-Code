@@ -101,6 +101,48 @@ describe("Multi-conversation provider behavior", () => {
 		expect(addClineToStack).toHaveBeenCalledTimes(1)
 	})
 
+	it("Subtask create: keeps existing task open when parentTask is provided", async () => {
+		vi.spyOn(ProfileValidatorMod.ProfileValidator, "isProfileAllowed").mockReturnValue(true)
+
+		const removeClineFromStack = vi.fn().mockResolvedValue(undefined)
+		const addClineToStack = vi.fn().mockResolvedValue(undefined)
+		const parentTask = { taskId: "parent-1" }
+
+		const provider = {
+			clineStack: [parentTask],
+			taskHistoryStore: { getAll: vi.fn().mockReturnValue([{ id: "parent-1" }]) },
+			setValues: vi.fn(),
+			getState: vi.fn().mockResolvedValue({
+				apiConfiguration: { apiProvider: "anthropic", consecutiveMistakeLimit: 0 },
+				organizationAllowList: "*",
+				enableCheckpoints: true,
+				checkpointTimeout: 60,
+				experiments: {},
+				cloudUserInfo: null,
+			}),
+			removeClineFromStack,
+			addClineToStack,
+			setProviderProfile: vi.fn(),
+			log: vi.fn(),
+			getStateToPostToWebview: vi.fn(),
+			providerSettingsManager: { getModeConfigId: vi.fn(), listConfig: vi.fn() },
+			customModesManager: { getCustomModes: vi.fn().mockResolvedValue([]) },
+			taskCreationCallback: vi.fn(),
+			contextProxy: {
+				extensionUri: {},
+				setValue: vi.fn(),
+				getValue: vi.fn(),
+				setProviderSettings: vi.fn(),
+				getProviderSettings: vi.fn(() => ({})),
+			},
+		} as unknown as ClineProvider
+
+		await (ClineProvider.prototype as any).createTask.call(provider, "Subtask", undefined, parentTask as any)
+
+		expect(removeClineFromStack).not.toHaveBeenCalled()
+		expect(addClineToStack).toHaveBeenCalledTimes(1)
+	})
+
 	it("createTaskWithHistoryItem reuses an already-live task instead of duplicating it", async () => {
 		const existingTask = { taskId: "hist-1" }
 		const addClineToStack = vi.fn().mockResolvedValue(undefined)

@@ -54,8 +54,8 @@ describe("OpenAICompatibleEmbedder", () => {
 
 	beforeEach(() => {
 		vitest.clearAllMocks()
-		vitest.spyOn(console, "warn").mockImplementation(() => {})
-		vitest.spyOn(console, "error").mockImplementation(() => {})
+		vitest.spyOn(console, "warn").mockImplementation(function () {})
+		vitest.spyOn(console, "error").mockImplementation(function () {})
 
 		// Setup mock OpenAI instance
 		mockEmbeddingsCreate = vitest.fn()

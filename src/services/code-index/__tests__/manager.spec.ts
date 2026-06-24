@@ -54,7 +54,9 @@ vi.mock("vscode", () => {
 			}),
 			getWorkspaceFolder: vi.fn(),
 		},
-		RelativePattern: vi.fn().mockImplementation((base: any, pattern: any) => ({ base, pattern })),
+		RelativePattern: vi.fn().mockImplementation(function (base: any, pattern: any) {
+			return { base, pattern }
+		}),
 	}
 })
 
@@ -88,12 +90,14 @@ vi.mock("ignore", () => ({
 }))
 
 vi.mock("../state-manager", () => ({
-	CodeIndexStateManager: vi.fn().mockImplementation(() => ({
-		onProgressUpdate: vi.fn(),
-		getCurrentStatus: vi.fn(),
-		dispose: vi.fn(),
-		setSystemState: vi.fn(),
-	})),
+	CodeIndexStateManager: vi.fn().mockImplementation(function () {
+		return {
+			onProgressUpdate: vi.fn(),
+			getCurrentStatus: vi.fn(),
+			dispose: vi.fn(),
+			setSystemState: vi.fn(),
+		}
+	}),
 }))
 
 vi.mock("../service-factory")

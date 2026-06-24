@@ -62,6 +62,24 @@
 		"debugMode": {
 			"label": "Abilita modalità debug",
 			"description": "Abilita la modalità debug per mostrare pulsanti aggiuntivi nell'intestazione dell'attività che consentano di visualizzare la cronologia delle conversazioni API e i messaggi dell'interfaccia utente come JSON formattato in file temporanei."
+		},
+		"rooHistoryImport": {
+			"settingLabel": "Importa la cronologia da Roo Code",
+			"cardTitle": "Cronologia Roo Code",
+			"cardDescription": "Copia le conversazioni salvate di Roo Code in Zoo Code.",
+			"statusImporting": "Importazione cronologia",
+			"statusFailed": "Importazione fallita",
+			"statusComplete": "Importazione completata",
+			"buttonImporting": "Importazione da Roo Code...",
+			"buttonIdle": "Importa la cronologia da Roo Code",
+			"summaryFailedWithFiles": "{{copied}} di {{total}} file copiati prima dell'interruzione dell'importazione.",
+			"summaryFailedNoFiles": "L'importazione si è interrotta prima che venissero copiati dei file.",
+			"summaryCopied": "{{copied}} di {{total}} file copiati",
+			"detailFailed": "Avvia un nuovo tentativo di importazione per riprovare.",
+			"detailTasksImported_one": "Importato {{count}} di {{total}} cronologia attività.",
+			"detailTasksImported_other": "Importati {{count}} di {{total}} cronologie attività.",
+			"detailPreparing": "Preparazione dell'importazione della cronologia Roo Code.",
+			"progressAriaLabel": "Avanzamento importazione cronologia Roo Code"
 		}
 	},
 	"slashCommands": {
@@ -213,7 +231,8 @@
 		"stoppingButton": "Interruzione...",
 		"workspaceToggleLabel": "Abilita l'indicizzazione per questo workspace",
 		"workspaceDisabledMessage": "L'indicizzazione è configurata ma non abilitata per questo workspace.",
-		"autoEnableDefaultLabel": "Abilita automaticamente l'indicizzazione per i nuovi workspace"
+		"autoEnableDefaultLabel": "Abilita automaticamente l'indicizzazione per i nuovi workspace",
+		"sembleProvider": "Semble - Locale"
 	},
 	"autoApprove": {
 		"toggleShortcut": "Puoi configurare una scorciatoia globale per questa impostazione <SettingsLink>nelle preferenze del tuo IDE</SettingsLink>.",
@@ -543,6 +562,7 @@
 			"minimal": "Minimo (più veloce)",
 			"high": "Alto",
 			"xhigh": "Molto alto",
+			"max": "Massimo",
 			"medium": "Medio",
 			"low": "Basso"
 		},
@@ -560,6 +580,13 @@
 			"placeholder": "Predefinito: claude",
 			"maxTokensLabel": "Token di output massimi",
 			"maxTokensDescription": "Numero massimo di token di output per le risposte di Claude Code. Il valore predefinito è 8000."
+		},
+		"zooGateway": {
+			"account": "Account Zoo Code",
+			"signInButton": "Accedi a Zoo Code",
+			"signInDescription": "Accedi per utilizzare Zoo Gateway con il tuo account",
+			"authenticated": "Autenticato",
+			"authenticatedAs": "Autenticato come {{name}}"
 		},
 		"awsBedrockStructuredOutput": "Attempt strict structured output",
 		"awsBedrockStructuredOutputTooltip": "Asks AWS Bedrock to strictly validate tool-call arguments against their JSON schema (Converse 'strict: true'). Falls back automatically and silently retries without strict mode for models that reject it; unsupported models are remembered for 30 days.",
@@ -645,6 +672,12 @@
 			"delayAfterWrite": {
 				"label": "Ritardo dopo le scritture per consentire alla diagnostica di rilevare potenziali problemi",
 				"description": "Tempo di attesa dopo la scrittura dei file prima di procedere, consentendo agli strumenti di diagnostica di elaborare le modifiche e rilevare i problemi."
+			}
+		},
+		"fileEdits": {
+			"diffFuzzyThreshold": {
+				"label": "Soglia di corrispondenza diff",
+				"description": "Soglie più basse rendono le modifiche ai file più resilienti a variazioni di formattazione e spazi bianchi. Una soglia del 100% richiede una corrispondenza esatta."
 			}
 		},
 		"condensingThreshold": {
@@ -744,6 +777,13 @@
 		"inheritEnv": {
 			"label": "Eredita variabili d'ambiente",
 			"description": "Attiva per ereditare le variabili d'ambiente dal processo padre di VS Code. <0>Scopri di più</0>"
+		},
+		"profile": {
+			"label": "Shell per Zoo Code",
+			"followVscode": "Segui il profilo di VS Code (consigliato)",
+			"description": "Per impostazione predefinita Zoo Code usa la shell configurata in VS Code. Seleziona un profilo shell dall'elenco per scegliere un profilo shell con percorso esposto da VS Code. I profili solo sorgente (es. la voce PowerShell integrata) non possono essere elencati qui. <0>Ulteriori informazioni</0>",
+			"configureButton": "Scegli il profilo predefinito in VS Code",
+			"noProfiles": "(nessun profilo con percorso trovato in terminal.integrated.profiles)"
 		}
 	},
 	"advancedSettings": {
@@ -874,6 +914,10 @@
 		"simplifiedExplanation": "Puoi modificare le impostazioni dettagliate del modello in seguito."
 	},
 	"footer": {
+		"telemetry": {
+			"label": "Consenti segnalazioni anonime di errori e utilizzo",
+			"description": "Aiuta a migliorare Zoo Code inviando dati di utilizzo anonimi e segnalazioni di errori. Questa telemetria non raccoglie codice, prompt o informazioni personali. Consulta la nostra <privacyLink>informativa sulla privacy</privacyLink> per maggiori dettagli."
+		},
 		"settings": {
 			"import": "Importa",
 			"export": "Esporta",
@@ -900,7 +944,8 @@
 		"providerNotAllowed": "Il fornitore '{{provider}}' non è consentito dalla tua organizzazione",
 		"modelNotAllowed": "Il modello '{{model}}' non è consentito per il fornitore '{{provider}}' dalla tua organizzazione.",
 		"profileInvalid": "Questo profilo contiene un fornitore o un modello non consentito dalla tua organizzazione.",
-		"qwenCodeOauthPath": "Devi fornire un percorso valido per le credenziali OAuth"
+		"qwenCodeOauthPath": "Devi fornire un percorso valido per le credenziali OAuth",
+		"zooGatewaySignIn": "Accedi a Zoo Code per utilizzare Zoo Gateway."
 	},
 	"placeholders": {
 		"apiKey": "Inserisci chiave API...",
@@ -962,6 +1007,23 @@
 		"requireCtrlEnterToSend": {
 			"label": "Richiedi {{primaryMod}}+Invio per inviare messaggi",
 			"description": "Quando abilitato, devi premere {{primaryMod}}+Invio per inviare messaggi invece di solo Invio"
+		},
+		"chatFontSize": {
+			"label": "Dimensione carattere della chat",
+			"description": "Imposta la dimensione del carattere (in pixel) per la chat di Zoo Code. Lascia il valore predefinito per adattarsi alla dimensione del carattere di VS Code.",
+			"reset": "Usa il valore predefinito di VS Code"
+		},
+		"autoCloseZooOpenedFiles": {
+			"label": "Chiudi automaticamente i file aperti da Zoo",
+			"description": "Quando abilitata, le schede dell'editor che Zoo ha aperto temporaneamente per un diff vengono chiuse automaticamente dopo l'accettazione o il rifiuto della modifica. Le schede che l'utente aveva già aperto prima della modifica non vengono mai chiuse automaticamente."
+		},
+		"autoCloseZooOpenedFilesAfterUserEdited": {
+			"label": "Chiudi automaticamente anche dopo l'interazione dell'utente",
+			"description": "Quando abilitata, le schede aperte da Zoo vengono chiuse anche se l'utente ha fatto clic o digitato nel file o nel diff durante la sessione di modifica. Non ha effetto se 'Chiudi automaticamente i file aperti da Zoo' è disabilitata."
+		},
+		"autoCloseZooOpenedNewFiles": {
+			"label": "Chiudi automaticamente i nuovi file creati",
+			"description": "Quando abilitata, le schede dei file che Zoo ha creato (invece di modificare) vengono chiuse automaticamente dopo l'accettazione della modifica."
 		}
 	},
 	"skills": {

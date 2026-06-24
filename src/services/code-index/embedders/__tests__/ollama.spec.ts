@@ -39,7 +39,7 @@ vitest.mock("../../../../i18n", () => ({
 
 // Mock console methods
 const consoleMocks = {
-	error: vitest.spyOn(console, "error").mockImplementation(() => {}),
+	error: vitest.spyOn(console, "error").mockImplementation(function () {}),
 }
 
 describe("CodeIndexOllamaEmbedder", () => {

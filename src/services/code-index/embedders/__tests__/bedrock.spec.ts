@@ -7,12 +7,16 @@ import { MAX_ITEM_TOKENS, INITIAL_RETRY_DELAY_MS } from "../../constants"
 // Mock the AWS SDK
 vitest.mock("@aws-sdk/client-bedrock-runtime", () => {
 	return {
-		BedrockRuntimeClient: vitest.fn().mockImplementation(() => ({
-			send: vitest.fn(),
-		})),
-		InvokeModelCommand: vitest.fn().mockImplementation((input) => ({
-			input,
-		})),
+		BedrockRuntimeClient: vitest.fn().mockImplementation(function () {
+			return {
+				send: vitest.fn(),
+			}
+		}),
+		InvokeModelCommand: vitest.fn().mockImplementation(function (input) {
+			return {
+				input,
+			}
+		}),
 	}
 })
 vitest.mock("@aws-sdk/credential-providers", () => ({
@@ -46,8 +50,8 @@ vitest.mock("../../../../i18n", () => ({
 
 // Mock console methods
 const consoleMocks = {
-	error: vitest.spyOn(console, "error").mockImplementation(() => {}),
-	warn: vitest.spyOn(console, "warn").mockImplementation(() => {}),
+	error: vitest.spyOn(console, "error").mockImplementation(function () {}),
+	warn: vitest.spyOn(console, "warn").mockImplementation(function () {}),
 }
 
 describe("BedrockEmbedder", () => {
@@ -90,6 +94,14 @@ describe("BedrockEmbedder", () => {
 		it("should use profile for credentials", () => {
 			const profileEmbedder = new BedrockEmbedder("us-west-2", "dev-profile")
 			expect(profileEmbedder).toBeDefined()
+		})
+
+		it("should identify itself as Zoo Code in the AWS client app id", () => {
+			expect(BedrockRuntimeClient).toHaveBeenCalledWith(
+				expect.objectContaining({
+					userAgentAppId: expect.stringMatching(/^ZooCode#/),
+				}),
+			)
 		})
 	})
 

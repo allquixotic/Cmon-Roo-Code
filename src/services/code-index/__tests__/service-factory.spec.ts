@@ -347,6 +347,17 @@ describe("CodeIndexServiceFactory", () => {
 			// Act & Assert
 			expect(() => factory.createEmbedder()).toThrow("serviceFactory.invalidEmbedderType")
 		})
+
+		it("should throw when provider is semble (semble handles its own embedding)", () => {
+			const testConfig = {
+				embedderProvider: "semble",
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+
+			expect(() => factory.createEmbedder()).toThrow(
+				"Semble provider handles its own embedding. Do not call createEmbedder() for semble",
+			)
+		})
 	})
 
 	describe("createVectorStore", () => {
@@ -668,6 +679,17 @@ describe("CodeIndexServiceFactory", () => {
 
 			// Act & Assert
 			expect(() => factory.createVectorStore()).toThrow("serviceFactory.qdrantUrlMissing")
+		})
+
+		it("should throw when provider is semble (semble handles its own vector storage)", () => {
+			const testConfig = {
+				embedderProvider: "semble",
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+
+			expect(() => factory.createVectorStore()).toThrow(
+				"Semble provider handles its own vector storage. Do not call createVectorStore() for semble",
+			)
 		})
 	})
 

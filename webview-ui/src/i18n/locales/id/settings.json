@@ -62,6 +62,24 @@
 		"debugMode": {
 			"label": "Aktifkan mode debug",
 			"description": "Aktifkan mode debug untuk menampilkan tombol tambahan di header tugas yang memungkinkan melihat riwayat percakapan API dan pesan UI sebagai JSON yang diformat dalam file sementara."
+		},
+		"rooHistoryImport": {
+			"settingLabel": "Impor riwayat dari Roo Code",
+			"cardTitle": "Riwayat Roo Code",
+			"cardDescription": "Salin percakapan Roo Code yang tersimpan ke Zoo Code.",
+			"statusImporting": "Mengimpor riwayat",
+			"statusFailed": "Impor gagal",
+			"statusComplete": "Impor selesai",
+			"buttonImporting": "Mengimpor dari Roo Code...",
+			"buttonIdle": "Impor riwayat dari Roo Code",
+			"summaryFailedWithFiles": "{{copied}} dari {{total}} file disalin sebelum impor berhenti.",
+			"summaryFailedNoFiles": "Impor berhenti sebelum file apa pun disalin.",
+			"summaryCopied": "{{copied}} dari {{total}} file disalin",
+			"detailFailed": "Mulai percobaan impor baru untuk mencoba lagi.",
+			"detailTasksImported_one": "{{count}} dari {{total}} riwayat tugas diimpor.",
+			"detailTasksImported_other": "{{count}} dari {{total}} riwayat tugas diimpor.",
+			"detailPreparing": "Mempersiapkan impor riwayat Roo Code.",
+			"progressAriaLabel": "Progres impor riwayat Roo Code"
 		}
 	},
 	"slashCommands": {
@@ -213,7 +231,8 @@
 		"stoppingButton": "Menghentikan...",
 		"workspaceToggleLabel": "Aktifkan pengindeksan untuk ruang kerja ini",
 		"workspaceDisabledMessage": "Pengindeksan dikonfigurasi tetapi tidak diaktifkan untuk ruang kerja ini.",
-		"autoEnableDefaultLabel": "Aktifkan pengindeksan secara otomatis untuk ruang kerja baru"
+		"autoEnableDefaultLabel": "Aktifkan pengindeksan secara otomatis untuk ruang kerja baru",
+		"sembleProvider": "Semble - Lokal"
 	},
 	"autoApprove": {
 		"toggleShortcut": "Anda dapat mengonfigurasi pintasan global untuk pengaturan ini <SettingsLink>di preferensi IDE Anda</SettingsLink>.",
@@ -543,6 +562,7 @@
 			"minimal": "Minimal (Tercepat)",
 			"high": "Tinggi",
 			"xhigh": "Sangat tinggi",
+			"max": "Maksimum",
 			"medium": "Sedang",
 			"low": "Rendah"
 		},
@@ -560,6 +580,13 @@
 			"placeholder": "Default: claude",
 			"maxTokensLabel": "Token Output Maks",
 			"maxTokensDescription": "Jumlah maksimum token output untuk respons Claude Code. Default adalah 8000."
+		},
+		"zooGateway": {
+			"account": "Akun Zoo Code",
+			"signInButton": "Masuk ke Zoo Code",
+			"signInDescription": "Masuk untuk menggunakan Zoo Gateway dengan akun Anda",
+			"authenticated": "Terautentikasi",
+			"authenticatedAs": "Terautentikasi sebagai {{name}}"
 		},
 		"awsBedrockStructuredOutput": "Attempt strict structured output",
 		"awsBedrockStructuredOutputTooltip": "Asks AWS Bedrock to strictly validate tool-call arguments against their JSON schema (Converse 'strict: true'). Falls back automatically and silently retries without strict mode for models that reject it; unsupported models are remembered for 30 days.",
@@ -623,6 +650,12 @@
 			"delayAfterWrite": {
 				"label": "Tunda setelah penulisan untuk memungkinkan diagnostik mendeteksi potensi masalah",
 				"description": "Waktu tunggu setelah penulisan file sebelum melanjutkan, memungkinkan alat diagnostik untuk memproses perubahan dan mendeteksi masalah."
+			}
+		},
+		"fileEdits": {
+			"diffFuzzyThreshold": {
+				"label": "Ambang batas pencocokan diff",
+				"description": "Ambang batas yang lebih rendah membuat pengeditan file lebih tahan terhadap variasi format dan spasi. Ambang batas 100% memerlukan kecocokan yang tepat."
 			}
 		},
 		"condensingThreshold": {
@@ -744,6 +777,13 @@
 		"inheritEnv": {
 			"label": "Warisi variabel lingkungan",
 			"description": "Aktifkan untuk mewarisi variabel lingkungan dari proses induk VS Code. <0>Pelajari lebih lanjut</0>"
+		},
+		"profile": {
+			"label": "Profil terminal Zoo Code",
+			"followVscode": "Mengikuti profil VS Code (disarankan)",
+			"description": "Secara default Zoo Code menggunakan shell yang dikonfigurasi VS Code. Pilih profil shell dari daftar untuk memilih profil shell berbasis jalur yang diekspos oleh VS Code. Profil hanya sumber (mis., entri PowerShell bawaan) tidak dapat tercantum di sini. <0>Pelajari lebih lanjut</0>",
+			"configureButton": "Pilih profil default di VS Code",
+			"noProfiles": "(tidak ada profil berbasis jalur di terminal.integrated.profiles)"
 		}
 	},
 	"advancedSettings": {
@@ -874,6 +914,10 @@
 		"simplifiedExplanation": "Anda dapat menyesuaikan pengaturan model terperinci nanti."
 	},
 	"footer": {
+		"telemetry": {
+			"label": "Izinkan pelaporan error dan penggunaan anonim",
+			"description": "Bantu tingkatkan Zoo Code dengan mengirimkan data penggunaan anonim dan laporan error. Telemetri ini tidak mengumpulkan kode, prompt, atau informasi pribadi. Lihat <privacyLink>kebijakan privasi</privacyLink> kami untuk detail lebih lanjut. Anda dapat menonaktifkannya kapan saja."
+		},
 		"settings": {
 			"import": "Impor",
 			"export": "Ekspor",
@@ -900,7 +944,8 @@
 		"providerNotAllowed": "Provider '{{provider}}' tidak diizinkan oleh organisasi kamu",
 		"modelNotAllowed": "Model '{{model}}' tidak diizinkan untuk provider '{{provider}}' oleh organisasi kamu",
 		"profileInvalid": "Profil ini berisi provider atau model yang tidak diizinkan oleh organisasi kamu",
-		"qwenCodeOauthPath": "Kamu harus memberikan jalur kredensial OAuth yang valid"
+		"qwenCodeOauthPath": "Kamu harus memberikan jalur kredensial OAuth yang valid",
+		"zooGatewaySignIn": "Masuk ke Zoo Code untuk menggunakan Zoo Gateway."
 	},
 	"placeholders": {
 		"apiKey": "Masukkan API Key...",
@@ -962,6 +1007,23 @@
 		"requireCtrlEnterToSend": {
 			"label": "Memerlukan {{primaryMod}}+Enter untuk mengirim pesan",
 			"description": "Ketika diaktifkan, kamu harus menekan {{primaryMod}}+Enter untuk mengirim pesan alih-alih hanya Enter"
+		},
+		"chatFontSize": {
+			"label": "Ukuran font obrolan",
+			"description": "Atur ukuran font (dalam piksel) untuk obrolan Zoo Code. Biarkan pada nilai default agar sesuai dengan ukuran font VS Code.",
+			"reset": "Gunakan default VS Code"
+		},
+		"autoCloseZooOpenedFiles": {
+			"label": "Tutup otomatis file yang dibuka Zoo",
+			"description": "Saat diaktifkan, tab editor yang dibuka Zoo untuk sementara waktu untuk diff akan ditutup secara otomatis setelah perubahan diterima atau ditolak. Tab yang sudah dibuka pengguna sebelum pengeditan tidak pernah ditutup secara otomatis."
+		},
+		"autoCloseZooOpenedFilesAfterUserEdited": {
+			"label": "Tutup otomatis meski setelah interaksi pengguna",
+			"description": "Saat diaktifkan, tab yang dibuka Zoo tetap ditutup meski pengguna mengklik atau mengetik di file atau diff selama sesi pengeditan. Tidak berpengaruh jika 'Tutup otomatis file yang dibuka Zoo' dinonaktifkan."
+		},
+		"autoCloseZooOpenedNewFiles": {
+			"label": "Tutup otomatis file baru yang dibuat",
+			"description": "Saat diaktifkan, tab untuk file yang dibuat Zoo (bukan dimodifikasi) juga ditutup secara otomatis setelah perubahan diterima."
 		}
 	},
 	"skills": {

@@ -216,6 +216,7 @@
 		"abort": "Afbreken",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "Afgesloten met status {{exitCode}}",
+		"malformedCommand": "Ongeldig commando: shell syntaxisfout",
 		"manageCommands": "Automatisch goedgekeurde commando's",
 		"addToAllowed": "Toevoegen aan toegestane lijst",
 		"removeFromAllowed": "Verwijderen van toegestane lijst",
@@ -299,6 +300,22 @@
 		"triggerLabel_one": "1 automatisch goedgekeurd",
 		"triggerLabel_other": "{{count}} automatisch goedgekeurd",
 		"triggerLabelAll": "BRRR"
+	},
+	"announcement": {
+		"title": "Zoo Code {{version}} uitgebracht",
+		"support": "Steun Zoo Code door ons een ster te geven op <githubLink>GitHub</githubLink>.",
+		"release": {
+			"heading": "Wat is nieuw:",
+			"highlight1": "GLM-5.2-ondersteuning — het nieuwste GLM-model is nu beschikbaar in je providerinstellingen.",
+			"highlight2": "OpenCode-Go-verbeteringen — native modelparameters, Anthropic-formaat routing en een context-token-fix voor betrouwbaardere antwoorden.",
+			"highlight3": "Tool-writer-modus — een nieuwe gespecialiseerde modus voor het schrijven en onderhouden van tool-definities, nu beschikbaar in de Marketplace."
+		},
+		"cloudAgents": {
+			"heading": "Nieuw in de Cloud:",
+			"specialized": "Introductie van <bold>Explainer</bold>, <bold>Planner</bold> en <bold>Coder</bold> - drie gespecialiseerde cloud-agents om je workflows te verbeteren.",
+			"description": "De agents werken samen in de cloud en kunnen worden geactiveerd vanaf het web of via Slack.",
+			"tryButton": "Probeer Cloud-agents"
+		}
 	},
 	"reasoning": {
 		"thinking": "Denkt na",
@@ -398,6 +415,11 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "Version {{version}}"
+	},
+	"rooCloudCTA": {
+		"title": "Zoo Code Cloud evolueert!",
+		"description": "Voer externe agenten uit in de cloud, krijg overal toegang tot je taken, werk samen met anderen en nog veel meer.",
+		"joinWaitlist": "Meld je aan om de laatste updates te ontvangen."
 	},
 	"editMessage": {
 		"placeholder": "Bewerk je bericht..."

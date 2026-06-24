@@ -35,7 +35,9 @@ vi.mock("vscode", () => ({
 		},
 	},
 	Uri: {
-		file: vi.fn().mockImplementation((path) => path),
+		file: vi.fn().mockImplementation((path) => {
+			return path
+		}),
 	},
 	window: {
 		activeTextEditor: {

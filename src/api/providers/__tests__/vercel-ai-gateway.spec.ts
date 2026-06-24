@@ -1,33 +1,30 @@
 // npx vitest run src/api/providers/__tests__/vercel-ai-gateway.spec.ts
 
 // Mock vscode first to avoid import errors
-vitest.mock("vscode", () => ({}))
+vitest.mock("vscode", () => ({
+	workspace: {
+		getConfiguration: () => ({
+			get: (_key: string, defaultValue?: unknown) => defaultValue,
+		}),
+	},
+}))
 
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
 import { VercelAiGatewayHandler } from "../vercel-ai-gateway"
-import { DEFAULT_HEADERS } from "../constants"
 import { ApiHandlerOptions } from "../../../shared/api"
 import { vercelAiGatewayDefaultModelId, VERCEL_AI_GATEWAY_DEFAULT_TEMPERATURE } from "@roo-code/types"
-const mockCreate = vitest.fn()
 
 // Mock dependencies
-vitest.mock("openai", () => ({
-	__esModule: true,
+vitest.mock("openai")
+vitest.mock("delay", () => ({
 	default: vitest.fn(function () {
-		return {
-			chat: {
-				completions: {
-					create: mockCreate,
-				},
-			},
-		}
+		return Promise.resolve()
 	}),
 }))
-vitest.mock("delay", () => ({ default: vitest.fn(() => Promise.resolve()) }))
 vitest.mock("../fetchers/modelCache", () => ({
-	getModels: vitest.fn().mockImplementation(() => {
+	getModels: vitest.fn().mockImplementation(function () {
 		return Promise.resolve({
 			"anthropic/claude-sonnet-4": {
 				maxTokens: 64000,
@@ -39,6 +36,18 @@ vitest.mock("../fetchers/modelCache", () => ({
 				cacheWritesPrice: 3.75,
 				cacheReadsPrice: 0.3,
 				description: "Claude Sonnet 4",
+			},
+			"anthropic/claude-fable-5": {
+				maxTokens: 128000,
+				contextWindow: 1000000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				supportsTemperature: false,
+				inputPrice: 10,
+				outputPrice: 50,
+				cacheWritesPrice: 12.5,
+				cacheReadsPrice: 1,
+				description: "Claude Fable 5",
 			},
 			"anthropic/claude-3.5-haiku": {
 				maxTokens: 32000,
@@ -71,6 +80,26 @@ vitest.mock("../../transform/caching/vercel-ai-gateway", () => ({
 	addCacheBreakpoints: vitest.fn(),
 }))
 
+const mockCreate = vitest.fn()
+const mockConstructor = vitest.fn()
+
+;(OpenAI as any).mockImplementation(function () {
+	return {
+		chat: {
+			completions: {
+				create: mockCreate,
+			},
+		},
+	}
+})
+;(OpenAI as any).mockImplementation = mockConstructor.mockReturnValue({
+	chat: {
+		completions: {
+			create: mockCreate,
+		},
+	},
+})
+
 describe("VercelAiGatewayHandler", () => {
 	const mockOptions: ApiHandlerOptions = {
 		vercelAiGatewayApiKey: "test-key",
@@ -80,6 +109,7 @@ describe("VercelAiGatewayHandler", () => {
 	beforeEach(() => {
 		vitest.clearAllMocks()
 		mockCreate.mockClear()
+		mockConstructor.mockClear()
 	})
 
 	it("initializes with correct options", () => {
@@ -89,7 +119,12 @@ describe("VercelAiGatewayHandler", () => {
 		expect(OpenAI).toHaveBeenCalledWith({
 			baseURL: "https://ai-gateway.vercel.sh/v1",
 			apiKey: mockOptions.vercelAiGatewayApiKey,
-			defaultHeaders: DEFAULT_HEADERS,
+			defaultHeaders: expect.objectContaining({
+				"HTTP-Referer": "https://github.com/Zoo-Code-Org/Zoo-Code",
+				"X-Title": "Zoo Code",
+				"User-Agent": expect.stringContaining("ZooCode/"),
+			}),
+			timeout: expect.any(Number),
 		})
 	})
 
@@ -180,6 +215,45 @@ describe("VercelAiGatewayHandler", () => {
 			})
 		})
 
+		it("throws the upstream reason when an in-stream error chunk is received", async () => {
+			mockCreate.mockImplementation(async () => ({
+				[Symbol.asyncIterator]: async function* () {
+					yield {
+						error: {
+							message: "Too many requests, please wait before trying again",
+							code: 429,
+						},
+					}
+				},
+			}))
+
+			const handler = new VercelAiGatewayHandler(mockOptions)
+			const stream = handler.createMessage("You are a helpful assistant.", [{ role: "user", content: "Hello" }])
+
+			await expect(async () => {
+				for await (const _chunk of stream) {
+					// drain
+				}
+			}).rejects.toThrow("Too many requests, please wait before trying again")
+		})
+
+		it("throws a default message when an in-stream error chunk has no message", async () => {
+			mockCreate.mockImplementation(async () => ({
+				[Symbol.asyncIterator]: async function* () {
+					yield { error: {} }
+				},
+			}))
+
+			const handler = new VercelAiGatewayHandler(mockOptions)
+			const stream = handler.createMessage("You are a helpful assistant.", [{ role: "user", content: "Hello" }])
+
+			await expect(async () => {
+				for await (const _chunk of stream) {
+					// drain
+				}
+			}).rejects.toThrow("Vercel AI Gateway stream error")
+		})
+
 		it("uses correct temperature from options", async () => {
 			const customTemp = 0.5
 			const handler = new VercelAiGatewayHandler({
@@ -210,6 +284,23 @@ describe("VercelAiGatewayHandler", () => {
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					temperature: VERCEL_AI_GATEWAY_DEFAULT_TEMPERATURE,
+				}),
+			)
+		})
+
+		it("omits temperature for Claude Fable 5", async () => {
+			const handler = new VercelAiGatewayHandler({
+				...mockOptions,
+				vercelAiGatewayModelId: "anthropic/claude-fable-5",
+			})
+
+			await handler.createMessage("You are a helpful assistant.", [{ role: "user", content: "Hello" }]).next()
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: "anthropic/claude-fable-5",
+					temperature: undefined,
+					max_completion_tokens: 128000,
 				}),
 			)
 		})
@@ -530,7 +621,7 @@ describe("VercelAiGatewayHandler", () => {
 			const handler = new VercelAiGatewayHandler(mockOptions)
 			const errorMessage = "API error"
 
-			mockCreate.mockImplementation(() => {
+			mockCreate.mockImplementation(function () {
 				throw new Error(errorMessage)
 			})
 

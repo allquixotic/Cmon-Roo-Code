@@ -62,6 +62,24 @@
 		"debugMode": {
 			"label": "디버그 모드 활성화",
 			"description": "디버그 모드를 활성화하여 작업 헤더에 API 대화 기록과 UI 메시지를 임시 파일에 포맷된 JSON으로 볼 수 있는 추가 버튼을 표시합니다."
+		},
+		"rooHistoryImport": {
+			"settingLabel": "Roo Code에서 기록 가져오기",
+			"cardTitle": "Roo Code 기록",
+			"cardDescription": "저장된 Roo Code 대화를 Zoo Code로 복사합니다.",
+			"statusImporting": "기록 가져오는 중",
+			"statusFailed": "가져오기 실패",
+			"statusComplete": "가져오기 완료",
+			"buttonImporting": "Roo Code에서 가져오는 중...",
+			"buttonIdle": "Roo Code에서 기록 가져오기",
+			"summaryFailedWithFiles": "가져오기가 중단되기 전에 {{total}}개 중 {{copied}}개의 파일이 복사되었습니다.",
+			"summaryFailedNoFiles": "파일이 복사되기 전에 가져오기가 중단되었습니다.",
+			"summaryCopied": "{{total}}개 중 {{copied}}개 파일 복사됨",
+			"detailFailed": "다시 시도하려면 새 가져오기를 시작하세요.",
+			"detailTasksImported_one": "{{total}}개 중 {{count}}개의 작업 기록을 가져왔습니다.",
+			"detailTasksImported_other": "{{total}}개 중 {{count}}개의 작업 기록을 가져왔습니다.",
+			"detailPreparing": "Roo Code 기록 가져오기를 준비 중입니다.",
+			"progressAriaLabel": "Roo Code 기록 가져오기 진행률"
 		}
 	},
 	"slashCommands": {
@@ -213,7 +231,8 @@
 		"stoppingButton": "중지 중...",
 		"workspaceToggleLabel": "이 워크스페이스에 대한 인덱싱 활성화",
 		"workspaceDisabledMessage": "인덱싱이 구성되었지만 이 워크스페이스에서는 활성화되지 않았습니다.",
-		"autoEnableDefaultLabel": "새 워크스페이스에 대한 인덱싱 자동 활성화"
+		"autoEnableDefaultLabel": "새 워크스페이스에 대한 인덱싱 자동 활성화",
+		"sembleProvider": "Semble - 로컬"
 	},
 	"autoApprove": {
 		"toggleShortcut": "<SettingsLink>IDE 환경 설정</SettingsLink>에서 이 설정에 대한 전역 바로 가기를 구성할 수 있습니다.",
@@ -543,6 +562,7 @@
 			"minimal": "최소 (가장 빠름)",
 			"high": "높음",
 			"xhigh": "매우 높음",
+			"max": "최대",
 			"medium": "중간",
 			"low": "낮음"
 		},
@@ -560,6 +580,13 @@
 			"placeholder": "기본값: claude",
 			"maxTokensLabel": "최대 출력 토큰",
 			"maxTokensDescription": "Claude Code 응답의 최대 출력 토큰 수. 기본값은 8000입니다."
+		},
+		"zooGateway": {
+			"account": "Zoo Code 계정",
+			"signInButton": "Zoo Code에 로그인",
+			"signInDescription": "계정으로 Zoo Gateway를 사용하려면 로그인하세요",
+			"authenticated": "인증됨",
+			"authenticatedAs": "{{name}}(으)로 인증됨"
 		},
 		"awsBedrockStructuredOutput": "Attempt strict structured output",
 		"awsBedrockStructuredOutputTooltip": "Asks AWS Bedrock to strictly validate tool-call arguments against their JSON schema (Converse 'strict: true'). Falls back automatically and silently retries without strict mode for models that reject it; unsupported models are remembered for 30 days.",
@@ -645,6 +672,12 @@
 			"delayAfterWrite": {
 				"label": "진단이 잠재적인 문제를 감지할 수 있도록 쓰기 후 지연",
 				"description": "파일 쓰기 후 계속 진행하기 전에 대기하는 시간으로, 진단 도구가 변경 사항을 처리하고 문제를 감지할 수 있도록 합니다."
+			}
+		},
+		"fileEdits": {
+			"diffFuzzyThreshold": {
+				"label": "Diff 일치 임계값",
+				"description": "낮은 임계값은 파일 편집이 서식 및 공백 변동에 더 탄력적으로 대응하게 합니다. 100% 임계값은 정확히 일치해야 합니다."
 			}
 		},
 		"condensingThreshold": {
@@ -744,6 +777,13 @@
 		"inheritEnv": {
 			"label": "환경 변수 상속",
 			"description": "부모 VS Code 프로세���에서 환경 변수를 상속하려면 이 기능을 켜십시오. <0>자세히 알아보기</0>"
+		},
+		"profile": {
+			"label": "Zoo Code 터미널 프로필",
+			"followVscode": "VS Code 프로필 따르기 (권장)",
+			"description": "기본적으로 Zoo Code는 VS Code에 구성된 쉘을 사용합니다. VS Code가 노출하는 경로 기반 쉘 프로필을 선택하려면 목록에서 셸 프로필을 선택하세요. 소스 전용 프로필(예: 내장 PowerShell 항목)은 여기에 나열할 수 없습니다. <0>자세히 알아보기</0>",
+			"configureButton": "VS Code에서 기본 프로필 선택",
+			"noProfiles": "(terminal.integrated.profiles에 경로 기반 프로필이 없습니다)"
 		}
 	},
 	"advancedSettings": {
@@ -874,6 +914,10 @@
 		"simplifiedExplanation": "나중에 자세한 모델 설정을 조정할 수 있습니다."
 	},
 	"footer": {
+		"telemetry": {
+			"label": "익명 오류 및 사용 보고 허용",
+			"description": "익명 사용 데이터 및 오류 보고서를 전송하여 Zoo Code 개선에 도움을 주세요. 이 텔레메트리는 코드, 프롬프트 또는 개인 정보를 수집하지 않습니다. 자세한 내용은 <privacyLink>개인정보 보호정책</privacyLink>을 참조하세요."
+		},
 		"settings": {
 			"import": "가져오기",
 			"export": "내보내기",
@@ -900,7 +944,8 @@
 		"providerNotAllowed": "제공자 '{{provider}}'는 조직에서 허용되지 않습니다",
 		"modelNotAllowed": "모델 '{{model}}'은 제공자 '{{provider}}'에 대해 조직에서 허용되지 않습니다",
 		"profileInvalid": "이 프로필에는 조직에서 허용되지 않는 제공자 또는 모델이 포함되어 있습니다",
-		"qwenCodeOauthPath": "유효한 OAuth 자격 증명 경로를 제공해야 합니다"
+		"qwenCodeOauthPath": "유효한 OAuth 자격 증명 경로를 제공해야 합니다",
+		"zooGatewaySignIn": "Zoo Gateway를 사용하려면 Zoo Code에 로그인하세요."
 	},
 	"placeholders": {
 		"apiKey": "API 키 입력...",
@@ -962,6 +1007,23 @@
 		"requireCtrlEnterToSend": {
 			"label": "메시지를 보내려면 {{primaryMod}}+Enter가 필요",
 			"description": "활성화하면 Enter만으로는 안 되고 {{primaryMod}}+Enter를 눌러야 메시지를 보낼 수 있습니다"
+		},
+		"chatFontSize": {
+			"label": "채팅 글꼴 크기",
+			"description": "Zoo Code 채팅의 글꼴 크기(픽셀)를 설정합니다. VS Code 글꼴 크기에 맞추려면 기본값으로 두세요.",
+			"reset": "VS Code 기본값 사용"
+		},
+		"autoCloseZooOpenedFiles": {
+			"label": "Zoo가 열었던 파일 자동 닫기",
+			"description": "활성화 시, Zoo가 diff를 위해 일시적으로 열었던 편집기 탭이 변경 사항을 승인하거나 거부한 후 자동으로 닫힙니다. 편집 전에 사용자가 이미 열어 둔 탭은 자동으로 닫히지 않습니다."
+		},
+		"autoCloseZooOpenedFilesAfterUserEdited": {
+			"label": "사용자 상호작용 후에도 자동 닫기",
+			"description": "활성화 시, 사용자가 편집 세션 중에 파일이나 diff를 클릭하거나 입력했더라도 Zoo가 열었던 탭이 닫힙니다. 'Zoo가 열었던 파일 자동 닫기'가 비활성화된 경우에는 효과가 없습니다."
+		},
+		"autoCloseZooOpenedNewFiles": {
+			"label": "새로 만든 파일 자동 닫기",
+			"description": "활성화 시, Zoo가 수정한 것이 아니라 새로 만든 파일의 탭도 변경 사항을 승인한 후 자동으로 닫힙니다."
 		}
 	},
 	"skills": {

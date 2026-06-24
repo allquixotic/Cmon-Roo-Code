@@ -18,6 +18,7 @@ if (fs.existsSync(envPath)) {
 }
 
 import type { CloudUserInfo, AuthState } from "@roo-code/types"
+import { TelemetryService } from "@roo-code/telemetry"
 import { CloudService, getRooCodeApiUrl } from "@roo-code/cloud"
 import { customToolRegistry } from "@roo-code/core"
 
@@ -30,6 +31,7 @@ import { formatLanguage } from "./shared/language"
 import { ContextProxy } from "./core/config/ContextProxy"
 import { ClineProvider } from "./core/webview/ClineProvider"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
+import { Terminal } from "./integrations/terminal/Terminal"
 import { TerminalRegistry } from "./integrations/terminal/TerminalRegistry"
 import { openAiCodexOAuthManager } from "./integrations/openai-codex/oauth"
 import { McpServerManager } from "./services/mcp/McpServerManager"
@@ -396,5 +398,7 @@ export async function deactivate() {
 	}
 
 	await McpServerManager.cleanup(extensionContext)
+	TelemetryService.instance.shutdown()
+	Terminal.setTerminalProfile(undefined)
 	TerminalRegistry.cleanup()
 }

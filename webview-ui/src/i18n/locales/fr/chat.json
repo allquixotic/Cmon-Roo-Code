@@ -221,6 +221,7 @@
 		"running": "En cours d'exécution",
 		"pid": "PID : {{pid}}",
 		"exitStatus": "Terminé avec le statut {{exitCode}}",
+		"malformedCommand": "Commande mal formée : erreur de syntaxe shell",
 		"manageCommands": "Commandes approuvées automatiquement",
 		"addToAllowed": "Ajouter à la liste autorisée",
 		"removeFromAllowed": "Retirer de la liste autorisée",
@@ -327,6 +328,22 @@
 		"copyToInput": "Copier vers l'entrée (ou Shift + clic)",
 		"timerPrefix": "Approbation automatique activée. Sélection dans {{seconds}}s…"
 	},
+	"announcement": {
+		"title": "Zoo Code {{version}} est disponible",
+		"support": "Soutiens Zoo Code en nous donnant une étoile sur <githubLink>GitHub</githubLink>.",
+		"release": {
+			"heading": "Nouveautés :",
+			"highlight1": "Prise en charge de GLM-5.2 — le dernier modèle GLM est désormais disponible dans les paramètres du fournisseur.",
+			"highlight2": "Améliorations d'OpenCode-Go — paramètres de modèle natifs, routage au format Anthropic et correction de context-token pour des réponses plus fiables.",
+			"highlight3": "Mode tool-writer — un nouveau mode spécialisé pour écrire et maintenir des définitions d'outils, désormais disponible sur le Marketplace."
+		},
+		"cloudAgents": {
+			"heading": "Nouveautés dans le Cloud :",
+			"specialized": "Présentation d'<bold>Explainer</bold>, <bold>Planner</bold> et <bold>Coder</bold> - trois agents cloud spécialisés pour améliorer tes workflows.",
+			"description": "Les agents travaillent ensemble dans le cloud et peuvent être déclenchés depuis le web ou via Slack.",
+			"tryButton": "Essayer les Agents Cloud"
+		}
+	},
 	"costs": {
 		"totalWithSubtasks": "Coût total (sous-tâches comprises) : ${{cost}}",
 		"total": "Coût total : ${{cost}}",
@@ -398,6 +415,11 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "Version {{version}}"
+	},
+	"rooCloudCTA": {
+		"title": "Zoo Code Cloud évolue !",
+		"description": "Exécutez des agents distants dans le cloud, accédez à vos tâches de n'importe où, collaborez avec d'autres et bien plus encore.",
+		"joinWaitlist": "Inscrivez-vous pour recevoir les dernières mises à jour."
 	},
 	"editMessage": {
 		"placeholder": "Modifiez votre message..."

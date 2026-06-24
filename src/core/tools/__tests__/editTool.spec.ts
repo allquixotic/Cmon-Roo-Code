@@ -1,12 +1,12 @@
 import * as path from "path"
 import fs from "fs/promises"
 
-import type { MockedFunction, Mock } from "vitest"
+import type { MockedFunction } from "vitest"
 
 import { fileExistsAtPath } from "../../../utils/fs"
 import { isPathOutsideWorkspace } from "../../../utils/pathUtils"
 import { getReadablePath } from "../../../utils/path"
-import { type AskApproval, type HandleError, type PushToolResult, ToolUse, ToolResponse } from "../../../shared/tools"
+import { ToolUse, ToolResponse, AskApproval, HandleError, PushToolResult } from "../../../shared/tools"
 import { editTool } from "../EditTool"
 
 vi.mock("fs/promises", () => ({
@@ -24,7 +24,9 @@ vi.mock("path", async () => {
 			return args.join(separator)
 		}),
 		isAbsolute: vi.fn().mockReturnValue(false),
-		relative: vi.fn().mockImplementation((_from, to) => to),
+		relative: vi.fn().mockImplementation((_from, to) => {
+			return to
+		}),
 	}
 })
 
@@ -86,9 +88,9 @@ describe("editTool", () => {
 	const mockedPathIsAbsolute = path.isAbsolute as MockedFunction<typeof path.isAbsolute>
 
 	const mockTask: any = {}
-	let mockAskApproval: Mock<AskApproval>
-	let mockHandleError: Mock<HandleError>
-	let mockPushToolResult: Mock<PushToolResult>
+	let mockAskApproval: ReturnType<typeof vi.fn<AskApproval>>
+	let mockHandleError: ReturnType<typeof vi.fn<HandleError>>
+	let mockPushToolResult: ReturnType<typeof vi.fn<PushToolResult>>
 	let toolResult: ToolResponse | undefined
 
 	beforeEach(() => {

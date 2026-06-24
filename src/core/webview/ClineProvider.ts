@@ -36,12 +36,14 @@ import {
 	requestyDefaultModelId,
 	openRouterDefaultModelId,
 	DEFAULT_WRITE_DELAY_MS,
+	DEFAULT_DIFF_FUZZY_THRESHOLD,
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_MODES,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 	getModelId,
 	isRetiredProvider,
 } from "@roo-code/types"
+import { RateLimitClock, createRateLimitClock } from "../task/RateLimitClock"
 import { aggregateTaskCostsRecursive, type AggregatedCosts } from "./aggregateTaskCosts"
 import { CloudService, getRooCodeApiUrl } from "@roo-code/cloud"
 
@@ -114,6 +116,32 @@ export type ClineProviderEvents = {
 	clineCreated: [cline: Task]
 }
 
+function runDelegationTransition<T>(
+	locks: Map<string, Promise<void>>,
+	parentTaskId: string,
+	fn: () => Promise<T>,
+): Promise<T> {
+	const previous = locks.get(parentTaskId) ?? Promise.resolve()
+	// Fail-forward: run fn even if the previous transition rejected. A failed
+	// cancelTask must not permanently block a subsequent reopenParentFromDelegation.
+	// The cancelledDelegationChildIds guard inside each fn is the safety net.
+	const current = previous.then(fn, fn)
+	const tail = current.then(
+		() => {},
+		() => {},
+	)
+
+	locks.set(parentTaskId, tail)
+
+	tail.finally(() => {
+		if (locks.get(parentTaskId) === tail) {
+			locks.delete(parentTaskId)
+		}
+	})
+
+	return current
+}
+
 export class ClineProvider
 	extends EventEmitter<TaskProviderEvents>
 	implements vscode.WebviewViewProvider, TaskProviderLike
@@ -130,6 +158,8 @@ export class ClineProvider
 	private clineStack: Task[] = []
 	private visibleTaskId?: string
 	private hasExplicitTaskSelectionClear = false
+	private delegationTransitionLocks?: Map<string, Promise<void>>
+	private cancelledDelegationChildIds = new Set<string>()
 	private codeIndexStatusSubscription?: vscode.Disposable
 	private codeIndexManager?: CodeIndexManager
 	private _workspaceTracker?: WorkspaceTracker // workSpaceTracker read-only for access outside this class
@@ -141,6 +171,7 @@ export class ClineProvider
 	private taskEventListeners: WeakMap<Task, Array<() => void>> = new WeakMap()
 	private currentWorkspacePath: string | undefined
 	private _disposed = false
+	private readonly rateLimitClock: RateLimitClock = createRateLimitClock()
 
 	private recentTasksCache?: string[]
 	public readonly taskHistoryStore: TaskHistoryStore
@@ -150,6 +181,11 @@ export class ClineProvider
 	private static readonly PENDING_OPERATION_TIMEOUT_MS = 30000 // 30 seconds
 	private activeConversationsUpdateTimer: ReturnType<typeof setTimeout> | null = null
 	private static readonly ACTIVE_CONVERSATIONS_UPDATE_DEBOUNCE_MS = 250
+
+	private runDelegationTransition<T>(parentTaskId: string, fn: () => Promise<T>): Promise<T> {
+		this.delegationTransitionLocks ??= new Map()
+		return runDelegationTransition(this.delegationTransitionLocks, parentTaskId, fn)
+	}
 	private readonly pendingEditOperations: PendingEditOperationStore
 
 	private cloudOrganizationsCache: CloudOrganizationMembership[] | null = null
@@ -165,6 +201,7 @@ export class ClineProvider
 
 	public isViewLaunched = false
 	public settingsImportedAt?: number
+	public readonly latestAnnouncementId = "jun-2026-v3.62.0-glm52-opencodego-toolwriter" // v3.62.0 GLM-5.2, OpenCode-Go native model params & routing, tool-writer mode
 	public readonly providerSettingsManager: ProviderSettingsManager
 	public readonly customModesManager: CustomModesManager
 
@@ -648,8 +685,11 @@ export class ClineProvider
 		}
 	}
 
-	// Removes and destroys an active Task instance.
+	// Removes and destroys an active Task instance (by taskId, or the top of
+	// the stack), optionally activating the previous one (resuming the parent task).
 	async removeClineFromStack(options?: { skipDelegationRepair?: boolean; taskId?: string; broadcast?: boolean }) {
+		const callerStack = new Error().stack
+
 		if (this.clineStack.length === 0) {
 			return
 		}
@@ -708,18 +748,22 @@ export class ClineProvider
 			// child and will update the parent to point at the new child.
 			if (parentTaskId && childTaskId && !options?.skipDelegationRepair) {
 				try {
-					const { historyItem: parentHistory } = await this.getTaskWithId(parentTaskId)
+					await this.runDelegationTransition(parentTaskId, async () => {
+						const { historyItem: parentHistory } = await this.getTaskWithId(parentTaskId)
 
-					if (parentHistory.status === "delegated" && parentHistory.awaitingChildId === childTaskId) {
-						await this.updateTaskHistory({
-							...parentHistory,
-							status: "active",
-							awaitingChildId: undefined,
-						})
-						this.log(
-							`[ClineProvider#removeClineFromStack] Repaired parent ${parentTaskId} metadata: delegated → active (child ${childTaskId} removed)`,
-						)
-					}
+						if (parentHistory?.status === "delegated" && parentHistory?.awaitingChildId === childTaskId) {
+							await this.updateTaskHistory({
+								...parentHistory,
+								status: "active",
+								awaitingChildId: undefined,
+							})
+							const repairMsg =
+								`[ClineProvider#removeClineFromStack] Repaired parent ${parentTaskId} metadata: delegated → active (child ${childTaskId} removed). ` +
+								`Caller stack: ${callerStack?.split("\n").slice(1, 5).join(" | ")}`
+							this.log(repairMsg)
+							console.warn(repairMsg)
+						}
+					})
 				} catch (err) {
 					// Non-fatal: log but do not block the removal operation.
 					this.log(
@@ -916,6 +960,10 @@ export class ClineProvider
 		}
 	}
 
+	public static getAllInstances(): ClineProvider[] {
+		return Array.from(this.activeInstances)
+	}
+
 	public static async getInstance(): Promise<ClineProvider | undefined> {
 		let visibleProvider = ClineProvider.getVisibleInstance()
 
@@ -1049,6 +1097,7 @@ export class ClineProvider
 				terminalZshP10k = false,
 				terminalPowershellCounter = false,
 				terminalZdotdir = false,
+				terminalProfile,
 				ttsEnabled,
 				ttsSpeed,
 			}) => {
@@ -1060,6 +1109,7 @@ export class ClineProvider
 				Terminal.setTerminalZshP10k(terminalZshP10k)
 				Terminal.setPowershellCounter(terminalPowershellCounter)
 				Terminal.setTerminalZdotdir(terminalZdotdir)
+				Terminal.setTerminalProfile(terminalProfile)
 				setTtsEnabled(ttsEnabled ?? false)
 				setTtsSpeed(ttsSpeed ?? 1)
 			},
@@ -1106,6 +1156,8 @@ export class ClineProvider
 			const viewStateDisposable = webviewView.onDidChangeViewState(() => {
 				if (this.view?.visible) {
 					void this.handleDidBecomeVisible()
+				} else {
+					this.logWebviewHiddenDiagnostics()
 				}
 			})
 
@@ -1115,6 +1167,8 @@ export class ClineProvider
 			const visibilityDisposable = webviewView.onDidChangeVisibility(() => {
 				if (this.view?.visible) {
 					void this.handleDidBecomeVisible()
+				} else {
+					this.logWebviewHiddenDiagnostics()
 				}
 			})
 
@@ -1166,6 +1220,65 @@ export class ClineProvider
 		if (this.view?.visible) {
 			await this.handleDidBecomeVisible()
 		}
+
+		// Ensure zoo-gateway profile is seeded for users who signed in before this feature existed.
+		// Without this, users with a valid cached token but no zoo-gateway profile would need to
+		// re-authenticate to use Zoo Gateway. Fire-and-forget to avoid blocking webview init.
+		void this.ensureZooGatewayProfileSeeded().catch((err) => {
+			this.log(`[ensureZooGatewayProfileSeeded] Error: ${err instanceof Error ? err.message : String(err)}`)
+		})
+	}
+
+	/**
+	 * Seeds the zoo-gateway provider profile for users who have a cached auth token
+	 * but no profile (e.g., users who signed in before Zoo Gateway was added), or
+	 * who have an empty/imported profile without a token.
+	 * Called once per webview init; handleZooCodeCallback is idempotent so repeated calls are safe.
+	 */
+	private async ensureZooGatewayProfileSeeded(): Promise<void> {
+		const { getCachedZooCodeToken, getZooCodeBaseUrl } = await import("../../services/zoo-code-auth")
+		const token = getCachedZooCodeToken()
+		if (!token) return
+		const expectedGatewayBaseUrl = `${getZooCodeBaseUrl()}/api/gateway/v1`
+
+		// Check ALL zoo-gateway profiles — only skip seeding if every profile has the current token.
+		// Using .find() would miss stale tokens in duplicate/renamed profiles since handleZooCodeCallback
+		// uses .filter() and updates all of them — the early-return guard must match.
+		const allProfiles = await this.providerSettingsManager.listConfig()
+		const zooGatewayProfiles = allProfiles.filter((p) => p.apiProvider === "zoo-gateway")
+
+		if (zooGatewayProfiles.length === 0) {
+			this.log("[ensureZooGatewayProfileSeeded] No zoo-gateway profile found, creating one")
+		} else {
+			let allUpToDate = true
+
+			for (const entry of zooGatewayProfiles) {
+				try {
+					const fullProfile = await this.providerSettingsManager.getProfile({ name: entry.name })
+					if (
+						fullProfile.zooSessionToken !== token ||
+						fullProfile.zooGatewayBaseUrl !== expectedGatewayBaseUrl
+					) {
+						allUpToDate = false
+						this.log("[ensureZooGatewayProfileSeeded] Existing zoo-gateway profile is stale, updating")
+						break
+					}
+				} catch {
+					allUpToDate = false
+					this.log("[ensureZooGatewayProfileSeeded] Failed to read existing profile, will re-seed")
+					break
+				}
+			}
+
+			if (allUpToDate) {
+				const { postZooGatewayCredentialsReady } = await import("../../services/zoo-gateway-credentials-sync")
+				postZooGatewayCredentialsReady((message) => this.postMessageToWebview(message))
+				return
+			}
+		}
+
+		// User has token but either no profile, some profiles without token, or stale tokens — seed all
+		await this.handleZooCodeCallback(token)
 	}
 
 	public async createTaskWithHistoryItem(
@@ -1202,7 +1315,15 @@ export class ClineProvider
 			)
 		}
 
-		const { apiConfiguration, enableCheckpoints, checkpointTimeout, experiments } = await this.getState()
+		const {
+			apiConfiguration,
+			enableCheckpoints,
+			checkpointTimeout,
+			experiments,
+			cloudUserInfo,
+			taskSyncEnabled,
+			diffFuzzyThreshold,
+		} = await this.getState()
 		const listApiConfig = await this.providerSettingsManager.listConfig()
 		const lockApiConfigAcrossModes = this.context.workspaceState.get("lockApiConfigAcrossModes", false)
 		await this.updateGlobalState("listApiConfigMeta", listApiConfig)
@@ -1262,6 +1383,8 @@ export class ClineProvider
 			onCreated: this.taskCreationCallback,
 			startTask,
 			initialStatus: historyItem.status,
+			rateLimitClock: this.rateLimitClock,
+			diffFuzzyThreshold,
 		})
 		if (typeof (task as any).setTaskApiConfigName === "function") {
 			task.setTaskApiConfigName(restoredApiConfigName)
@@ -1899,7 +2022,7 @@ export class ClineProvider
 	// OpenRouter
 
 	async handleOpenRouterCallback(code: string) {
-		let { apiConfiguration, currentApiConfigName = "default" } = await this.getState()
+		const { apiConfiguration, currentApiConfigName = "default" } = await this.getState()
 
 		let apiKey: string
 
@@ -1932,19 +2055,89 @@ export class ClineProvider
 		await this.upsertProviderProfile(currentApiConfigName, newConfiguration)
 	}
 
-	// Zoo Code Auth (for observability telemetry)
+	// Zoo Code Auth
 
-	async handleZooCodeCallback(_token: string) {
+	async handleZooCodeCallback(token: string) {
 		// Auth mutation (token storage, subscription check, success toast) was already
 		// performed by handleAuthCallback() in handleUri.ts before this method was called.
-		// This method only needs to refresh the webview state to reflect the new auth status.
+		// Save the zoo-gateway provider profile with the session token so that
+		// ZooGatewayHandler can authenticate without any manual user input.
+		//
+		// activate: true ONLY if Zoo Gateway is already the active profile — this pushes
+		// the new token to the in-memory handler so the current task picks it up immediately.
+		// Otherwise activate: false — do NOT switch providers mid-conversation. The user
+		// must explicitly select Zoo Gateway in settings if they want to use it.
+		try {
+			const { apiConfiguration } = await this.getState()
+			const currentSettings = this.contextProxy.getProviderSettings()
+			const currentApiConfigName = this.contextProxy.getValues().currentApiConfigName
+
+			// Derive the gateway base URL from ZOO_CODE_BASE_URL so that non-prod environments
+			// (staging, local dev) route completions to the correct backend instead of always
+			// hard-coding production. An already-set value in the profile is NOT preserved here —
+			// it must always align with the auth server the user just authenticated against.
+			const { getZooCodeBaseUrl } = await import("../../services/zoo-code-auth")
+			const derivedGatewayBaseUrl = `${getZooCodeBaseUrl()}/api/gateway/v1`
+
+			// Check if Zoo Gateway is the currently active profile by apiProvider identity,
+			// not by profile name (profile names are user-renameable).
+			const isZooGatewayActive = currentSettings.apiProvider === "zoo-gateway"
+
+			// Always scan ALL profiles and update every zoo-gateway profile with the new token.
+			// This ensures renamed profiles, duplicate profiles, and inactive profiles all stay
+			// in sync. The model lookup in requestRouterModels uses .find() which returns the
+			// first zoo-gateway profile it finds — if that profile has a stale token, requests fail.
+			const allProfiles = await this.providerSettingsManager.listConfig()
+			const zooProfiles = allProfiles.filter((p) => p.apiProvider === "zoo-gateway")
+
+			if (zooProfiles.length === 0) {
+				// No existing zoo-gateway profile — create the canonical default.
+				const newConfiguration: ProviderSettings = {
+					apiProvider: "zoo-gateway",
+					zooSessionToken: token,
+					zooGatewayModelId: apiConfiguration.zooGatewayModelId,
+					zooGatewayBaseUrl: derivedGatewayBaseUrl,
+				}
+				// Activate only if zoo-gateway was the active provider (shouldn't happen if
+				// no profiles exist, but defensive).
+				await this.upsertProviderProfile("Zoo Gateway", newConfiguration, isZooGatewayActive)
+			} else {
+				// Update every existing zoo-gateway profile with the new token and the
+				// derived base URL so that environment-specific routing stays consistent.
+				for (const entry of zooProfiles) {
+					const isActiveProfile = isZooGatewayActive && entry.name === currentApiConfigName
+					const existing = await this.providerSettingsManager.getProfile({ name: entry.name })
+					const updated: ProviderSettings = {
+						...existing,
+						zooSessionToken: token,
+						zooGatewayBaseUrl: derivedGatewayBaseUrl,
+					}
+					if (isActiveProfile) {
+						// Use upsertProviderProfile with activate: true so the in-memory handler
+						// picks up the new token immediately for the current task.
+						await this.upsertProviderProfile(entry.name, updated, true)
+					} else {
+						// Non-active profiles just need the token saved to disk.
+						await this.providerSettingsManager.saveConfig(entry.name, updated)
+					}
+				}
+			}
+		} catch (error) {
+			this.log(
+				`[handleZooCodeCallback] Failed to save zoo-gateway profile: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			)
+		}
 		await this.postStateToWebview()
+		const { postZooGatewayCredentialsReady } = await import("../../services/zoo-gateway-credentials-sync")
+		postZooGatewayCredentialsReady((message) => this.postMessageToWebview(message))
 	}
 
 	// Requesty
 
 	async handleRequestyCallback(code: string, baseUrl: string | null) {
-		let { apiConfiguration } = await this.getState()
+		const { apiConfiguration } = await this.getState()
 
 		const newConfiguration: ProviderSettings = {
 			...apiConfiguration,
@@ -2442,6 +2635,7 @@ export class ClineProvider
 			taskHistory,
 			soundVolume,
 			writeDelayMs,
+			diffFuzzyThreshold,
 			terminalShellIntegrationTimeout,
 			terminalShellIntegrationDisabled,
 			terminalCommandDelay,
@@ -2450,6 +2644,7 @@ export class ClineProvider
 			terminalZshOhMy,
 			terminalZshP10k,
 			terminalZdotdir,
+			terminalProfile,
 			mcpEnabled,
 			currentApiConfigName,
 			listApiConfigMeta,
@@ -2472,6 +2667,7 @@ export class ClineProvider
 			maxTotalImageSize,
 			historyPreviewCollapsed,
 			reasoningBlockCollapsed,
+			chatFontSize,
 			enterBehavior,
 			cloudUserInfo,
 			cloudIsAuthenticated,
@@ -2499,6 +2695,9 @@ export class ClineProvider
 			defaultRenderContext,
 			masqueradeAsRooCode,
 			lockApiConfigAcrossModes,
+			autoCloseZooOpenedFiles,
+			autoCloseZooOpenedFilesAfterUserEdited,
+			autoCloseZooOpenedNewFiles,
 		} = await this.getState()
 
 		let cloudOrganizations: CloudOrganizationMembership[] = []
@@ -2557,6 +2756,39 @@ export class ClineProvider
 					).decision
 				: undefined
 
+		let zooCodeState: {
+			zooCodeIsAuthenticated: boolean
+			zooCodeUserName: string | undefined
+			zooCodeUserEmail: string | undefined
+			zooCodeUserImage: string | undefined
+			zooCodeBaseUrl: string
+			deviceName: string
+		} = {
+			zooCodeIsAuthenticated: false,
+			zooCodeUserName: undefined,
+			zooCodeUserEmail: undefined,
+			zooCodeUserImage: undefined,
+			zooCodeBaseUrl: "https://www.zoocode.dev",
+			deviceName: os.hostname(),
+		}
+
+		try {
+			const { isZooCodeAuthenticated, getCachedZooCodeUserInfo, getZooCodeBaseUrl } = await import(
+				"../../services/zoo-code-auth"
+			)
+			const userInfo = getCachedZooCodeUserInfo()
+			zooCodeState = {
+				zooCodeIsAuthenticated: await isZooCodeAuthenticated(),
+				zooCodeUserName: userInfo.name,
+				zooCodeUserEmail: userInfo.email,
+				zooCodeUserImage: userInfo.image,
+				zooCodeBaseUrl: getZooCodeBaseUrl(),
+				deviceName: os.hostname(),
+			}
+		} catch {
+			// Keep the default unauthenticated state if the optional Zoo Code auth service is unavailable.
+		}
+
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
@@ -2592,6 +2824,7 @@ export class ClineProvider
 			deniedCommands: mergedDeniedCommands,
 			soundVolume: soundVolume ?? 0.5,
 			writeDelayMs: writeDelayMs ?? DEFAULT_WRITE_DELAY_MS,
+			diffFuzzyThreshold: diffFuzzyThreshold ?? DEFAULT_DIFF_FUZZY_THRESHOLD,
 			terminalShellIntegrationTimeout: terminalShellIntegrationTimeout ?? Terminal.defaultShellIntegrationTimeout,
 			terminalShellIntegrationDisabled: terminalShellIntegrationDisabled ?? true,
 			terminalCommandDelay: terminalCommandDelay ?? 0,
@@ -2600,6 +2833,7 @@ export class ClineProvider
 			terminalZshOhMy: terminalZshOhMy ?? false,
 			terminalZshP10k: terminalZshP10k ?? false,
 			terminalZdotdir: terminalZdotdir ?? false,
+			terminalProfile,
 			mcpEnabled: mcpEnabled ?? true,
 			currentApiConfigName: currentApiConfigName ?? "default",
 			listApiConfigMeta: listApiConfigMeta ?? [],
@@ -2627,6 +2861,7 @@ export class ClineProvider
 			settingsImportedAt: this.settingsImportedAt,
 			historyPreviewCollapsed: historyPreviewCollapsed ?? false,
 			reasoningBlockCollapsed: reasoningBlockCollapsed ?? true,
+			chatFontSize,
 			enterBehavior: enterBehavior ?? "send",
 			masqueradeAsRooCode: masqueradeAsRooCode ?? false,
 			cloudUserInfo,
@@ -2672,6 +2907,9 @@ export class ClineProvider
 			imageGenerationProvider,
 			openRouterImageApiKey,
 			openRouterImageGenerationSelectedModel,
+			autoCloseZooOpenedFiles: autoCloseZooOpenedFiles ?? true,
+			autoCloseZooOpenedFilesAfterUserEdited: autoCloseZooOpenedFilesAfterUserEdited ?? false,
+			autoCloseZooOpenedNewFiles: autoCloseZooOpenedNewFiles ?? false,
 			openAiCodexIsAuthenticated: await (async () => {
 				try {
 					const { openAiCodexOAuthManager } = await import("../../integrations/openai-codex/oauth")
@@ -2680,6 +2918,9 @@ export class ClineProvider
 					return false
 				}
 			})(),
+			...zooCodeState,
+			platform: process.platform,
+			arch: process.arch,
 			debug: vscode.workspace.getConfiguration(Package.name).get<boolean>("debug", false),
 		}
 	}
@@ -2740,9 +2981,9 @@ export class ClineProvider
 			)
 		}
 
-		let sharingEnabled: boolean = false
+		const sharingEnabled: boolean = false
 
-		let publicSharingEnabled: boolean = false
+		const publicSharingEnabled: boolean = false
 
 		let organizationSettingsVersion: number = -1
 
@@ -2757,7 +2998,7 @@ export class ClineProvider
 			)
 		}
 
-		let taskSyncEnabled: boolean = false
+		const taskSyncEnabled: boolean = false
 
 		// Return the same structure as before.
 		return {
@@ -2791,6 +3032,7 @@ export class ClineProvider
 			checkpointTimeout: stateValues.checkpointTimeout ?? DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 			soundVolume: stateValues.soundVolume,
 			writeDelayMs: stateValues.writeDelayMs ?? DEFAULT_WRITE_DELAY_MS,
+			diffFuzzyThreshold: stateValues.diffFuzzyThreshold ?? DEFAULT_DIFF_FUZZY_THRESHOLD,
 			terminalShellIntegrationTimeout:
 				stateValues.terminalShellIntegrationTimeout ?? Terminal.defaultShellIntegrationTimeout,
 			terminalShellIntegrationDisabled: stateValues.terminalShellIntegrationDisabled ?? true,
@@ -2800,6 +3042,7 @@ export class ClineProvider
 			terminalZshOhMy: stateValues.terminalZshOhMy ?? false,
 			terminalZshP10k: stateValues.terminalZshP10k ?? false,
 			terminalZdotdir: stateValues.terminalZdotdir ?? false,
+			terminalProfile: stateValues.terminalProfile,
 			mode: stateValues.mode ?? defaultModeSlug,
 			language: stateValues.language ?? formatLanguage(vscode.env.language),
 			mcpEnabled: stateValues.mcpEnabled ?? true,
@@ -2823,6 +3066,7 @@ export class ClineProvider
 			maxTotalImageSize: stateValues.maxTotalImageSize ?? 20,
 			historyPreviewCollapsed: stateValues.historyPreviewCollapsed ?? false,
 			reasoningBlockCollapsed: stateValues.reasoningBlockCollapsed ?? true,
+			chatFontSize: stateValues.chatFontSize,
 			enterBehavior: stateValues.enterBehavior ?? "send",
 			defaultRenderContext: stateValues.defaultRenderContext ?? "editor",
 			masqueradeAsRooCode: stateValues.masqueradeAsRooCode ?? false,
@@ -2866,6 +3110,9 @@ export class ClineProvider
 			imageGenerationProvider: stateValues.imageGenerationProvider,
 			openRouterImageApiKey: stateValues.openRouterImageApiKey,
 			openRouterImageGenerationSelectedModel: stateValues.openRouterImageGenerationSelectedModel,
+			autoCloseZooOpenedFiles: stateValues.autoCloseZooOpenedFiles,
+			autoCloseZooOpenedFilesAfterUserEdited: stateValues.autoCloseZooOpenedFilesAfterUserEdited,
+			autoCloseZooOpenedNewFiles: stateValues.autoCloseZooOpenedNewFiles,
 		}
 	}
 
@@ -3162,6 +3409,21 @@ export class ClineProvider
 		return this.getCurrentTask()
 	}
 
+	private logWebviewHiddenDiagnostics(): void {
+		const task = this.getCurrentTask()
+		if (!task || task.abort || task.abandoned) {
+			return
+		}
+		this.log(
+			`[Zoo Code] Webview hidden during active task.\n` +
+				`  taskId:       ${task.taskId}\n` +
+				`  messageCount: ${task.clineMessages.length}\n` +
+				`  stackDepth:   ${this.clineStack.length}\n` +
+				`  timestamp:    ${new Date().toISOString()}\n` +
+				`If the panel appears gray after this, share this log with support@zoocode.dev`,
+		)
+	}
+
 	public getRecentTasks(): string[] {
 		if (this.recentTasksCache) {
 			return this.recentTasksCache
@@ -3260,8 +3522,14 @@ export class ClineProvider
 			}
 		}
 
-		const { apiConfiguration, organizationAllowList, enableCheckpoints, checkpointTimeout, experiments } =
-			await this.getState()
+		const {
+			apiConfiguration,
+			enableCheckpoints,
+			checkpointTimeout,
+			experiments,
+			organizationAllowList,
+			diffFuzzyThreshold,
+		} = await this.getState()
 
 		if (!ProfileValidator.isProfileAllowed(apiConfiguration, organizationAllowList)) {
 			throw new OrganizationAllowListViolationError(t("common:errors.violated_organization_allowlist"))
@@ -3287,10 +3555,15 @@ export class ClineProvider
 			// Ensure this task is present in clineStack before startTask() emits
 			// its initial state update, so state.currentTaskId is available ASAP.
 			startTask: false,
+			diffFuzzyThreshold,
 			...options,
+			rateLimitClock: this.rateLimitClock,
 		})
+
 		await this.addClineToStack(task, { focus: options.focus ?? true })
-		task.start()
+		if (options.startTask !== false) {
+			task.start()
+		}
 
 		this.log(
 			`[createTask] ${task.parentTask ? "child" : "parent"} task ${task.taskId}.${task.instanceId} instantiated`,
@@ -3312,10 +3585,21 @@ export class ClineProvider
 			...message,
 			images: message.images ? [...message.images] : undefined,
 		}))
-		const rootTask = task.rootTask
-		const parentTask = task.parentTask
+
+		// Preserve parent and root task information for the rehydrated history item.
+		// These may be reassigned below when detaching a delegated parent.
+		let rootTask = task.rootTask
+		let parentTask = task.parentTask
+
+		// Mark this as a user-initiated cancellation so provider-only rehydration can occur.
 		task.abortReason = "user_cancelled"
 		task.abort = true
+
+		// Capture the current instance to detect if rehydrate already occurred elsewhere.
+		const originalInstanceId = task.instanceId
+
+		// Immediately cancel the underlying HTTP request if one is in progress so the
+		// stream fails quickly rather than waiting for a network timeout.
 		task.cancelCurrentRequest()
 		task.cancelAutoApprovalTimeout()
 		task.supersedePendingAsk()
@@ -3358,11 +3642,79 @@ export class ClineProvider
 			await this.removeClineFromStack({ taskId: task.taskId })
 			return
 		}
+
+		// Defensive safeguard: if the current instance already changed (e.g. a concurrent
+		// rehydrate replaced this task), skip rehydrating to avoid duplicate work.
+		const current = this.getCurrentTask()
+		if (current && current.taskId === task.taskId && current.instanceId !== originalInstanceId) {
+			this.log(
+				`[cancelTask] Skipping rehydrate: current instance ${current.instanceId} != original ${originalInstanceId}`,
+			)
+			return
+		}
+
+		// Delegation-aware parent resume: if the cancelled task was a delegated child,
+		// transition its parent from "delegated" back to "active" so the parent becomes
+		// resumable, and detach the rehydrated child from the (now resumed) parent.
+		if (task.parentTaskId) {
+			try {
+				await this.runDelegationTransition(task.parentTaskId, async () => {
+					const { historyItem: parentHistory } = await this.getTaskWithId(task.parentTaskId!)
+
+					if (parentHistory?.status === "delegated" && parentHistory?.awaitingChildId === task.taskId) {
+						await this.updateTaskHistory({
+							...parentHistory,
+							status: "active",
+							awaitingChildId: undefined,
+						})
+
+						this.log(
+							`[cancelTask] Detached delegated parent ${task.parentTaskId}: delegated → active (child ${task.taskId} cancelled)`,
+						)
+						parentTask = undefined
+						rootTask = undefined
+						// Clear any stale fail-closed entry from a prior failed cancel attempt.
+						this.cancelledDelegationChildIds.delete(task.taskId)
+					}
+				})
+			} catch (error) {
+				// Fail closed: if we cannot prove the parent was detached, make the
+				// rehydrated child standalone so later completions cannot reopen a
+				// stale delegated parent, even after a provider reload.
+				parentTask = undefined
+				rootTask = undefined
+				this.cancelledDelegationChildIds.add(task.taskId)
+				historyItem = {
+					...historyItem,
+					parentTaskId: undefined,
+					rootTaskId: undefined,
+				}
+				try {
+					await this.updateTaskHistory(historyItem)
+				} catch (historyError) {
+					this.log(
+						`[cancelTask] Failed to persist standalone child state for ${task.taskId}: ${
+							historyError instanceof Error ? historyError.message : String(historyError)
+						}`,
+					)
+					throw historyError
+				}
+				this.log(
+					`[cancelTask] Failed to detach delegated parent for ${task.taskId}: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			}
+		}
+
+		// Flicker-free rehydrate: replace the cancelled task in-place and preserve focus.
 		const replacementTask = await this.createTaskWithHistoryItem(
 			{ ...historyItem, rootTask, parentTask },
 			{ replaceExistingTask: true, focus: wasVisible },
 		)
 
+		// Restore any messages the user had queued before cancelling, deferring the
+		// drain until the task is resumed so they are not consumed immediately.
 		if (replacementTask && preservedQueuedMessages.length > 0) {
 			replacementTask.messageQueueService.restoreMessages(preservedQueuedMessages)
 			replacementTask.setDeferQueuedMessageDrainUntilResume(true)
@@ -3552,6 +3904,35 @@ export class ClineProvider
 					(err as Error)?.message ?? String(err)
 				}`,
 			)
+			try {
+				await this.removeClineFromStack({ skipDelegationRepair: true })
+			} catch (cleanupError) {
+				this.log(
+					`[delegateParentAndOpenChild] Failed to close paused child ${child.taskId} during rollback: ${
+						(cleanupError as Error)?.message ?? String(cleanupError)
+					}`,
+				)
+			}
+			try {
+				await this.deleteTaskWithId(child.taskId, false)
+			} catch (cleanupError) {
+				this.log(
+					`[delegateParentAndOpenChild] Failed to delete paused child ${child.taskId} during rollback: ${
+						(cleanupError as Error)?.message ?? String(cleanupError)
+					}`,
+				)
+			}
+			try {
+				const { historyItem: parentHistory } = await this.getTaskWithId(parentTaskId)
+				await this.createTaskWithHistoryItem(parentHistory)
+			} catch (rollbackError) {
+				this.log(
+					`[delegateParentAndOpenChild] Failed to restore parent ${parentTaskId} during rollback: ${
+						(rollbackError as Error)?.message ?? String(rollbackError)
+					}`,
+				)
+			}
+			throw err
 		}
 
 		// 6) Start the child task now that parent metadata is safely persisted.
@@ -3574,213 +3955,246 @@ export class ClineProvider
 		parentTaskId: string
 		childTaskId: string
 		completionResultSummary: string
-	}): Promise<void> {
+	}): Promise<boolean> {
 		const { parentTaskId, childTaskId, completionResultSummary } = params
-		const globalStoragePath = this.contextProxy.globalStorageUri.fsPath
+		return this.runDelegationTransition(parentTaskId, async () => {
+			const globalStoragePath = this.contextProxy.globalStorageUri.fsPath
 
-		// 1) Load parent from history and current persisted messages
-		const { historyItem } = await this.getTaskWithId(parentTaskId)
+			// 1) Load parent from history and current persisted messages
+			const { historyItem } = await this.getTaskWithId(parentTaskId)
 
-		let parentClineMessages: ClineMessage[] = []
-		try {
-			parentClineMessages = await readTaskMessages({
-				taskId: parentTaskId,
-				globalStoragePath,
-			})
-		} catch {
-			parentClineMessages = []
-		}
-
-		let parentApiMessages: any[] = []
-		try {
-			parentApiMessages = (await readApiMessages({
-				taskId: parentTaskId,
-				globalStoragePath,
-			})) as any[]
-		} catch {
-			parentApiMessages = []
-		}
-
-		// 2) Inject synthetic records: UI subtask_result and update API tool_result
-		const ts = Date.now()
-
-		// Defensive: ensure arrays
-		if (!Array.isArray(parentClineMessages)) parentClineMessages = []
-		if (!Array.isArray(parentApiMessages)) parentApiMessages = []
-
-		const subtaskUiMessage: ClineMessage = {
-			type: "say",
-			say: "subtask_result",
-			text: completionResultSummary,
-			ts,
-		}
-		parentClineMessages.push(subtaskUiMessage)
-		await saveTaskMessages({ messages: parentClineMessages, taskId: parentTaskId, globalStoragePath })
-
-		// Find the tool_use_id from the last assistant message's new_task tool_use
-		let toolUseId: string | undefined
-		for (let i = parentApiMessages.length - 1; i >= 0; i--) {
-			const msg = parentApiMessages[i]
-			if (msg.role === "assistant" && Array.isArray(msg.content)) {
-				for (const block of msg.content) {
-					if (block.type === "tool_use" && block.name === "new_task") {
-						toolUseId = block.id
-						break
-					}
-				}
-				if (toolUseId) break
-			}
-		}
-
-		// Preferred: if the parent history contains the native tool_use for new_task,
-		// inject a matching tool_result for the Anthropic message contract:
-		// user → assistant (tool_use) → user (tool_result)
-		if (toolUseId) {
-			// Check if the last message is already a user message with a tool_result for this tool_use_id
-			// (in case this is a retry or the history was already updated)
-			const lastMsg = parentApiMessages[parentApiMessages.length - 1]
-			let alreadyHasToolResult = false
-			if (lastMsg?.role === "user" && Array.isArray(lastMsg.content)) {
-				for (const block of lastMsg.content) {
-					if (block.type === "tool_result" && block.tool_use_id === toolUseId) {
-						// Update the existing tool_result content
-						block.content = `Subtask ${childTaskId} completed.\n\nResult:\n${completionResultSummary}`
-						alreadyHasToolResult = true
-						break
-					}
-				}
+			// Guard: re-validate delegation state after the async approval gap.
+			// cancelTask() or removeClineFromStack() may have already detached the parent
+			// (setting status → "active", awaitingChildId → undefined) while the user was
+			// approving the subtask finish.  If the parent no longer awaits this child,
+			// routing output back would corrupt an unrelated task.
+			if (
+				this.cancelledDelegationChildIds.has(childTaskId) ||
+				(historyItem.status !== "delegated" && historyItem.status !== "active") ||
+				historyItem.awaitingChildId !== childTaskId
+			) {
+				this.log(
+					`[reopenParentFromDelegation] Aborting: parent ${parentTaskId} is no longer delegated to child ${childTaskId} ` +
+						`(status=${historyItem.status}, awaitingChildId=${historyItem.awaitingChildId})`,
+				)
+				return false
 			}
 
-			// If no existing tool_result found, create a NEW user message with the tool_result
-			if (!alreadyHasToolResult) {
-				parentApiMessages.push({
-					role: "user",
-					content: [
-						{
-							type: "tool_result" as const,
-							tool_use_id: toolUseId,
-							content: `Subtask ${childTaskId} completed.\n\nResult:\n${completionResultSummary}`,
-						},
-					],
-					ts,
+			let parentClineMessages: ClineMessage[] = []
+			try {
+				parentClineMessages = await readTaskMessages({
+					taskId: parentTaskId,
+					globalStoragePath,
 				})
+			} catch {
+				parentClineMessages = []
 			}
 
-			// Validate the newly injected tool_result against the preceding assistant message.
-			// This ensures the tool_result's tool_use_id matches a tool_use in the immediately
-			// preceding assistant message (Anthropic API requirement).
-			const lastMessage = parentApiMessages[parentApiMessages.length - 1]
-			if (lastMessage?.role === "user") {
-				const validatedMessage = validateAndFixToolResultIds(lastMessage, parentApiMessages.slice(0, -1))
-				parentApiMessages[parentApiMessages.length - 1] = validatedMessage
+			let parentApiMessages: any[] = []
+			try {
+				parentApiMessages = (await readApiMessages({
+					taskId: parentTaskId,
+					globalStoragePath,
+				})) as any[]
+			} catch {
+				parentApiMessages = []
 			}
-		} else {
-			// If there is no corresponding tool_use in the parent API history, we cannot emit a
-			// tool_result. Fall back to a plain user text note so the parent can still resume.
-			parentApiMessages.push({
-				role: "user",
-				content: [
-					{
-						type: "text" as const,
-						text: `Subtask ${childTaskId} completed.\n\nResult:\n${completionResultSummary}`,
-					},
-				],
+
+			// 2) Inject synthetic records: UI subtask_result and update API tool_result
+			const ts = Date.now()
+
+			// Defensive: ensure arrays
+			if (!Array.isArray(parentClineMessages)) parentClineMessages = []
+			if (!Array.isArray(parentApiMessages)) parentApiMessages = []
+
+			const subtaskUiMessage: ClineMessage = {
+				type: "say",
+				say: "subtask_result",
+				text: completionResultSummary,
 				ts,
+			}
+			const lastParentClineMessage = parentClineMessages.at(-1)
+			if (
+				lastParentClineMessage?.type !== "say" ||
+				lastParentClineMessage.say !== "subtask_result" ||
+				lastParentClineMessage.text !== completionResultSummary
+			) {
+				parentClineMessages.push(subtaskUiMessage)
+			}
+			await saveTaskMessages({ messages: parentClineMessages, taskId: parentTaskId, globalStoragePath })
+
+			// Find the tool_use_id from the last assistant message's new_task tool_use
+			let toolUseId: string | undefined
+			for (let i = parentApiMessages.length - 1; i >= 0; i--) {
+				const msg = parentApiMessages[i]
+				if (msg.role === "assistant" && Array.isArray(msg.content)) {
+					for (const block of msg.content) {
+						if (block.type === "tool_use" && block.name === "new_task") {
+							toolUseId = block.id
+							break
+						}
+					}
+					if (toolUseId) break
+				}
+			}
+
+			// Preferred: if the parent history contains the native tool_use for new_task,
+			// inject a matching tool_result for the Anthropic message contract:
+			// user → assistant (tool_use) → user (tool_result)
+			if (toolUseId) {
+				// Check if the last message is already a user message with a tool_result for this tool_use_id
+				// (in case this is a retry or the history was already updated)
+				const lastMsg = parentApiMessages[parentApiMessages.length - 1]
+				let alreadyHasToolResult = false
+				if (lastMsg?.role === "user" && Array.isArray(lastMsg.content)) {
+					for (const block of lastMsg.content) {
+						if (block.type === "tool_result" && block.tool_use_id === toolUseId) {
+							// Update the existing tool_result content
+							block.content = `Subtask ${childTaskId} completed.\n\nResult:\n${completionResultSummary}`
+							alreadyHasToolResult = true
+							break
+						}
+					}
+				}
+
+				// If no existing tool_result found, create a NEW user message with the tool_result
+				if (!alreadyHasToolResult) {
+					parentApiMessages.push({
+						role: "user",
+						content: [
+							{
+								type: "tool_result" as const,
+								tool_use_id: toolUseId,
+								content: `Subtask ${childTaskId} completed.\n\nResult:\n${completionResultSummary}`,
+							},
+						],
+						ts,
+					})
+				}
+
+				// Validate the newly injected tool_result against the preceding assistant message.
+				// This ensures the tool_result's tool_use_id matches a tool_use in the immediately
+				// preceding assistant message (Anthropic API requirement).
+				const lastMessage = parentApiMessages[parentApiMessages.length - 1]
+				if (lastMessage?.role === "user") {
+					const validatedMessage = validateAndFixToolResultIds(lastMessage, parentApiMessages.slice(0, -1))
+					parentApiMessages[parentApiMessages.length - 1] = validatedMessage
+				}
+			} else {
+				// If there is no corresponding tool_use in the parent API history, we cannot emit a
+				// tool_result. Fall back to a plain user text note so the parent can still resume.
+				const fallbackText = `Subtask ${childTaskId} completed.\n\nResult:\n${completionResultSummary}`
+				const lastParentApiMessage = parentApiMessages.at(-1)
+				const alreadyHasFallback =
+					lastParentApiMessage?.role === "user" &&
+					Array.isArray(lastParentApiMessage.content) &&
+					lastParentApiMessage.content.some(
+						(block: { type?: string; text?: string }) =>
+							block.type === "text" && block.text === fallbackText,
+					)
+				if (!alreadyHasFallback) {
+					parentApiMessages.push({
+						role: "user",
+						content: [
+							{
+								type: "text" as const,
+								text: fallbackText,
+							},
+						],
+						ts,
+					})
+				}
+			}
+
+			await saveApiMessages({ messages: parentApiMessages as any, taskId: parentTaskId, globalStoragePath })
+
+			// 3) Persist parent metadata before closing the child. If persistence fails,
+			//    the delegated child remains active and can retry completion.
+			const childIds = Array.from(new Set([...(historyItem.childIds ?? []), childTaskId]))
+			const updatedHistory: typeof historyItem = {
+				...historyItem,
+				status: "active",
+				completedByChildId: childTaskId,
+				completionResultSummary,
+				awaitingChildId: undefined,
+				childIds,
+			}
+			await this.updateTaskHistory(updatedHistory)
+
+			// 4) Close the child instance if it is still live.
+			//    This MUST happen BEFORE updating the child's status to "completed" because
+			//    removeClineFromStack() → abortTask(true) → saveClineMessages() writes
+			//    the historyItem with initialStatus (typically "active"), which would
+			//    overwrite a "completed" status set earlier.
+			//
+			//    Use the specific child task id rather than the visible task to avoid leaving
+			//    hidden child instances running when the user has switched to another conversation.
+			//    Only refocus the parent if the completing child was the visible task when it finished.
+			const shouldFocusParent = this.isTaskVisible(childTaskId)
+			const liveChildTask = this.getTaskById(childTaskId)
+			if (liveChildTask) {
+				await this.removeClineFromStack({ taskId: childTaskId, skipDelegationRepair: true, broadcast: false })
+			}
+
+			// 5) Update child metadata to "completed" status.
+			//    This runs after the abort so it overwrites the stale "active" status
+			//    that saveClineMessages() may have written during step 4.
+			try {
+				const { historyItem: childHistory } = await this.getTaskWithId(childTaskId)
+				await this.updateTaskHistory({
+					...childHistory,
+					status: "completed",
+				})
+			} catch (err) {
+				this.log(
+					`[reopenParentFromDelegation] Failed to persist child completed status for ${childTaskId}: ${
+						(err as Error)?.message ?? String(err)
+					}`,
+				)
+			}
+
+			// 6) Emit TaskDelegationCompleted (provider-level)
+			try {
+				this.emit(RooCodeEventName.TaskDelegationCompleted, parentTaskId, childTaskId, completionResultSummary)
+			} catch {
+				// non-fatal
+			}
+
+			// 7) Reopen the parent from history (restores saved mode).
+			//    IMPORTANT: startTask=false to suppress resume-from-history ask scheduling.
+			//    Only refocus the parent if the completing child was the visible task when it finished.
+			const parentInstance = await this.createTaskWithHistoryItem(updatedHistory, {
+				startTask: false,
+				focus: shouldFocusParent,
 			})
-		}
 
-		await saveApiMessages({ messages: parentApiMessages as any, taskId: parentTaskId, globalStoragePath })
+			// 8) Inject restored histories into the in-memory instance before resuming
+			if (parentInstance) {
+				try {
+					await parentInstance.overwriteClineMessages(parentClineMessages)
+				} catch {
+					// non-fatal
+				}
+				try {
+					await parentInstance.overwriteApiConversationHistory(parentApiMessages as any)
+				} catch {
+					// non-fatal
+				}
 
-		// 3) Close the child instance if it is still live.
-		//    This MUST happen BEFORE updating the child's status to "completed" because
-		//    removeClineFromStack() → abortTask(true) → saveClineMessages() writes
-		//    the historyItem with initialStatus (typically "active"), which would
-		//    overwrite a "completed" status set earlier.
-		//
-		//    Use the specific child task id rather than the visible task to avoid leaving
-		//    hidden child instances running when the user has switched to another conversation.
-		const currentTask = typeof this.getCurrentTask === "function" ? this.getCurrentTask() : undefined
-		const shouldFocusParent =
-			typeof this.isTaskVisible === "function"
-				? this.isTaskVisible(childTaskId)
-				: currentTask?.taskId === childTaskId
-		const liveChildTask =
-			typeof this.getTaskById === "function"
-				? this.getTaskById(childTaskId)
-				: currentTask?.taskId === childTaskId
-					? currentTask
-					: undefined
-		if (liveChildTask) {
-			await this.removeClineFromStack({ taskId: childTaskId, broadcast: false })
-		}
+				// Auto-resume parent without ask("resume_task")
+				await parentInstance.resumeAfterDelegation()
+			}
 
-		// 4) Update child metadata to "completed" status.
-		//    This runs after the abort so it overwrites the stale "active" status
-		//    that saveClineMessages() may have written during step 3.
-		try {
-			const { historyItem: childHistory } = await this.getTaskWithId(childTaskId)
-			await this.updateTaskHistory({
-				...childHistory,
-				status: "completed",
-			})
-		} catch (err) {
-			this.log(
-				`[reopenParentFromDelegation] Failed to persist child completed status for ${childTaskId}: ${
-					(err as Error)?.message ?? String(err)
-				}`,
-			)
-		}
+			// 9) Emit TaskDelegationResumed (provider-level)
+			try {
+				this.emit(RooCodeEventName.TaskDelegationResumed, parentTaskId, childTaskId)
+			} catch {
+				// non-fatal
+			}
 
-		// 5) Update parent metadata and persist BEFORE emitting completion event
-		const childIds = Array.from(new Set([...(historyItem.childIds ?? []), childTaskId]))
-		const updatedHistory: typeof historyItem = {
-			...historyItem,
-			status: "active",
-			completedByChildId: childTaskId,
-			completionResultSummary,
-			awaitingChildId: undefined,
-			childIds,
-		}
-		await this.updateTaskHistory(updatedHistory)
-
-		// 6) Emit TaskDelegationCompleted (provider-level)
-		try {
-			this.emit(RooCodeEventName.TaskDelegationCompleted, parentTaskId, childTaskId, completionResultSummary)
-		} catch {
-			// non-fatal
-		}
-
-		// 7) Reopen the parent from history.
-		//    IMPORTANT: startTask=false to suppress resume-from-history ask scheduling.
-		//    Only refocus the parent if the completing child was the visible task when it finished.
-		const parentInstance = await this.createTaskWithHistoryItem(updatedHistory, {
-			startTask: false,
-			focus: shouldFocusParent,
+			this.cancelledDelegationChildIds.delete(childTaskId)
+			return true
 		})
-
-		// 8) Inject restored histories into the in-memory instance before resuming
-		if (parentInstance) {
-			try {
-				await parentInstance.overwriteClineMessages(parentClineMessages)
-			} catch {
-				// non-fatal
-			}
-			try {
-				await parentInstance.overwriteApiConversationHistory(parentApiMessages as any)
-			} catch {
-				// non-fatal
-			}
-
-			// Auto-resume parent without ask("resume_task")
-			await parentInstance.resumeAfterDelegation()
-		}
-
-		// 9) Emit TaskDelegationResumed (provider-level)
-		try {
-			this.emit(RooCodeEventName.TaskDelegationResumed, parentTaskId, childTaskId)
-		} catch {
-			// non-fatal
-		}
 	}
 
 	/**

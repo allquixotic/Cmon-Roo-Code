@@ -7,11 +7,13 @@ vi.mock("node-cache", () => {
 	const mockDel = vi.fn()
 
 	return {
-		default: vi.fn().mockImplementation(() => ({
-			get: mockGet,
-			set: mockSet,
-			del: mockDel,
-		})),
+		default: vi.fn().mockImplementation(function () {
+			return {
+				get: mockGet,
+				set: mockSet,
+				del: mockDel,
+			}
+		}),
 	}
 })
 
@@ -32,6 +34,16 @@ vi.mock("fs", () => ({
 vi.mock("../litellm")
 vi.mock("../openrouter")
 vi.mock("../requesty")
+
+// Telemetry is inert in this fork (no client registered), so stub it to a no-op.
+vi.mock("@roo-code/telemetry", () => ({
+	TelemetryService: {
+		instance: {
+			captureEvent: vi.fn(),
+			captureException: vi.fn(),
+		},
+	},
+}))
 
 // Mock ContextProxy with a simple static instance
 vi.mock("../../../core/config/ContextProxy", () => ({
@@ -211,11 +223,11 @@ describe("getModelsFromCache disk fallback", () => {
 
 	it("handles disk read errors gracefully", () => {
 		vi.mocked(fsSync.existsSync).mockReturnValue(true)
-		vi.mocked(fsSync.readFileSync).mockImplementation(() => {
+		vi.mocked(fsSync.readFileSync).mockImplementation(function () {
 			throw new Error("Disk read failed")
 		})
 
-		const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+		const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(function () {})
 
 		const result = getModelsFromCache("openrouter")
 
@@ -229,7 +241,7 @@ describe("getModelsFromCache disk fallback", () => {
 		vi.mocked(fsSync.existsSync).mockReturnValue(true)
 		vi.mocked(fsSync.readFileSync).mockReturnValue("invalid json{")
 
-		const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+		const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(function () {})
 
 		const result = getModelsFromCache("openrouter")
 

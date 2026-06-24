@@ -11,7 +11,7 @@ vi.mock("../config", () => ({
 	getRooCodeApiUrl: vi.fn().mockReturnValue("https://app.roocode.com"),
 }))
 
-global.fetch = vi.fn()
+global.fetch = vi.fn() as unknown as typeof fetch
 
 describe("CloudSettingsService", () => {
 	let mockContext: ExtensionContext

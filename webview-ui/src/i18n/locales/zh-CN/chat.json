@@ -221,6 +221,7 @@
 		"abort": "中止",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "已退出，状态码 {{exitCode}}",
+		"malformedCommand": "命令格式错误：shell 语法错误",
 		"manageCommands": "管理命令权限",
 		"commandManagementDescription": "管理命令权限：点击 ✓ 允许自动执行，点击 ✗ 拒绝执行。可以打开/关闭模式或从列表中删除。<settingsLink>查看所有设置</settingsLink>",
 		"addToAllowed": "添加到允许列表",
@@ -328,6 +329,22 @@
 		"copyToInput": "复制到输入框（或按住Shift点击）",
 		"timerPrefix": "自动批准已启用。{{seconds}}秒后选择中…"
 	},
+	"announcement": {
+		"title": "Zoo Code {{version}} 已发布",
+		"support": "请在 <githubLink>GitHub</githubLink> 上为 Zoo Code 点星支持我们。",
+		"release": {
+			"heading": "新增功能：",
+			"highlight1": "GLM-5.2 支持 — 最新 GLM 模型现已在提供商设置中可用。",
+			"highlight2": "OpenCode-Go 改进 — 原生模型参数、Anthropic 格式路由和 context-token 修复，提供更可靠的响应。",
+			"highlight3": "Tool-writer 模式 — 用于编写和维护工具定义的新专用模式，现已在 Marketplace 中可用。"
+		},
+		"cloudAgents": {
+			"heading": "云端新功能：",
+			"specialized": "推出 <bold>Explainer</bold>、<bold>Planner</bold> 和 <bold>Coder</bold> - 三个专业云代理来增强你的工作流程。",
+			"description": "代理在云端协同工作，可从网页或通过 Slack 触发。",
+			"tryButton": "试用云代理"
+		}
+	},
 	"costs": {
 		"totalWithSubtasks": "总成本（包括子任务）: ${{cost}}",
 		"total": "总成本: ${{cost}}",
@@ -399,6 +416,11 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "Version {{version}}"
+	},
+	"rooCloudCTA": {
+		"title": "Zoo Code Cloud 正在进化！",
+		"description": "在云端运行远程代理，随时随地访问任务，与他人协作等更多功能。",
+		"joinWaitlist": "注册获取最新更新。"
 	},
 	"command": {
 		"triggerDescription": "触发 {{name}} 命令"

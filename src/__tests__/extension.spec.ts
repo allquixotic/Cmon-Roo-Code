@@ -142,7 +142,9 @@ vi.mock("../utils/autoImportSettings", () => ({
 }))
 
 vi.mock("../extension/api", () => ({
-	API: vi.fn().mockImplementation(() => ({})),
+	API: vi.fn().mockImplementation(function () {
+		return {}
+	}),
 }))
 
 vi.mock("../activate", () => ({
@@ -150,9 +152,11 @@ vi.mock("../activate", () => ({
 	registerCommands: vi.fn(),
 	registerCodeActions: vi.fn(),
 	registerTerminalActions: vi.fn(),
-	CodeActionProvider: vi.fn().mockImplementation(() => ({
-		providedCodeActionKinds: [],
-	})),
+	CodeActionProvider: vi.fn().mockImplementation(function () {
+		return {
+			providedCodeActionKinds: [],
+		}
+	}),
 }))
 
 vi.mock("../i18n", () => ({
@@ -176,7 +180,9 @@ vi.mock("../core/webview/ClineProvider", async () => {
 	}
 	return {
 		ClineProvider: Object.assign(
-			vi.fn().mockImplementation(() => mockInstance),
+			vi.fn().mockImplementation(function () {
+				return mockInstance
+			}),
 			{
 				// Static method used by extension.ts
 				getVisibleInstance: vi.fn().mockReturnValue(mockInstance),

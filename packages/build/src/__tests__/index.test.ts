@@ -115,7 +115,7 @@ describe("generatePackageJson", () => {
 				icon: "assets/icons/icon-nightly.png",
 				scripts: {},
 			},
-			substitution: ["crc", "roo-code-nightly"],
+			substitution: ["crc", "zoo-code-nightly"],
 		})
 
 		expect(generatedPackageJson).toStrictEqual({

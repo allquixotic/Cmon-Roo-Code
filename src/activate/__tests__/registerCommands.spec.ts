@@ -81,6 +81,10 @@ vi.mock("../../i18n", () => ({
 	t: (key: string) => key,
 }))
 
+vi.mock("../../services/ripgrep/diagnostic", () => ({
+	registerRipgrepDiagnosticCommand: vi.fn().mockReturnValue({ dispose: vi.fn() }),
+}))
+
 describe("getVisibleProviderOrLog", () => {
 	let mockOutputChannel: vscode.OutputChannel
 
@@ -122,7 +126,7 @@ describe("registerCommands handlers", () => {
 	let mockOutputChannel: vscode.OutputChannel
 	let mockContext: vscode.ExtensionContext
 	let mockVisibleProvider: { postMessageToWebview: Mock }
-	let mockProvider: { postMessageToWebview: Mock }
+	let mockProvider: { postMessageToWebview: Mock; contextProxy: { getValue: Mock } }
 	let handlers: Record<string, (...args: unknown[]) => unknown>
 
 	beforeEach(() => {
@@ -150,6 +154,7 @@ describe("registerCommands handlers", () => {
 
 		mockProvider = {
 			postMessageToWebview: vi.fn().mockResolvedValue(undefined),
+			contextProxy: { getValue: vi.fn().mockReturnValue("sidebar") },
 		}
 		;(ClineProvider.getVisibleInstance as Mock).mockReturnValue(mockVisibleProvider)
 		;(vscode.commands.registerCommand as Mock).mockImplementation(
@@ -170,6 +175,14 @@ describe("registerCommands handlers", () => {
 		// Reset module-level panel state to prevent leakage between tests.
 		setPanel(undefined, "sidebar")
 		setPanel(undefined, "tab")
+	})
+
+	it("registers the ripgrep diagnostic command and stores its disposable in context.subscriptions", async () => {
+		const { registerRipgrepDiagnosticCommand } = await import("../../services/ripgrep/diagnostic")
+		const mock = vi.mocked(registerRipgrepDiagnosticCommand)
+		const disposable = mock.mock.results[0]?.value
+		expect(mock).toHaveBeenCalled()
+		expect(mockContext.subscriptions).toContain(disposable)
 	})
 
 	it("settingsButtonClicked posts both settingsButtonClicked and didBecomeVisible actions", () => {

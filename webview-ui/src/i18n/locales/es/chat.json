@@ -221,6 +221,7 @@
 		"running": "Ejecutando",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "Salió con el estado {{exitCode}}",
+		"malformedCommand": "Comando mal formado: error de sintaxis del shell",
 		"manageCommands": "Comandos aprobados automáticamente",
 		"addToAllowed": "Agregar a la lista de permitidos",
 		"removeFromAllowed": "Eliminar de la lista de permitidos",
@@ -327,6 +328,22 @@
 		"copyToInput": "Copiar a la entrada (o Shift + clic)",
 		"timerPrefix": "Aprobación automática habilitada. Seleccionando en {{seconds}}s…"
 	},
+	"announcement": {
+		"title": "Zoo Code {{version}} publicado",
+		"support": "Apoya a Zoo Code dándonos una estrella en <githubLink>GitHub</githubLink>.",
+		"release": {
+			"heading": "Novedades:",
+			"highlight1": "Soporte para GLM-5.2 — el último modelo GLM ya está disponible en la configuración del proveedor.",
+			"highlight2": "Mejoras de OpenCode-Go — parámetros de modelo nativos, enrutamiento en formato Anthropic y corrección de context-token para respuestas más fiables.",
+			"highlight3": "Modo tool-writer — un nuevo modo especializado para escribir y mantener definiciones de herramientas, ya disponible en el Marketplace."
+		},
+		"cloudAgents": {
+			"heading": "Novedades en la Nube:",
+			"specialized": "Presentamos <bold>Explainer</bold>, <bold>Planner</bold> y <bold>Coder</bold> - tres agentes en la nube especializados para mejorar tus flujos de trabajo.",
+			"description": "Los agentes trabajan juntos en la nube y se pueden activar desde la web o mediante Slack.",
+			"tryButton": "Prueba los Agentes en la Nube"
+		}
+	},
 	"costs": {
 		"totalWithSubtasks": "Costo total (incluyendo subtareas): ${{cost}}",
 		"total": "Costo total: ${{cost}}",
@@ -398,6 +415,11 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "Version {{version}}"
+	},
+	"rooCloudCTA": {
+		"title": "¡Zoo Code Cloud está evolucionando!",
+		"description": "Ejecuta agentes remotos en la nube, accede a tus tareas desde cualquier lugar, colabora con otros y mucho más.",
+		"joinWaitlist": "Regístrate para recibir las últimas actualizaciones."
 	},
 	"editMessage": {
 		"placeholder": "Edita tu mensaje..."

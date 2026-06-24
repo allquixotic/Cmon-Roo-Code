@@ -56,12 +56,34 @@
 			"label": "Discovered a vulnerability?",
 			"link": "Follow our disclosure process"
 		},
-		"contact": {
-			"label": "Need to talk to us? Write"
-		},
 		"community": "Want release notes or to compare notes with other CRC users? Join <communityLink>GitHub Discussions</communityLink>.",
 		"contactAndCommunity": "Contact & Community",
 		"manageSettings": "Manage Settings",
+		"debugMode": {
+			"label": "Enable debug mode",
+			"description": "Enable debug mode to show additional buttons in the task header for viewing API conversation history and UI messages as prettified JSON in temporary files."
+		},
+		"rooHistoryImport": {
+			"settingLabel": "Import history from Roo Code",
+			"cardTitle": "Roo Code history",
+			"cardDescription": "Copy saved Roo Code conversations into Zoo Code.",
+			"statusImporting": "Importing history",
+			"statusFailed": "Import failed",
+			"statusComplete": "Import complete",
+			"buttonImporting": "Importing from Roo Code...",
+			"buttonIdle": "Import history from Roo Code",
+			"summaryFailedWithFiles": "{{copied}} of {{total}} files copied before the import stopped.",
+			"summaryFailedNoFiles": "The import stopped before any files were copied.",
+			"summaryCopied": "{{copied}} of {{total}} files copied",
+			"detailFailed": "Start a new import attempt to try again.",
+			"detailTasksImported_one": "Imported {{count}} of {{total}} task history.",
+			"detailTasksImported_other": "Imported {{count}} of {{total}} task histories.",
+			"detailPreparing": "Preparing Roo Code history import.",
+			"progressAriaLabel": "Roo history import progress"
+		},
+		"contact": {
+			"label": "Need to talk to us? Write"
+		},
 		"autoImport": {
 			"title": "Settings Auto-Import",
 			"startupLabel": "Import settings automatically on startup",
@@ -71,10 +93,6 @@
 			"pathNotConfigured": "No import path configured",
 			"importNow": "Import Now",
 			"importNowDescription": "Import settings from the configured path immediately without waiting for the next startup."
-		},
-		"debugMode": {
-			"label": "Enable debug mode",
-			"description": "Enable debug mode to show additional buttons in the task header for viewing API conversation history and UI messages as prettified JSON in temporary files."
 		}
 	},
 	"slashCommands": {
@@ -174,6 +192,23 @@
 			"label": "Require {{primaryMod}}+Enter to send messages",
 			"description": "When enabled, you must press {{primaryMod}}+Enter to send messages instead of just Enter"
 		},
+		"chatFontSize": {
+			"label": "Chat font size",
+			"description": "Set the font size (in pixels) for the Zoo Code chat. Leave at the default to match VS Code's font size.",
+			"reset": "Use VS Code default"
+		},
+		"autoCloseZooOpenedFiles": {
+			"label": "Auto-close files Zoo opened",
+			"description": "When enabled, editor tabs that Zoo opened transiently for a diff will be closed automatically after the edit is accepted or rejected. Tabs the user already had open before the edit are never auto-closed."
+		},
+		"autoCloseZooOpenedFilesAfterUserEdited": {
+			"label": "Auto-close even after user interaction",
+			"description": "When enabled, Zoo-opened tabs are closed even if the user clicked or typed inside the file or diff during the edit session. Has no effect when 'Auto-close files Zoo opened' is disabled."
+		},
+		"autoCloseZooOpenedNewFiles": {
+			"label": "Auto-close newly created files",
+			"description": "When enabled, tabs for files that Zoo created (rather than modified) will also be closed automatically after the edit is accepted."
+		},
 		"defaultRenderContext": {
 			"label": "Default CRC panel location",
 			"description": "Choose whether CRC opens in the sidebar or in a regular editor tab by default.",
@@ -223,6 +258,7 @@
 		"openRouterApiKeyPlaceholder": "Enter your OpenRouter API key",
 		"openRouterProviderRoutingLabel": "OpenRouter Provider Routing",
 		"openRouterProviderRoutingDescription": "OpenRouter routes requests to the best available providers for your embedding model. By default, requests are load balanced across the top providers to maximize uptime. However, you can choose a specific provider to use for this model.",
+		"sembleProvider": "Semble - Local",
 		"openaiCompatibleProvider": "OpenAI Compatible",
 		"openAiKeyLabel": "OpenAI API Key",
 		"openAiKeyPlaceholder": "Enter your OpenAI API key",
@@ -307,12 +343,6 @@
 		"description": "Run these actions without asking for permission. Only enable for actions you fully trust and if you understand the security risks.",
 		"toggleShortcut": "You can configure a keyboard shortcut for this setting <SettingsLink>in your IDE preferences</SettingsLink>.",
 		"enabled": "Auto-Approve Enabled",
-		"enabledOverriddenByYolo": "YOLO mode is enabled, so this toggle is ignored.",
-		"yolo": {
-			"label": "YOLO Mode",
-			"description": "Automatically approve read, write, MCP, mode, subtask, and execute requests, including outside the workspace. Questions still always wait for your answer.",
-			"controlsDisabled": "Granular auto-approve controls are locked while YOLO mode is enabled."
-		},
 		"readOnly": {
 			"label": "Read",
 			"description": "When enabled, Zoo will automatically view directory contents and read files without requiring you to click the Approve button.",
@@ -376,7 +406,13 @@
 		},
 		"toggleAriaLabel": "Toggle auto-approval",
 		"disabledAriaLabel": "Auto-approval disabled - select options first",
-		"selectOptionsFirst": "Select at least one option below to enable auto-approval"
+		"selectOptionsFirst": "Select at least one option below to enable auto-approval",
+		"enabledOverriddenByYolo": "YOLO mode is enabled, so this toggle is ignored.",
+		"yolo": {
+			"label": "YOLO Mode",
+			"description": "Automatically approve read, write, MCP, mode, subtask, and execute requests, including outside the workspace. Questions still always wait for your answer.",
+			"controlsDisabled": "Granular auto-approve controls are locked while YOLO mode is enabled."
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} documentation",
@@ -539,9 +575,6 @@
 		"enablePromptCaching": "Enable prompt caching",
 		"enablePromptCachingTitle": "Enable prompt caching to improve performance and reduce costs for supported models.",
 		"cacheUsageNote": "Note: If you don't see cache usage, try selecting a different model and then selecting your desired model again.",
-		"awsBedrockStructuredOutput": "Attempt strict structured output",
-		"awsBedrockStructuredOutputTooltip": "Asks AWS Bedrock to strictly validate tool-call arguments against their JSON schema (Converse 'strict: true'). Falls back automatically and silently retries without strict mode for models that reject it; unsupported models are remembered for 30 days.",
-		"awsBedrockStructuredOutputDescription": "When enabled, CRC sets 'strict: true' on tool specs in every Bedrock Converse request. If a model rejects strict mode, CRC shows the Bedrock error, disables strict for that model for 30 days, and retries automatically.",
 		"vscodeLmModel": "Language Model",
 		"vscodeLmWarning": "Note: Models accessed via the VS Code Language Model API may be wrapped or fine-tuned by the provider, so behavior can differ from using the same model directly from a typical provider or router. To use a model from the Language Model dropdown, first switch to that model and then click Accept in the Copilot Chat prompt; otherwise you may see an error such as 400 \"The requested model is not supported\".",
 		"googleCloudSetup": {
@@ -575,32 +608,19 @@
 			"description": "Ollama allows you to run models locally on your computer. For instructions on how to get started, see their quickstart guide.",
 			"warning": "Note: CRC uses complex prompts and works best with Claude models. Less capable models may not work as expected."
 		},
-		"roo": {
-			"authenticatedMessage": "Securely authenticated through your CRC Cloud account.",
-			"connectButton": "Connect to CRC Cloud",
-			"serviceName": "CRC Router",
-			"providerLabel": "CRC Router"
-		},
-		"bedrock": {
-			"discoveryDescription": "CRC probes Bedrock control-plane APIs for foundation models and inference profiles in the selected account and region.",
-			"discoveryDescriptionNoRegion": "Select an AWS region to discover Bedrock models and inference profiles.",
-			"detectMaxTokens": "Detect max output tokens",
-			"detectMaxTokensProbing": "Probing AWS for the model's max output cap…",
-			"detectMaxTokensTooltip": "Sends a single tiny Converse request to AWS Bedrock to discover the largest accepted max_tokens value for the selected model. AWS does not expose this through GetFoundationModel, so we measure it empirically.",
-			"detectMaxTokensSuccess": "Detected cap: {{value}} tokens (source: {{source}}, attempts: {{attempts}}). The slider now extends to this value.",
-			"detectMaxTokensOverrideActive": "Custom cap active: {{value}} tokens. Click \"Reset to default\" to revert to the built-in table.",
-			"detectMaxTokensError": "Detection failed: {{error}}",
-			"detectMaxTokensReset": "Reset to default"
-		},
-		"imageGeneration": {
-			"rooCloudOption": "CRC Cloud"
-		},
 		"openRouter": {
 			"providerRouting": {
 				"title": "OpenRouter Provider Routing",
 				"description": "OpenRouter routes requests to the best available providers for your model. By default, requests are load balanced across the top providers to maximize uptime. However, you can choose a specific provider to use for this model.",
 				"learnMore": "Learn more about provider routing"
 			}
+		},
+		"zooGateway": {
+			"account": "Zoo Code Account",
+			"signInButton": "Sign in to Zoo Code",
+			"signInDescription": "Sign in to use Zoo Gateway with your account",
+			"authenticated": "Authenticated",
+			"authenticatedAs": "Authenticated as {{name}}"
 		},
 		"customModel": {
 			"capabilities": "Configure the capabilities and pricing for your custom OpenAI-compatible model. Be careful when specifying the model capabilities, as they can affect how CRC performs.",
@@ -661,7 +681,8 @@
 			"low": "Low",
 			"medium": "Medium",
 			"high": "High",
-			"xhigh": "Extra High"
+			"xhigh": "Extra High",
+			"max": "Max"
 		},
 		"verbosity": {
 			"label": "Output Verbosity",
@@ -677,6 +698,29 @@
 			"placeholder": "Default: claude",
 			"maxTokensLabel": "Max Output Tokens",
 			"maxTokensDescription": "Maximum number of output tokens for Claude Code responses. Default is 8000."
+		},
+		"awsBedrockStructuredOutput": "Attempt strict structured output",
+		"awsBedrockStructuredOutputTooltip": "Asks AWS Bedrock to strictly validate tool-call arguments against their JSON schema (Converse 'strict: true'). Falls back automatically and silently retries without strict mode for models that reject it; unsupported models are remembered for 30 days.",
+		"awsBedrockStructuredOutputDescription": "When enabled, CRC sets 'strict: true' on tool specs in every Bedrock Converse request. If a model rejects strict mode, CRC shows the Bedrock error, disables strict for that model for 30 days, and retries automatically.",
+		"roo": {
+			"authenticatedMessage": "Securely authenticated through your CRC Cloud account.",
+			"connectButton": "Connect to CRC Cloud",
+			"serviceName": "CRC Router",
+			"providerLabel": "CRC Router"
+		},
+		"bedrock": {
+			"discoveryDescription": "CRC probes Bedrock control-plane APIs for foundation models and inference profiles in the selected account and region.",
+			"discoveryDescriptionNoRegion": "Select an AWS region to discover Bedrock models and inference profiles.",
+			"detectMaxTokens": "Detect max output tokens",
+			"detectMaxTokensProbing": "Probing AWS for the model's max output cap…",
+			"detectMaxTokensTooltip": "Sends a single tiny Converse request to AWS Bedrock to discover the largest accepted max_tokens value for the selected model. AWS does not expose this through GetFoundationModel, so we measure it empirically.",
+			"detectMaxTokensSuccess": "Detected cap: {{value}} tokens (source: {{source}}, attempts: {{attempts}}). The slider now extends to this value.",
+			"detectMaxTokensOverrideActive": "Custom cap active: {{value}} tokens. Click \"Reset to default\" to revert to the built-in table.",
+			"detectMaxTokensError": "Detection failed: {{error}}",
+			"detectMaxTokensReset": "Reset to default"
+		},
+		"imageGeneration": {
+			"rooCloudOption": "CRC Cloud"
 		}
 	},
 	"checkpoints": {
@@ -771,6 +815,12 @@
 				"description": "Time to wait after file writes before proceeding, allowing diagnostic tools to process changes and detect issues."
 			}
 		},
+		"fileEdits": {
+			"diffFuzzyThreshold": {
+				"label": "Diff match threshold",
+				"description": "Lower thresholds make file edits more resilient to formatting and whitespace variations. A threshold of 100% requires an exact match."
+			}
+		},
 		"condensingThreshold": {
 			"label": "Condensing Trigger Threshold",
 			"selectProfile": "Configure threshold for profile",
@@ -858,6 +908,13 @@
 		"inheritEnv": {
 			"label": "Inherit environment variables",
 			"description": "Turn this on to inherit environment variables from the parent VS Code process. <0>Learn more</0>"
+		},
+		"profile": {
+			"label": "Shell for Zoo Code",
+			"followVscode": "Follow VS Code profile (recommended)",
+			"configureButton": "Choose default profile in VS Code",
+			"noProfiles": "(no path-based profiles found in terminal.integrated.profiles)",
+			"description": "Zoo Code uses the shell configured in VS Code by default. Select a specific terminal profile to override this. Only path-based profiles from terminal.integrated.profiles are listed here. <0>Learn more</0>"
 		}
 	},
 	"advancedSettings": {
@@ -990,6 +1047,10 @@
 		"simplifiedExplanation": "You can adjust detailed model settings later."
 	},
 	"footer": {
+		"telemetry": {
+			"label": "Allow anonymous error and usage reporting",
+			"description": "Help improve Zoo Code by sending anonymous usage data and error reports. This telemetry does not collect code, prompts or personal information. See our <privacyLink>privacy policy</privacyLink> for more details."
+		},
 		"settings": {
 			"import": "Import",
 			"export": "Export",
@@ -1016,7 +1077,8 @@
 		"providerNotAllowed": "Provider '{{provider}}' is not allowed by your organization",
 		"modelNotAllowed": "Model '{{model}}' is not allowed for provider '{{provider}}' by your organization",
 		"profileInvalid": "This profile contains a provider or model that is not allowed by your organization",
-		"qwenCodeOauthPath": "You must provide a valid OAuth credentials path."
+		"qwenCodeOauthPath": "You must provide a valid OAuth credentials path.",
+		"zooGatewaySignIn": "Sign in to Zoo Code to use Zoo Gateway."
 	},
 	"placeholders": {
 		"apiKey": "Enter API Key...",

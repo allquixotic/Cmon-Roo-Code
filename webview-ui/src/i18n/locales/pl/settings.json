@@ -62,6 +62,24 @@
 		"debugMode": {
 			"label": "Włącz tryb debugowania",
 			"description": "Włącz tryb debugowania, aby wyświetlić dodatkowe przyciski w nagłówku zadania umożliwiające przeglądanie historii konwersacji API i komunikatów UI jako sformatowany JSON w plikach tymczasowych."
+		},
+		"rooHistoryImport": {
+			"settingLabel": "Importuj historię z Roo Code",
+			"cardTitle": "Historia Roo Code",
+			"cardDescription": "Skopiuj zapisane rozmowy Roo Code do Zoo Code.",
+			"statusImporting": "Importowanie historii",
+			"statusFailed": "Import nie powiódł się",
+			"statusComplete": "Import zakończony",
+			"buttonImporting": "Importowanie z Roo Code...",
+			"buttonIdle": "Importuj historię z Roo Code",
+			"summaryFailedWithFiles": "Skopiowano {{copied}} z {{total}} plików przed zatrzymaniem importu.",
+			"summaryFailedNoFiles": "Import zatrzymał się przed skopiowaniem jakichkolwiek plików.",
+			"summaryCopied": "Skopiowano {{copied}} z {{total}} plików",
+			"detailFailed": "Rozpocznij nową próbę importu, aby spróbować ponownie.",
+			"detailTasksImported_one": "Zaimportowano {{count}} z {{total}} historię zadań.",
+			"detailTasksImported_other": "Zaimportowano {{count}} z {{total}} historii zadań.",
+			"detailPreparing": "Przygotowywanie importu historii Roo Code.",
+			"progressAriaLabel": "Postęp importu historii Roo Code"
 		}
 	},
 	"slashCommands": {
@@ -213,7 +231,8 @@
 		"stoppingButton": "Zatrzymywanie...",
 		"workspaceToggleLabel": "Włącz indeksowanie dla tego workspace'a",
 		"workspaceDisabledMessage": "Indeksowanie jest skonfigurowane, ale nie włączone dla tego workspace'a.",
-		"autoEnableDefaultLabel": "Automatycznie włączaj indeksowanie dla nowych workspace'ów"
+		"autoEnableDefaultLabel": "Automatycznie włączaj indeksowanie dla nowych workspace'ów",
+		"sembleProvider": "Semble - Lokalny"
 	},
 	"autoApprove": {
 		"toggleShortcut": "Możesz skonfigurować globalny skrót dla tego ustawienia <SettingsLink>w preferencjach swojego IDE</SettingsLink>.",
@@ -543,6 +562,7 @@
 			"minimal": "Minimalny (najszybszy)",
 			"high": "Wysoki",
 			"xhigh": "Bardzo wysoki",
+			"max": "Maksymalny",
 			"medium": "Średni",
 			"low": "Niski"
 		},
@@ -560,6 +580,13 @@
 			"placeholder": "Domyślnie: claude",
 			"maxTokensLabel": "Maksymalna liczba tokenów wyjściowych",
 			"maxTokensDescription": "Maksymalna liczba tokenów wyjściowych dla odpowiedzi Claude Code. Domyślnie 8000."
+		},
+		"zooGateway": {
+			"account": "Konto Zoo Code",
+			"signInButton": "Zaloguj się do Zoo Code",
+			"signInDescription": "Zaloguj się, aby korzystać z Zoo Gateway ze swoim kontem",
+			"authenticated": "Uwierzytelniono",
+			"authenticatedAs": "Uwierzytelniono jako {{name}}"
 		},
 		"awsBedrockStructuredOutput": "Attempt strict structured output",
 		"awsBedrockStructuredOutputTooltip": "Asks AWS Bedrock to strictly validate tool-call arguments against their JSON schema (Converse 'strict: true'). Falls back automatically and silently retries without strict mode for models that reject it; unsupported models are remembered for 30 days.",
@@ -645,6 +672,12 @@
 			"delayAfterWrite": {
 				"label": "Opóźnienie po zapisie, aby umożliwić diagnostyce wykrycie potencjalnych problemów",
 				"description": "Czas oczekiwania po zapisie plików przed kontynuowaniem, aby narzędzia diagnostyczne mogły przetworzyć zmiany i wykryć problemy."
+			}
+		},
+		"fileEdits": {
+			"diffFuzzyThreshold": {
+				"label": "Próg dopasowania diff",
+				"description": "Niższe progi sprawiają, że edycje plików są bardziej odporne na różnice w formatowaniu i białych znakach. Próg 100% wymaga dokładnego dopasowania."
 			}
 		},
 		"condensingThreshold": {
@@ -744,6 +777,13 @@
 		"inheritEnv": {
 			"label": "Dziedzicz zmienne środowiskowe",
 			"description": "Włącz, aby dziedziczyć zmienne środowiskowe z procesu nadrzędnego VS Code. <0>Dowiedz się więcej</0>"
+		},
+		"profile": {
+			"label": "Profil terminala Zoo Code",
+			"followVscode": "Podążanie za profilem VS Code (zalecane)",
+			"description": "Domyślnie Zoo Code używa powłoki skonfigurowanej w VS Code. Wybierz profil powłoki z listy, aby użyć profilu ze ścieżką udostępnionego przez VS Code. Profile tylko ze źródłem (np. wbudowany wpis PowerShell) nie mogą być tutaj wyświetlone. <0>Dowiedz się więcej</0>",
+			"configureButton": "Wybierz domyślny profil w VS Code",
+			"noProfiles": "(brak profili ze ścieżką w terminal.integrated.profiles)"
 		}
 	},
 	"advancedSettings": {
@@ -874,6 +914,10 @@
 		"simplifiedExplanation": "Można dostosować szczegółowe ustawienia modelu później."
 	},
 	"footer": {
+		"telemetry": {
+			"label": "Zezwól na anonimowe raportowanie błędów i użycia",
+			"description": "Pomóż ulepszyć Zoo Code, wysyłając anonimowe dane użytkowania i raporty błędów. Ta telemetria nie zbiera kodu, promptów ani danych osobowych. Zobacz naszą <privacyLink>politykę prywatności</privacyLink>, aby uzyskać więcej szczegółów. Możesz to wyłączyć w dowolnym momencie."
+		},
 		"settings": {
 			"import": "Importuj",
 			"export": "Eksportuj",
@@ -900,7 +944,8 @@
 		"providerNotAllowed": "Dostawca '{{provider}}' nie jest dozwolony przez Twoją organizację",
 		"modelNotAllowed": "Model '{{model}}' nie jest dozwolony dla dostawcy '{{provider}}' przez Twoją organizację",
 		"profileInvalid": "Ten profil zawiera dostawcę lub model, który nie jest dozwolony przez Twoją organizację",
-		"qwenCodeOauthPath": "Musisz podać prawidłową ścieżkę do poświadczeń OAuth"
+		"qwenCodeOauthPath": "Musisz podać prawidłową ścieżkę do poświadczeń OAuth",
+		"zooGatewaySignIn": "Zaloguj się do Zoo Code, aby korzystać z Zoo Gateway."
 	},
 	"placeholders": {
 		"apiKey": "Wprowadź klucz API...",
@@ -962,6 +1007,23 @@
 		"requireCtrlEnterToSend": {
 			"label": "Wymagaj {{primaryMod}}+Enter do wysyłania wiadomości",
 			"description": "Po włączeniu musisz nacisnąć {{primaryMod}}+Enter, aby wysłać wiadomości, zamiast tylko Enter"
+		},
+		"chatFontSize": {
+			"label": "Rozmiar czcionki czatu",
+			"description": "Ustaw rozmiar czcionki (w pikselach) dla czatu Zoo Code. Pozostaw wartość domyślną, aby dopasować ją do rozmiaru czcionki VS Code.",
+			"reset": "Użyj wartości domyślnej VS Code"
+		},
+		"autoCloseZooOpenedFiles": {
+			"label": "Automatycznie zamykaj pliki otwarte przez Zoo",
+			"description": "Gdy wlaczone, karty edytora, ktore Zoo otworzylo tymczasowo dla diffa, sa automatycznie zamykane po zaakceptowaniu lub odrzuceniu zmiany. Karty, ktore uzytkownik mial juz otwarte przed edycja, nigdy nie sa automatycznie zamykane."
+		},
+		"autoCloseZooOpenedFilesAfterUserEdited": {
+			"label": "Automatycznie zamykaj rowniez po interakcji uzytkownika",
+			"description": "Gdy wlaczone, karty otwarte przez Zoo sa zamykane nawet jesli uzytkownik kliknal lub pisal w pliku lub diffie podczas sesji edycji. Nie ma efektu, jesli 'Automatycznie zamykaj pliki otwarte przez Zoo' jest wylaczone."
+		},
+		"autoCloseZooOpenedNewFiles": {
+			"label": "Automatycznie zamykaj nowo utworzone pliki",
+			"description": "Gdy wlaczone, karty plikow, ktore Zoo utworzylo (zamiast zmodyfikowalo), sa rowniez automatycznie zamykane po zaakceptowaniu zmiany."
 		}
 	},
 	"skills": {

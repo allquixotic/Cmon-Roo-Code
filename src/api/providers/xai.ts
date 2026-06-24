@@ -33,6 +33,7 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 			baseURL: "https://api.x.ai/v1",
 			apiKey: apiKey,
 			defaultHeaders: DEFAULT_HEADERS,
+			timeout: this.timeoutMs,
 		})
 	}
 

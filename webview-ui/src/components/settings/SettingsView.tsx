@@ -184,7 +184,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		terminalZshOhMy,
 		terminalZshP10k,
 		terminalZdotdir,
+		terminalProfile,
 		writeDelayMs,
+		diffFuzzyThreshold,
 		showRooIgnoredFiles,
 		enableSubfolderRules,
 		maxImageFileSize,
@@ -200,6 +202,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		openRouterImageApiKey,
 		openRouterImageGenerationSelectedModel,
 		reasoningBlockCollapsed,
+		chatFontSize,
 		enterBehavior,
 		includeCurrentTime,
 		includeCurrentCost,
@@ -207,6 +210,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		autoImportSettingsOnStartup,
 		defaultRenderContext,
 		masqueradeAsRooCode,
+		autoCloseZooOpenedFiles,
+		autoCloseZooOpenedFilesAfterUserEdited,
+		autoCloseZooOpenedNewFiles,
 	} = cachedState
 
 	const apiConfiguration = useMemo(() => cachedState.apiConfiguration ?? {}, [cachedState.apiConfiguration])
@@ -394,6 +400,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 					enableCheckpoints: enableCheckpoints ?? false,
 					checkpointTimeout: checkpointTimeout ?? DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 					writeDelayMs,
+					diffFuzzyThreshold,
 					terminalShellIntegrationTimeout: terminalShellIntegrationTimeout ?? 30_000,
 					terminalShellIntegrationDisabled,
 					terminalCommandDelay,
@@ -402,6 +409,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 					terminalZshOhMy,
 					terminalZshP10k,
 					terminalZdotdir,
+					terminalProfile: terminalProfile ?? "", // "" clears a saved profile; undefined is dropped by JSON.stringify
 					terminalOutputPreviewSize: terminalOutputPreviewSize ?? "medium",
 					mcpEnabled,
 					maxOpenTabsContext: Math.min(Math.max(0, maxOpenTabsContext ?? 20), 500),
@@ -418,6 +426,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 					followupAutoApproveTimeoutMs,
 					includeTaskHistoryInEnhance: includeTaskHistoryInEnhance ?? true,
 					reasoningBlockCollapsed: reasoningBlockCollapsed ?? true,
+					chatFontSize: chatFontSize ?? null,
 					enterBehavior: enterBehavior ?? "send",
 					defaultRenderContext: defaultRenderContext ?? "editor",
 					masqueradeAsRooCode: masqueradeAsRooCode ?? false,
@@ -425,6 +434,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 					includeCurrentCost: includeCurrentCost ?? true,
 					maxGitStatusFiles: maxGitStatusFiles ?? 0,
 					autoImportSettingsOnStartup: autoImportSettingsOnStartup ?? false,
+					autoCloseZooOpenedFiles: autoCloseZooOpenedFiles ?? true,
+					autoCloseZooOpenedFilesAfterUserEdited: autoCloseZooOpenedFilesAfterUserEdited ?? false,
+					autoCloseZooOpenedNewFiles: autoCloseZooOpenedNewFiles ?? false,
 					profileThresholds,
 					imageGenerationProvider,
 					openRouterImageApiKey,
@@ -857,6 +869,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								includeDiagnosticMessages={includeDiagnosticMessages}
 								maxDiagnosticMessages={maxDiagnosticMessages}
 								writeDelayMs={writeDelayMs}
+								diffFuzzyThreshold={diffFuzzyThreshold}
 								includeCurrentTime={includeCurrentTime}
 								includeCurrentCost={includeCurrentCost}
 								maxGitStatusFiles={maxGitStatusFiles}
@@ -878,6 +891,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								terminalZshOhMy={terminalZshOhMy}
 								terminalZshP10k={terminalZshP10k}
 								terminalZdotdir={terminalZdotdir}
+								terminalProfile={terminalProfile}
+								onTerminalProfilePickerOpened={() => setChangeDetected(true)}
 								setCachedStateField={setCachedStateField}
 							/>
 						)}
@@ -910,6 +925,10 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								enterBehavior={enterBehavior ?? "send"}
 								defaultRenderContext={defaultRenderContext ?? "editor"}
 								masqueradeAsRooCode={masqueradeAsRooCode ?? false}
+								chatFontSize={chatFontSize ?? undefined}
+								autoCloseZooOpenedFiles={autoCloseZooOpenedFiles}
+								autoCloseZooOpenedFilesAfterUserEdited={autoCloseZooOpenedFilesAfterUserEdited}
+								autoCloseZooOpenedNewFiles={autoCloseZooOpenedNewFiles}
 								setCachedStateField={setCachedStateField}
 							/>
 						)}

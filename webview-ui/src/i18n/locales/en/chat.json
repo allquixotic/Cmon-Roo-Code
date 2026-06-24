@@ -15,6 +15,9 @@
 		"closeAndStart": "Close task and start a new one",
 		"export": "Export task history",
 		"delete": "Delete Task (Shift + Click to skip confirmation)",
+		"openApiHistory": "Open API History",
+		"openUiHistory": "Open UI History",
+		"backToParentTask": "Parent task",
 		"shareWithOrganization": "Share with Organization",
 		"shareWithOrganizationDescription": "Only members of your organization can access",
 		"sharePublicly": "Share Publicly",
@@ -23,10 +26,7 @@
 		"connectToCloudDescription": "Sign in to CRC Cloud to share tasks",
 		"sharingDisabledByOrganization": "Sharing disabled by organization",
 		"shareSuccessOrganization": "Organization link copied to clipboard",
-		"shareSuccessPublic": "Public link copied to clipboard",
-		"openApiHistory": "Open API History",
-		"openUiHistory": "Open UI History",
-		"backToParentTask": "Parent task"
+		"shareSuccessPublic": "Public link copied to clipboard"
 	},
 	"unpin": "Unpin",
 	"pin": "Pin",
@@ -273,6 +273,7 @@
 		"running": "Running",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "Exited with status {{exitCode}}",
+		"malformedCommand": "Malformed command: shell syntax error",
 		"manageCommands": "Auto-approved commands",
 		"addToAllowed": "Add to allowed list",
 		"removeFromAllowed": "Remove from allowed list",
@@ -340,37 +341,33 @@
 	},
 	"autoApprove": {
 		"tooltipManage": "Manage auto-approval settings",
-		"tooltipYolo": "YOLO mode is enabled. All non-question requests are auto-approved.",
 		"tooltipStatus": "Auto-approval enabled for: {{toggles}}",
 		"title": "Auto-approve",
 		"all": "All",
 		"none": "None",
 		"description": "Run these actions without asking for permission. Only enable for actions you fully trust.",
-		"yoloDescription": "YOLO mode is enabled in Settings, so the quick controls here are locked.",
 		"selectOptionsFirst": "Select at least one option below to enable auto-approval",
 		"toggleAriaLabel": "Toggle auto-approval",
 		"disabledAriaLabel": "Auto-approval disabled - select options first",
-		"enabled": "Enabled",
-		"yoloActive": "YOLO",
 		"triggerLabelOff": "Auto-approve off",
 		"triggerLabelOffShort": "Off",
 		"triggerLabel_zero": "0 auto-approve",
 		"triggerLabel_one": "1 auto-approved",
 		"triggerLabel_other": "{{count}} auto-approved",
-		"triggerLabelAll": "BRRR"
+		"triggerLabelAll": "BRRR",
+		"tooltipYolo": "YOLO mode is enabled. All non-question requests are auto-approved.",
+		"yoloDescription": "YOLO mode is enabled in Settings, so the quick controls here are locked.",
+		"enabled": "Enabled",
+		"yoloActive": "YOLO"
 	},
 	"announcement": {
 		"title": "CRC {{version}} Released",
 		"support": "Please support CRC by starring us on <githubLink>GitHub</githubLink>.",
-		"stealthModel": {
-			"feature": "<bold>Limited-time FREE stealth model</bold> - Code Supernova: Now upgraded with a <bold>1M token context window</bold>! A versatile agentic coding model that supports image inputs, accessible through CRC Cloud.",
-			"note": "(Note: prompts and completions are logged by the model creator and used to improve the model)",
-			"connectButton": "Connect to CRC Cloud",
-			"selectModel": "Select <code>roo/code-supernova</code> from the CRC Cloud provider in Settings to get started.",
-			"goToSettingsButton": "Go to Settings"
-		},
 		"release": {
 			"heading": "What's New:",
+			"highlight1": "GLM-5.2 support — the latest GLM model is now available in your provider settings.",
+			"highlight2": "OpenCode-Go improvements — native model parameters, Anthropic-format routing, and a context-token fix for more reliable responses.",
+			"highlight3": "Tool-writer mode — a new specialized mode for writing and maintaining tool definitions is now available in the Marketplace.",
 			"gpt54": "Poe Provider: Added Poe as an AI provider so you can access Poe models directly in CRC.",
 			"slashSkills": "xAI and MiniMax Improvements: Migrated the xAI provider to the Responses API, added Grok-4.20 defaults, and fixed MiniMax model listings and context window handling for a more reliable setup."
 		},
@@ -379,6 +376,13 @@
 			"specialized": "Introducing <bold>Explainer</bold>, <bold>Planner</bold>, and <bold>Coder</bold> - three specialized cloud agents to enhance your workflows.",
 			"description": "The agents work together in the cloud and can be triggered from the web or through Slack.",
 			"tryButton": "Try Cloud Agents"
+		},
+		"stealthModel": {
+			"feature": "<bold>Limited-time FREE stealth model</bold> - Code Supernova: Now upgraded with a <bold>1M token context window</bold>! A versatile agentic coding model that supports image inputs, accessible through CRC Cloud.",
+			"note": "(Note: prompts and completions are logged by the model creator and used to improve the model)",
+			"connectButton": "Connect to CRC Cloud",
+			"selectModel": "Select <code>roo/code-supernova</code> from the CRC Cloud provider in Settings to get started.",
+			"goToSettingsButton": "Go to Settings"
 		},
 		"careers": "Also, <careersLink>we're hiring!</careersLink>"
 	},

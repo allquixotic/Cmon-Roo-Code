@@ -3,14 +3,14 @@
 	"displayName": "%extension.displayName%",
 	"description": "%extension.description%",
 	"publisher": "allquixotic",
-	"version": "3.53.21",
+	"version": "3.62.0",
 	"icon": "assets/icons/icon.png",
 	"galleryBanner": {
 		"color": "#617A91",
 		"theme": "dark"
 	},
 	"engines": {
-		"vscode": "^1.84.0",
+		"vscode": "^1.100.0",
 		"node": "20.20.2"
 	},
 	"author": {
@@ -56,7 +56,7 @@
 				{
 					"id": "crc-ActivityBar",
 					"title": "%views.activitybar.title%",
-					"icon": "assets/icons/activitybar.svg"
+					"icon": "assets/icons/icon.svg"
 				}
 			]
 		},
@@ -91,14 +91,14 @@
 				"icon": "$(link-external)"
 			},
 			{
-				"command": "crc.cloudButtonClicked",
-				"title": "%command.cloud.title%",
-				"icon": "$(cloud)"
-			},
-			{
 				"command": "crc.settingsButtonClicked",
 				"title": "%command.settings.title%",
 				"icon": "$(settings-gear)"
+			},
+			{
+				"command": "crc.cloudButtonClicked",
+				"title": "%command.cloud.title%",
+				"icon": "$(cloud)"
 			},
 			{
 				"command": "crc.openInNewTab",
@@ -166,6 +166,11 @@
 				"category": "%configuration.title%"
 			},
 			{
+				"command": "crc.showRipgrepDiagnostic",
+				"title": "%command.showRipgrepDiagnostic.title%",
+				"category": "%configuration.title%"
+			},
+			{
 				"command": "crc.toggleAutoApprove",
 				"title": "%command.toggleAutoApprove.title%",
 				"category": "%configuration.title%"
@@ -224,12 +229,12 @@
 					"when": "view == crc.SidebarProvider"
 				},
 				{
-					"command": "crc.cloudButtonClicked",
+					"command": "crc.marketplaceButtonClicked",
 					"group": "navigation@3",
 					"when": "view == crc.SidebarProvider"
 				},
 				{
-					"command": "crc.marketplaceButtonClicked",
+					"command": "crc.cloudButtonClicked",
 					"group": "navigation@4",
 					"when": "view == crc.SidebarProvider"
 				},
@@ -256,12 +261,12 @@
 					"when": "activeWebviewPanelId == crc.TabPanelProvider"
 				},
 				{
-					"command": "crc.cloudButtonClicked",
+					"command": "crc.marketplaceButtonClicked",
 					"group": "navigation@3",
 					"when": "activeWebviewPanelId == crc.TabPanelProvider"
 				},
 				{
-					"command": "crc.marketplaceButtonClicked",
+					"command": "crc.cloudButtonClicked",
 					"group": "navigation@4",
 					"when": "activeWebviewPanelId == crc.TabPanelProvider"
 				},
@@ -389,9 +394,9 @@
 					"description": "%settings.useAgentRules.description%"
 				},
 				"crc.apiRequestTimeout": {
-					"type": "number",
+					"type": "integer",
 					"default": 600,
-					"minimum": 0,
+					"minimum": 1,
 					"maximum": 3600,
 					"description": "%settings.apiRequestTimeout.description%"
 				},
@@ -429,6 +434,21 @@
 					"default": false,
 					"description": "%settings.debugProxy.tlsInsecure.description%",
 					"markdownDescription": "%settings.debugProxy.tlsInsecure.description%"
+				},
+				"crc.workspace.rootResolution": {
+					"type": "string",
+					"enum": [
+						"activeEditor",
+						"firstFolder"
+					],
+					"enumDescriptions": [
+						"%settings.workspace.rootResolution.activeEditor.description%",
+						"%settings.workspace.rootResolution.firstFolder.description%"
+					],
+					"default": "activeEditor",
+					"scope": "machine",
+					"description": "%settings.workspace.rootResolution.description%",
+					"markdownDescription": "%settings.workspace.rootResolution.description%"
 				}
 			}
 		}
@@ -436,7 +456,6 @@
 	"scripts": {
 		"lint": "eslint . --ext=ts --max-warnings=0",
 		"check-types": "tsc --noEmit",
-		"prebundle": "pnpm --dir ../packages/types build",
 		"pretest": "turbo run bundle --cwd ..",
 		"pretest:coverage": "turbo run bundle --cwd ..",
 		"test": "vitest run",
@@ -445,8 +464,8 @@
 		"bundle": "node esbuild.mjs",
 		"vscode:prepublish": "pnpm bundle --production",
 		"vsix": "mkdirp ../bin && vsce package --no-dependencies --out ../bin",
-		"publish:vsce": "npx @vscode/vsce publish --packagePath ../bin/zoo-code-$npm_package_version.vsix",
-		"publish:ovsx": "pnpm exec ovsx publish ../bin/zoo-code-$npm_package_version.vsix --skip-duplicate",
+		"publish:vsce": "npx @vscode/vsce publish --packagePath ../bin/crc-$npm_package_version.vsix",
+		"publish:ovsx": "pnpm exec ovsx publish ../bin/crc-$npm_package_version.vsix --skip-duplicate",
 		"publish:marketplace": "pnpm vsix && pnpm publish:vsce && pnpm publish:ovsx",
 		"watch:bundle": "pnpm bundle --watch",
 		"watch:tsc": "cd .. && tsc --noEmit --watch --project src/tsconfig.json",
@@ -469,11 +488,12 @@
 		"@google/genai": "^1.29.1",
 		"@lmstudio/sdk": "^1.1.1",
 		"@mistralai/mistralai": "^1.9.18",
-		"@modelcontextprotocol/sdk": "1.12.0",
+		"@modelcontextprotocol/sdk": "1.26.0",
 		"@qdrant/js-client-rest": "^1.14.0",
 		"@roo-code/cloud": "workspace:^",
 		"@roo-code/core": "workspace:^",
 		"@roo-code/ipc": "workspace:^",
+		"@roo-code/telemetry": "workspace:^",
 		"@roo-code/types": "workspace:^",
 		"@vscode/codicons": "^0.0.36",
 		"ai-sdk-provider-poe": "2.0.18",
@@ -484,7 +504,7 @@
 		"clone-deep": "^4.0.1",
 		"default-shell": "^2.2.0",
 		"delay": "^6.0.0",
-		"diff": "^8.0.4",
+		"diff": "^5.2.0",
 		"diff-match-patch": "^1.0.5",
 		"exceljs": "^4.4.0",
 		"fast-deep-equal": "^3.1.3",
@@ -545,44 +565,45 @@
 		"zod": "3.25.76"
 	},
 	"devDependencies": {
-		"@ai-sdk/openai-compatible": "^2.0.40",
+		"@ai-sdk/openai-compatible": "2.0.28",
 		"@openrouter/ai-sdk-provider": "^2.4.3",
 		"@roo-code/build": "workspace:^",
 		"@roo-code/config-eslint": "workspace:^",
 		"@roo-code/config-typescript": "workspace:^",
-		"@types/clone-deep": "^4.0.4",
+		"@types/clone-deep": "4.0.4",
 		"@types/debug": "^4.1.13",
-		"@types/diff": "^8.0.0",
+		"@types/diff": "5.2.3",
 		"@types/diff-match-patch": "^1.0.36",
 		"@types/glob": "^9.0.0",
-		"@types/lodash.debounce": "^4.0.9",
-		"@types/mocha": "^10.0.10",
-		"@types/node": "~25.5.2",
-		"@types/node-cache": "^4.2.5",
+		"@types/lodash.debounce": "4.0.9",
+		"@types/mocha": "10.0.10",
+		"@types/node": "20.19.43",
+		"@types/node-cache": "4.2.5",
 		"@types/node-ipc": "^9.2.3",
-		"@types/proper-lockfile": "^4.1.4",
-		"@types/ps-tree": "^1.1.6",
-		"@types/semver-compare": "^1.0.3",
-		"@types/shell-quote": "^1.7.5",
+		"@types/proper-lockfile": "4.1.4",
+		"@types/ps-tree": "1.1.6",
+		"@types/semver-compare": "1.0.3",
+		"@types/shell-quote": "1.7.5",
 		"@types/stream-json": "^1.7.8",
 		"@types/string-similarity": "^4.0.2",
 		"@types/tmp": "^0.2.6",
 		"@types/turndown": "^5.0.6",
-		"@types/vscode": "^1.84.0",
+		"@types/vscode": "1.100.0",
+		"@vitest/coverage-v8": "4.1.0",
 		"@vscode/test-electron": "^2.5.2",
-		"@vscode/vsce": "3.7.1",
-		"ai": "^6.0.149",
-		"esbuild-wasm": "^0.28.0",
-		"execa": "^9.6.1",
+		"@vscode/vsce": "3.3.2",
+		"ai": "6.0.77",
+		"esbuild-wasm": "0.25.12",
+		"execa": "9.6.1",
 		"glob": "^13.0.6",
-		"mkdirp": "^3.0.1",
-		"nock": "^14.0.12",
+		"mkdirp": "3.0.1",
+		"nock": "14.0.10",
 		"npm-run-all2": "^8.0.4",
-		"ovsx": "0.10.10",
-		"rimraf": "^6.1.3",
+		"ovsx": "0.10.4",
+		"rimraf": "6.0.1",
 		"tsup": "^8.5.1",
 		"tsx": "^4.21.0",
-		"vitest": "^4.1.2",
+		"vitest": "4.1.0",
 		"zod-to-ts": "^2.0.0"
 	}
 }

@@ -221,6 +221,7 @@
 		"abort": "İptal Et",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "{{exitCode}} durumuyla çıkıldı",
+		"malformedCommand": "Hatalı komut: shell sozdizimi hatasi",
 		"manageCommands": "Komut İzinlerini Yönet",
 		"commandManagementDescription": "Komut izinlerini yönetin: Otomatik yürütmeye izin vermek için ✓'e, yürütmeyi reddetmek için ✗'e tıklayın. Desenler açılıp kapatılabilir veya listelerden kaldırılabilir. <settingsLink>Tüm ayarları görüntüle</settingsLink>",
 		"addToAllowed": "İzin verilenler listesine ekle",
@@ -328,6 +329,22 @@
 		"copyToInput": "Giriş alanına kopyala (veya Shift + tıklama)",
 		"timerPrefix": "Otomatik onay etkinleştirildi. {{seconds}}s içinde seçim yapılıyor…"
 	},
+	"announcement": {
+		"title": "Zoo Code {{version}} yayınlandı",
+		"support": "Lütfen <githubLink>GitHub</githubLink>'da bize yıldız vererek Zoo Code'u destekle.",
+		"release": {
+			"heading": "Yenilikler:",
+			"highlight1": "GLM-5.2 desteği — en yeni GLM modeli artık sağlayıcı ayarlarında mevcut.",
+			"highlight2": "OpenCode-Go iyileştirmeleri — yerel model parametreleri, Anthropic formatı yönlendirme ve daha güvenilir yanıtlar için context-token düzeltmesi.",
+			"highlight3": "Tool-writer modu — araç tanımlarını yazmak ve sürdürmek için yeni bir uzmanlaşmış mod, artık Marketplace'te mevcut."
+		},
+		"cloudAgents": {
+			"heading": "Cloud'daki yenilikler:",
+			"specialized": "<bold>Explainer</bold>, <bold>Planner</bold> ve <bold>Coder</bold> tanıtımı - iş akışlarını geliştirmek için üç özel bulut ajanı.",
+			"description": "Ajanlar bulutta birlikte çalışır ve web'den veya Slack üzerinden tetiklenebilir.",
+			"tryButton": "Bulut Ajanlarını Dene"
+		}
+	},
 	"costs": {
 		"totalWithSubtasks": "Toplam Maliyet (alt görevler dahil): ${{cost}}",
 		"total": "Toplam Maliyet: ${{cost}}",
@@ -399,6 +416,11 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "Version {{version}}"
+	},
+	"rooCloudCTA": {
+		"title": "Zoo Code Cloud gelişiyor!",
+		"description": "Bulutta uzak ajanlar çalıştırın, görevlerinize her yerden erişin, başkalarıyla işbirliği yapın ve daha fazlası.",
+		"joinWaitlist": "En son güncellemeleri almak için kaydolun."
 	},
 	"editMessage": {
 		"placeholder": "Mesajını düzenle..."

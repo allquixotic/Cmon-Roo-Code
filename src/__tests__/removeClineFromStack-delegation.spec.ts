@@ -2,6 +2,7 @@
 
 import { describe, it, expect, vi } from "vitest"
 import { ClineProvider } from "../core/webview/ClineProvider"
+import { makeProviderStub } from "./helpers/provider-stub"
 
 describe("ClineProvider.removeClineFromStack() delegation awareness", () => {
 	/**
@@ -32,7 +33,7 @@ describe("ClineProvider.removeClineFromStack() delegation awareness", () => {
 					throw new Error("Task not found")
 				})
 
-		const provider = {
+		const provider = makeProviderStub({
 			clineStack: [childTask] as any[],
 			visibleTaskId: undefined,
 			taskEventListeners: new Map(),
@@ -40,7 +41,7 @@ describe("ClineProvider.removeClineFromStack() delegation awareness", () => {
 			getTaskWithId,
 			updateTaskHistory,
 			postStateToWebviewWithoutClineMessages: vi.fn().mockResolvedValue(undefined),
-		}
+		})
 
 		return { provider, childTask, updateTaskHistory, getTaskWithId }
 	}

@@ -1,5 +1,117 @@
 # Zoo Code Changelog
 
+## [3.62.0]
+
+### Minor Changes
+
+- Add GLM-5.2 support — the latest GLM model is now available in your provider settings (#597 by @percy4, PR #608 by @MobCode100)
+- Add OpenCode-Go native model parameters, Anthropic-format routing, and context-token fix for more reliable responses (#646 by @ykoneee, PR #652 by @navedmerchant)
+- Add tool-writer mode to the Marketplace — a new specialized mode for writing and maintaining tool definitions (#603 by @RayCarro, PR #604 by @RayCarro)
+- Add LiteLLM support for forwarding taskId as X-Zoo-Session-ID request header for better request tracing (#590 by @awschmeder, PR #591 by @awschmeder)
+- Fix: Apply apiRequestTimeout consistently across all providers (#565 by @daewoongoh, PR #567 by @daewoongoh)
+- Fix: Restore diff view scroll position and fix tab handling on save/deny (#586 by @awschmeder, PR #589 by @awschmeder)
+- Fix: Deliver terminal completion signal when end event wins the race against setActiveStream (#489 by @drzraf, #622 by @onlineapps-cloud, PR #645 by @edelauna)
+- Fix: Fetch OpenCode-Go models unconditionally — the /models endpoint is public (PR #437 by @proyectoauraorg)
+- Refactor: Extract RateLimitClock from Task static state for cleaner rate-limit handling (#361 by @edelauna, PR #628 by @edelauna)
+- Refactor: Use extractReasoningFromDelta helper for reasoning extraction across providers (PR #588 by @daewoongoh)
+- Fix: Automate PR review-state and stale labels in GitHub Actions (PR #636 by @edelauna)
+- Re-enable the prefer-const ESLint rule (PR #250 by @0xMink)
+- Add stale PR workflows and auto-closure policy (PR #631 by @edelauna)
+- Update dependency vitest to v4 [security] (PR #443 by @app/renovate)
+- Update dependency shell-quote to v1.8.4 [security] (PR #554 by @app/renovate)
+- Update dependency esbuild to v0.28.1 [security] (PR #595 by @app/renovate)
+- Update dependency vite to v8.0.16 [security] (PR #642 by @app/renovate)
+- Update GitHub Actions (PR #521 by @app/renovate)
+
+## [3.60.0]
+
+### Minor Changes
+
+- Add Claude Fable 5 support across Anthropic, Bedrock, and Vertex providers (PR #555 by @taltas)
+- Add OpenAI GPT-5.5 support (PR #537 by @scream4ik)
+- Add per-mode MCP server restrictions — configure an allowlist to restrict which MCP servers are active per mode (PR #453 by @simurg79)
+- Add workspace `rootResolution` setting for controlling path resolution in multi-root workspaces (PR #538 by @simurg79)
+- Add LiteLLM support for `reasoning_content` and `reasoning` fields in streaming responses (PR #449 by @daewoongoh)
+- Add Show Ripgrep Diagnostic command for easier ripgrep troubleshooting (PR #281 by @0xMink)
+- Redesign terminal profile settings UX — unified dropdown, consistent layout, and improved styling (#119 by @chenyuanrun, #321 by @F915, PR #533 by @F915)
+- Fix chat window running out of memory when transcript grows large (PR #153 by @app/roomote)
+- Fix relative symlinks in rules files not resolving correctly using realpath of parent directory (PR #442 by @p12tic)
+- Fix command approval buttons not clearing when auto-executed (PR #480 by @awschmeder)
+- Fix multi-line quoted command parsing, auto-approval behavior, and malformed-command error surfacing (PR #483 by @awschmeder)
+- Fix `list-files` tool to validate directory exists before spawning ripgrep (#557 by @edelauna, PR #558 by @edelauna)
+- Fix child tasks returning to parent when parent status is active in AttemptCompletionTool (PR #510 by @edelauna)
+- Fix surface in-stream errors from Zoo and Vercel AI gateways (PR #569 by @JamesRobert20)
+- Gate marketplace publish behind PR approval check (PR #516 by @edelauna)
+- Stabilize flaky e2e provider suite ordering and zai requestCapture race (#512 by @edelauna, #514 by @edelauna, PR #45 by @app/roomote)
+- Fix flaky e2e subtasks fixture collision and task identity prompt (#561, PR #563 by @simurg79)
+- Add contributing guidelines: PR expectations and AI-assisted contribution policy (PR #562 by @edelauna)
+- Configure knip and remove dead code (PR #225 by @app/roomote)
+- Pin dependencies (PR #423 by @app/renovate)
+
+## [3.58.1]
+
+### Patch Changes
+
+- Fix: Remove unsupported `--no-absolute-filenames` tar argument (#491 by @kazenshi, PR #492 by @kazenshi)
+
+## 3.58.0
+
+### Minor Changes
+
+- Add Zoo Gateway provider with auth callback and multi-profile token sync (PR #344 by @JamesRobert20, PR #345 by @JamesRobert20, PR #347 by @JamesRobert20)
+- Add Gemini 3.5 Flash support (PR #331 by @jeanbispo)
+- Add Semble as a local on-the-fly embedding provider for code indexing (PR #399 by @navedmerchant)
+- Remove extension-side LLM telemetry; server logs only through gateway (PR #346 by @JamesRobert20)
+- Add VS Code integrated terminal shell override (PR #277 by @proyectoauraorg)
+- Add configurable chat font size (#157 by @duvw, PR #276 by @proyectoauraorg)
+- Render GitHub-style alerts in the webview (#258 by @melck, PR #275 by @proyectoauraorg)
+- Add configurable max output tokens for GLM models (#161 by @app/roomote, PR #274 by @proyectoauraorg)
+- Introduce WorkspacePathResolver for async symlink-aware path canonicalization (#389 by @edelauna, PR #428 by @proyectoauraorg)
+- Better secure release workflows and GitHub Actions (PR #482 by @edelauna)
+- Fix React crash from malformed follow-up suggestion mode (PR #414 by @edelauna)
+- Fix OpenAI temperature omitted when no custom value is set (#242 by @brunocasado, PR #247 by @proyectoauraorg)
+- Handle per-key failures during settings import (PR #401 by @taltas)
+- Add comprehensive test coverage for ReadFileTool (PR #222 by @proyectoauraorg)
+- Unskip VS Code e2e replay for subtasks (PR #94 by @app/roomote)
+- Fix e2e cache: replace paths filter with content-hash cache skip (PR #268 by @app/roomote)
+- Remove deprecated requestRooCreditBalance handler (PR #385 by @JamesRobert20)
+- Update mermaid to v11.15.0 for a security fix (PR #235 by @app/renovate)
+- Update axios to v1.16.0 for a security fix (PR #400 by @app/renovate)
+- Pin dependencies (PR #353 by @app/renovate)
+- Remove unused tmp dependency and other unused packages (PR #341 by @app/renovate)
+
+## 3.56.0
+
+### Minor Changes
+
+- Add Claude Opus 4.8 support across Anthropic, Bedrock, and Vertex providers (PR #386 by @vandre-sales)
+- Add Opencode Go as a first-class provider (#172 by @vijay-0001, PR #319 by @proyectoauraorg)
+- Add glm-5.1, kimi-k2.6, and deepseek-v4-pro models to the Fireworks provider (#198 by @DeCodeTheWeb, PR #231 by @proyectoauraorg)
+- Show Zoo Code identity in outbound provider activity logs (#203 by @yfdyh000, PR #219 by @app/roomote)
+- Fix API requests hanging indefinitely on VS Code 1.122.0+ (#381 by @greatgradz-svg, #382 by @abcxlab, PR #383 by @app/roomote)
+- Fix terminal task cancellation so the running process is terminated when a task is cancelled (#245 by @proyectoauraorg, PR #261 by @proyectoauraorg)
+- Fix terminal Ctrl+C retry so processes that need multiple SIGINT signals are properly stopped (#266 by @edelauna, PR #272 by @proyectoauraorg)
+- Fix Gemini provider to honor custom model IDs instead of falling back to the default (#227 by @notoccupy2023-design, PR #317 by @proyectoauraorg)
+- Fix truncated Grok diffs caused by missing diff markers (#186 by @jcalfee, PR #230 by @proyectoauraorg)
+- Fix PowerShell detection on Windows when no shell profile is configured (#82 by @rossdonald, PR #239 by @proyectoauraorg)
+- Fix Vertex AI warning when the Google Cloud Credentials field receives a file path instead of JSON (PR #294 by @0xMink)
+- Rename Zoo Code in VS Code code actions (#328 by @rrewll, PR #329 by @rrewll)
+- Localize VS Code code action commands (#334 by @edelauna, PR #339 by @rrewll)
+- Migrate webview build to Vite 8 (PR #214 by @maxdewald)
+- Add comprehensive unit tests for AskFollowupQuestionTool and ListFilesTool (#206 by @app/roomote, PR #212, #213 by @proyectoauraorg)
+- Update `diff` to v5.2.2 for a security fix (PR #173 by @app/renovate)
+- Update `i18next-http-backend` to v3.0.5 for a security fix (PR #174 by @app/renovate)
+- Update `fast-xml-parser` to v5.7.0 for a security fix (PR #179 by @app/renovate)
+- Update `simple-git` to v3.36.0 for a security fix (PR #182 by @app/renovate)
+- Update `uuid` and pin esbuild/rollup/vite for a security fix (PR #205 by @app/renovate)
+- Update `turbo` to v2.9.14 for a security fix (PR #236 by @app/renovate)
+
+## 3.55.1
+
+### Patch Changes
+
+- Fix API requests hanging indefinitely on VS Code 1.122.0+ when Zoo Code could not find the bundled ripgrep binary after the `@vscode/ripgrep-universal` rename (#381 by @greatgradz-svg, PR #248 by @0xMink).
+
 All notable changes to Zoo Code will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and Zoo Code uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).

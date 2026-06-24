@@ -30,41 +30,11 @@
 
 Короткое руководство по переходу с Roo Code на Zoo Code можно найти в [гайде по миграции Roo→Zoo](https://docs.zoocode.dev/roo-to-zoo-migration). Мы хотим как можно лучше помочь пользователям во время перехода, и именно для этого у нас есть [Reddit](https://www.reddit.com/r/ZooCode) и [Discord](https://discord.gg/VxfP4Vx3gX). Если у тебя возникнут проблемы или вопросы, заходи и спрашивай.
 
-## Что нового в v3.55.0
+## Что нового в v3.62.0
 
-**Первый функциональный релиз Zoo Code** развивает Marketplace-handoff и приносит нового провайдера, upstream sunset merge из Roo Code и серию заметных пользователю исправлений в чате, настройках провайдеров и рендеринге.
-
-- Добавлен Xiaomi MiMo как полноценный API-провайдер.
-- Подтянут upstream sunset merge из Roo Code и связанные обновления платформы.
-- Исправлены текст на странице входа MCP, запросы Gemini с полным набором инструментов и обработка температуры OpenAI для моделей, которые её не поддерживают.
-- Исправлены рендеринг Markdown с одиночной тильдой и именование временных диагностических файлов.
-- Улучшены значения по умолчанию провайдеров и покрытие регионов для Z.AI, GLM и Vertex AI.
-
-<details>
-  <summary>🌐 Доступные языки</summary>
-
-- [English](../../README.md)
-- [Català](../ca/README.md)
-- [Deutsch](../de/README.md)
-- [Español](../es/README.md)
-- [Français](../fr/README.md)
-- [हिंदी](../hi/README.md)
-- [Bahasa Indonesia](../id/README.md)
-- [Italiano](../it/README.md)
-- [日本語](../ja/README.md)
-- [한국어](../ko/README.md)
-- [Nederlands](../nl/README.md)
-- [Polski](../pl/README.md)
-- [Português (BR)](../pt-BR/README.md)
-- [Русский](../ru/README.md)
-- [Türkçe](../tr/README.md)
-- [Tiếng Việt](../vi/README.md)
-- [简体中文](../zh-CN/README.md)
-- [繁體中文](../zh-TW/README.md)
-- ...
-      </details>
-
----
+- **Поддержка GLM-5.2** — последняя модель GLM теперь доступна в настройках провайдера
+- **Улучшения OpenCode-Go** — нативные параметры модели, маршрутизация в формате Anthropic и исправление context-token для более надёжных ответов
+- **Режим tool-writer** — новый специализированный режим для написания и поддержки определений инструментов, теперь доступен в Marketplace
 
 ## Что Zoo Code может сделать для ВАС?
 

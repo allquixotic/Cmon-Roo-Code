@@ -1,6 +1,18 @@
 // pnpm --filter roo-cline test api/providers/__tests__/openrouter.spec.ts
 
-vitest.mock("vscode", () => ({}))
+vitest.mock("vscode", () => ({
+	workspace: {
+		getConfiguration: () => ({
+			get: (_key: string, defaultValue?: unknown) => defaultValue,
+		}),
+	},
+}))
+
+vitest.mock("../utils/timeout-config", () => ({
+	getApiRequestTimeout: vitest.fn().mockReturnValue(300_000),
+}))
+
+const MOCK_TIMEOUT_MS = 300_000
 
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
@@ -10,10 +22,14 @@ import { ApiHandlerOptions } from "../../../shared/api"
 import { DEFAULT_HEADERS } from "../constants"
 
 vitest.mock("openai")
-vitest.mock("delay", () => ({ default: vitest.fn(() => Promise.resolve()) }))
+vitest.mock("delay", () => ({
+	default: vitest.fn(function () {
+		return Promise.resolve()
+	}),
+}))
 
 vitest.mock("../fetchers/modelCache", () => ({
-	getModels: vitest.fn().mockImplementation(() => {
+	getModels: vitest.fn().mockImplementation(function () {
 		return Promise.resolve({
 			"anthropic/claude-sonnet-4": {
 				maxTokens: 8192,
@@ -90,6 +106,7 @@ describe("OpenRouterHandler", () => {
 			baseURL: "https://openrouter.ai/api/v1",
 			apiKey: mockOptions.openRouterApiKey,
 			defaultHeaders: DEFAULT_HEADERS,
+			timeout: MOCK_TIMEOUT_MS,
 		})
 	})
 

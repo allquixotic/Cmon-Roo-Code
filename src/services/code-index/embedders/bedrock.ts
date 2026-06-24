@@ -39,7 +39,7 @@ export class BedrockEmbedder implements IEmbedder {
 		const credentials = this.profile ? fromIni({ profile: this.profile }) : fromNodeProviderChain()
 
 		this.bedrockClient = new BedrockRuntimeClient({
-			userAgentAppId: `RooCode#${Package.version}`,
+			userAgentAppId: `ZooCode#${Package.version}`,
 			region: this.region,
 			credentials,
 		})
@@ -178,7 +178,7 @@ export class BedrockEmbedder implements IEmbedder {
 		model: string,
 	): Promise<{ embedding: number[]; inputTextTokenCount?: number }> {
 		let requestBody: any
-		let modelId = model
+		const modelId = model
 
 		// Prepare the request body based on the model
 		if (model.startsWith("amazon.nova-2-multimodal")) {

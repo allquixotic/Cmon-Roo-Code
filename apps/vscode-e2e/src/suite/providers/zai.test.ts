@@ -219,6 +219,11 @@ suite("Z.ai GLM provider", function () {
 		})
 
 		await waitUntilCompleted({ api, taskId })
+		const capturedMaxTokens = requestCapture.maxTokens
+		assert.ok(
+			capturedMaxTokens !== undefined,
+			"max_tokens should have been captured by the fetch interceptor before task completion",
+		)
 
 		const completionMessage = messages.find(
 			({ say, text }) => (say === "completion_result" || say === "text") && text?.trim() === "4",
@@ -229,9 +234,9 @@ suite("Z.ai GLM provider", function () {
 		// Verify max_tokens uses the restored default clamp (20% of context window)
 		// unless the user explicitly overrides it via modelMaxTokens.
 		assert.strictEqual(
-			requestCapture.maxTokens,
+			capturedMaxTokens,
 			40_000,
-			`max_tokens should default to the glm-5.1 clamp (40_000) but was ${requestCapture.maxTokens}`,
+			`max_tokens should default to the glm-5.1 clamp (40_000) but was ${capturedMaxTokens}`,
 		)
 	})
 
@@ -260,6 +265,11 @@ suite("Z.ai GLM provider", function () {
 		})
 
 		await waitUntilCompleted({ api, taskId })
+		const capturedMaxTokens = requestCapture.maxTokens
+		assert.ok(
+			capturedMaxTokens !== undefined,
+			"max_tokens should have been captured by the fetch interceptor before task completion",
+		)
 
 		const completionMessage = messages.find(
 			({ say, text }) => (say === "completion_result" || say === "text") && text?.trim() === "4",
@@ -269,10 +279,11 @@ suite("Z.ai GLM provider", function () {
 
 		// Verify max_tokens uses the restored default clamp (20% of context window)
 		// unless the user explicitly overrides it via modelMaxTokens.
+		const expectedMaxTokens = 40_551 // Math.ceil(202_752 * 0.2) for glm-5-turbo
 		assert.strictEqual(
-			requestCapture.maxTokens,
-			40_551,
-			`max_tokens should default to the glm-5-turbo clamp (40_551) but was ${requestCapture.maxTokens}`,
+			capturedMaxTokens,
+			expectedMaxTokens,
+			`max_tokens should default to the glm-5-turbo clamp (40_551) but was ${capturedMaxTokens}`,
 		)
 	})
 })

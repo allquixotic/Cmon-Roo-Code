@@ -325,17 +325,22 @@ describe("SwitchModeTool", () => {
 		expect(mockCallbacks.askApproval).toHaveBeenCalledWith("tool", expectedMessage)
 	})
 
-	// ===== getState with custom modes =====
+	// ===== reads current mode per-conversation (fork behavior) =====
 
-	it("should read current mode from providerRef state", async () => {
-		// Set current mode to "architect"
-		mockGetState.mockResolvedValue({ mode: "architect", customModes: [] })
+	it("should read current mode from the per-conversation task mode", async () => {
+		// The fork resolves the current mode from per-conversation task state
+		// (task.getTaskMode / switchTaskMode) rather than provider-wide getState.
+		const mockGetTaskMode = vi.fn().mockResolvedValue("architect")
+		const mockSwitchTaskMode = vi.fn().mockResolvedValue(undefined)
+		;(mockTask as unknown as { getTaskMode: typeof mockGetTaskMode }).getTaskMode = mockGetTaskMode
+		;(mockTask as unknown as { switchTaskMode: typeof mockSwitchTaskMode }).switchTaskMode = mockSwitchTaskMode
 
 		const block = createBlock({ mode_slug: "code", reason: "switching back" })
 
 		await switchModeTool.handle(mockTask, block, mockCallbacks)
 
-		expect(mockHandleModeSwitch).toHaveBeenCalledWith("code")
+		expect(mockGetTaskMode).toHaveBeenCalled()
+		expect(mockSwitchTaskMode).toHaveBeenCalledWith("code")
 		expect(mockCallbacks.pushToolResult).toHaveBeenCalledWith(
 			"Successfully switched from Architect mode to Code mode because: switching back.",
 		)

@@ -8,7 +8,7 @@ import { globalSettingsSchema } from "./global-settings.js"
 import { providerSettingsWithIdSchema } from "./provider-settings.js"
 import { mcpMarketplaceItemSchema } from "./marketplace.js"
 import { clineMessageSchema, queuedMessageSchema, tokenUsageSchema } from "./message.js"
-import { staticAppPropertiesSchema, gitPropertiesSchema } from "./app-metadata.js"
+import { staticAppPropertiesSchema, gitPropertiesSchema } from "./telemetry.js"
 
 /**
  * JWTPayload

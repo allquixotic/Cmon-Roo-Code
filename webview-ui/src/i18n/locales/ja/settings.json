@@ -62,6 +62,24 @@
 		"debugMode": {
 			"label": "デバッグモードを有効にする",
 			"description": "デバッグモードを有効にすると、タスクヘッダーにAPI会話履歴とUIメッセージをフォーマットされたJSONとして一時ファイルで表示するための追加ボタンが表示されます。"
+		},
+		"rooHistoryImport": {
+			"settingLabel": "Roo Code から履歴をインポート",
+			"cardTitle": "Roo Code の履歴",
+			"cardDescription": "保存済みの Roo Code の会話を Zoo Code にコピーします。",
+			"statusImporting": "履歴をインポート中",
+			"statusFailed": "インポート失敗",
+			"statusComplete": "インポート完了",
+			"buttonImporting": "Roo Code からインポート中...",
+			"buttonIdle": "Roo Code から履歴をインポート",
+			"summaryFailedWithFiles": "インポートが停止する前に {{total}} 件中 {{copied}} 件のファイルがコピーされました。",
+			"summaryFailedNoFiles": "ファイルがコピーされる前にインポートが停止しました。",
+			"summaryCopied": "{{total}} 件中 {{copied}} 件のファイルをコピー済み",
+			"detailFailed": "新しいインポートを開始して再試行してください。",
+			"detailTasksImported_one": "{{total}} 件中 {{count}} 件のタスク履歴をインポートしました。",
+			"detailTasksImported_other": "{{total}} 件中 {{count}} 件のタスク履歴をインポートしました。",
+			"detailPreparing": "Roo Code の履歴インポートを準備中です。",
+			"progressAriaLabel": "Roo Code の履歴インポートの進行状況"
 		}
 	},
 	"slashCommands": {
@@ -213,7 +231,8 @@
 		"stoppingButton": "停止中...",
 		"workspaceToggleLabel": "このワークスペースのインデックス作成を有効にする",
 		"workspaceDisabledMessage": "インデックス作成は設定済みですが、このワークスペースでは有効になっていません。",
-		"autoEnableDefaultLabel": "新しいワークスペースのインデックス作成を自動的に有効にする"
+		"autoEnableDefaultLabel": "新しいワークスペースのインデックス作成を自動的に有効にする",
+		"sembleProvider": "Semble - ローカル"
 	},
 	"autoApprove": {
 		"toggleShortcut": "<SettingsLink>IDEの環境設定</SettingsLink>で、この設定のグローバルショートカットを設定できます。",
@@ -543,6 +562,7 @@
 			"minimal": "最小 (最速)",
 			"high": "高",
 			"xhigh": "非常に高い",
+			"max": "最高",
 			"medium": "中",
 			"low": "低"
 		},
@@ -560,6 +580,13 @@
 			"placeholder": "デフォルト：claude",
 			"maxTokensLabel": "最大出力トークン",
 			"maxTokensDescription": "Claude Codeレスポンスの最大出力トークン数。デフォルトは8000です。"
+		},
+		"zooGateway": {
+			"account": "Zoo Code アカウント",
+			"signInButton": "Zoo Code にサインイン",
+			"signInDescription": "Zoo Gateway をアカウントで使用するにはサインインしてください",
+			"authenticated": "認証済み",
+			"authenticatedAs": "{{name}} として認証済み"
 		},
 		"awsBedrockStructuredOutput": "Attempt strict structured output",
 		"awsBedrockStructuredOutputTooltip": "Asks AWS Bedrock to strictly validate tool-call arguments against their JSON schema (Converse 'strict: true'). Falls back automatically and silently retries without strict mode for models that reject it; unsupported models are remembered for 30 days.",
@@ -645,6 +672,12 @@
 			"delayAfterWrite": {
 				"label": "書き込み後に診断が潜在的な問題を検出できるように遅延させる",
 				"description": "ファイルの書き込み後に処理を続行するまでの待機時間。これにより、診断ツールが変更を処理して問題を検出できます。"
+			}
+		},
+		"fileEdits": {
+			"diffFuzzyThreshold": {
+				"label": "Diff一致しきい値",
+				"description": "しきい値を低くすると、ファイル編集が書式や空白のバリエーションに対してより柔軟になります。100%のしきい値は完全一致が必要です。"
 			}
 		},
 		"condensingThreshold": {
@@ -744,6 +777,13 @@
 		"inheritEnv": {
 			"label": "環境変数を継承",
 			"description": "親VS Codeプロセスから環境変数を継承するには、これをオンにします。<0>詳細情報</0>"
+		},
+		"profile": {
+			"label": "Zoo Code シェルプロファイル",
+			"followVscode": "VS Code プロファイルに従う（推奨）",
+			"description": "デフォルトでは Zoo Code は VS Code に設定されたシェルを使用します。VS Code が公開するパスベースのシェルプロファイルを選択するには一覧からシェルプロファイルを選択してください。ソースのみのプロファイル（例：組み込みの PowerShell エントリ）はここに表示できません。 <0>詳細を見る</0>",
+			"configureButton": "VS Code でデフォルトプロファイルを選択",
+			"noProfiles": "(terminal.integrated.profiles にパスベースのプロファイルが見つかりません)"
 		}
 	},
 	"advancedSettings": {
@@ -874,6 +914,10 @@
 		"simplifiedExplanation": "詳細なモデル設定は後で調整できます。"
 	},
 	"footer": {
+		"telemetry": {
+			"label": "匿名のエラーと使用状況レポートを許可",
+			"description": "匿名の使用データとエラーレポートを送信してZoo Codeの改善にご協力ください。このテレメトリはコード、プロンプト、個人情報を収集しません。詳細については<privacyLink>プライバシーポリシー</privacyLink>をご覧ください。"
+		},
 		"settings": {
 			"import": "インポート",
 			"export": "エクスポート",
@@ -900,7 +944,8 @@
 		"providerNotAllowed": "プロバイダー「{{provider}}」は組織によって許可されていません",
 		"modelNotAllowed": "モデル「{{model}}」はプロバイダー「{{provider}}」に対して組織によって許可されていません",
 		"profileInvalid": "このプロファイルには、組織によって許可されていないプロバイダーまたはモデルが含まれています",
-		"qwenCodeOauthPath": "有効なOAuth認証情報のパスを提供する必要があります"
+		"qwenCodeOauthPath": "有効なOAuth認証情報のパスを提供する必要があります",
+		"zooGatewaySignIn": "Zoo Gatewayを使用するにはZoo Codeにサインインしてください。"
 	},
 	"placeholders": {
 		"apiKey": "API キーを入力...",
@@ -962,6 +1007,23 @@
 		"requireCtrlEnterToSend": {
 			"label": "メッセージを送信するには{{primaryMod}}+Enterが必要",
 			"description": "有効にすると、Enterだけでなく{{primaryMod}}+Enterを押してメッセージを送信する必要があります"
+		},
+		"chatFontSize": {
+			"label": "チャットのフォントサイズ",
+			"description": "Zoo Code チャットのフォントサイズ（ピクセル単位）を設定します。VS Code のフォントサイズに合わせるには既定値のままにしてください。",
+			"reset": "VS Code の既定値を使用"
+		},
+		"autoCloseZooOpenedFiles": {
+			"label": "Zooが開いたファイルを自動的に閉じる",
+			"description": "有効にすると、Zooがdiffのために一時的に開いたエディタタブが、変更を承認または拒否した後に自動的に閉じられます。編集前にユーザーがすでに開いていたタブは、自動的に閉じられることはありません。"
+		},
+		"autoCloseZooOpenedFilesAfterUserEdited": {
+			"label": "ユーザー操作後も自動的に閉じる",
+			"description": "有効にすると、ユーザーが編集セッション中にファイルまたはdiffをクリックまたは入力した場合でも、Zooが開いたタブが閉じられます。「Zooが開いたファイルを自動的に閉じる」が無効の場合は効果がありません。"
+		},
+		"autoCloseZooOpenedNewFiles": {
+			"label": "新しく作成されたファイルを自動的に閉じる",
+			"description": "有効にすると、Zooが作成した（変更ではなく）ファイルのタブも、変更を承認した後に自動的に閉じられます。"
 		}
 	},
 	"skills": {

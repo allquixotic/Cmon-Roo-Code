@@ -221,6 +221,7 @@
 		"running": "Wird ausgeführt",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "Beendet mit Status {{exitCode}}",
+		"malformedCommand": "Fehlerhafter Befehl: Shell-Syntaxfehler",
 		"manageCommands": "Automatisch genehmigte Befehle",
 		"addToAllowed": "Zur erlaubten Liste hinzufügen",
 		"removeFromAllowed": "Von der erlaubten Liste entfernen",
@@ -327,6 +328,22 @@
 		"copyToInput": "In Eingabefeld kopieren (oder Shift + Klick)",
 		"timerPrefix": "Automatische Genehmigung aktiviert. Wähle in {{seconds}}s…"
 	},
+	"announcement": {
+		"title": "Zoo Code {{version}} veröffentlicht",
+		"support": "Bitte unterstütze Zoo Code, indem du uns auf <githubLink>GitHub</githubLink> einen Stern gibst.",
+		"release": {
+			"heading": "Was ist neu:",
+			"highlight1": "GLM-5.2-Unterstützung — das neueste GLM-Modell ist jetzt in deinen Anbieter-Einstellungen verfügbar.",
+			"highlight2": "OpenCode-Go-Verbesserungen — native Modellparameter, Anthropic-Format-Routing und ein Context-Token-Fix für zuverlässigere Antworten.",
+			"highlight3": "Tool-Writer-Modus — ein neuer spezieller Modus zum Schreiben und Pflegen von Tool-Definitionen, jetzt im Marketplace verfügbar."
+		},
+		"cloudAgents": {
+			"heading": "Neu in der Cloud:",
+			"specialized": "Wir stellen <bold>Explainer</bold>, <bold>Planner</bold> und <bold>Coder</bold> vor - drei spezialisierte Cloud-Agenten zur Verbesserung deiner Workflows.",
+			"description": "Die Agenten arbeiten zusammen in der Cloud und können vom Web oder über Slack ausgelöst werden.",
+			"tryButton": "Probiere Cloud-Agenten aus"
+		}
+	},
 	"costs": {
 		"totalWithSubtasks": "Gesamtkosten (inkl. Unteraufgaben): ${{cost}}",
 		"total": "Gesamtkosten: ${{cost}}",
@@ -398,6 +415,11 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "Version {{version}}"
+	},
+	"rooCloudCTA": {
+		"title": "Zoo Code Cloud entwickelt sich weiter!",
+		"description": "Führe Remote-Agenten in der Cloud aus, greife von überall auf deine Aufgaben zu, arbeite mit anderen zusammen und vieles mehr.",
+		"joinWaitlist": "Melde dich an, um die neuesten Updates zu erhalten."
 	},
 	"command": {
 		"triggerDescription": "Starte den {{name}} Befehl"
