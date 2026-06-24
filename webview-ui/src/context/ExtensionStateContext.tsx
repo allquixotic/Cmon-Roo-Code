@@ -412,6 +412,26 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 					})
 					break
 				}
+				case "messageAdded": {
+					// Delta append: a single newly-created message instead of a full
+					// clineMessages re-send. Idempotent — if a message with this ts is
+					// already present (e.g. a later full-state push raced us), replace it
+					// in place rather than duplicating.
+					const clineMessage = message.clineMessage!
+					setState((prevState) => {
+						const existingIndex = findLastIndex(
+							prevState.clineMessages,
+							(msg) => msg.ts === clineMessage.ts,
+						)
+						if (existingIndex !== -1) {
+							const newClineMessages = [...prevState.clineMessages]
+							newClineMessages[existingIndex] = clineMessage
+							return { ...prevState, clineMessages: newClineMessages }
+						}
+						return { ...prevState, clineMessages: [...prevState.clineMessages, clineMessage] }
+					})
+					break
+				}
 				case "skills": {
 					if (message.skills) {
 						setSkills(message.skills)

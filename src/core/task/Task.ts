@@ -720,6 +720,21 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	/**
+	 * Push a newly-appended message to the webview as a delta when the provider supports
+	 * it, falling back to a full task-state push for older provider shapes / tests.
+	 */
+	private async postTaskMessageAddedToWebview(message: ClineMessage): Promise<void> {
+		const provider = this.providerRef.deref()
+		if (typeof provider?.postTaskMessageAddedToWebview === "function") {
+			await provider.postTaskMessageAddedToWebview(this.taskId, message)
+			return
+		}
+		if (typeof provider?.postTaskStateToWebview === "function") {
+			await provider.postTaskStateToWebview(this.taskId)
+		}
+	}
+
+	/**
 	 * Wait for the task mode to be initialized before proceeding.
 	 * This method ensures that any operations depending on the task mode
 	 * will have access to the correct mode value.
@@ -1102,9 +1117,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	private async addToClineMessages(message: ClineMessage) {
 		this.clineMessages.push(message)
-		// Avoid resending large, mostly-static fields (notably taskHistory) on every chat message update.
-		// taskHistory is maintained in-memory in the webview and updated via taskHistoryItemUpdated.
-		await this.postTaskStateToWebview()
+		// Send only the newly-appended message as a delta instead of re-serializing and
+		// re-sending the entire clineMessages array (and taskHistory) on every chat message.
+		// The webview appends it in-place; the remaining task-scoped fields are refreshed
+		// without the large message/history arrays. Falls back to a full task-state push
+		// for provider shapes that don't support the delta channel.
+		await this.postTaskMessageAddedToWebview(message)
 		this.emit(RooCodeEventName.Message, { action: "created", message })
 		await this.saveClineMessages()
 
@@ -2912,9 +2930,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 								if (signal.aborted) {
 									reject(new Error("Request cancelled by user"))
 								} else {
-									signal.addEventListener("abort", () => {
-										reject(new Error("Request cancelled by user"))
-									}, { once: true })
+									signal.addEventListener(
+										"abort",
+										() => {
+											reject(new Error("Request cancelled by user"))
+										},
+										{ once: true },
+									)
 								}
 							})
 							return await Promise.race([nextPromise, abortPromise])
@@ -4456,10 +4478,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const iterator = stream[Symbol.asyncIterator]()
 
 		// Set up abort handling - when the signal is aborted, clean up the controller reference
-		abortSignal.addEventListener("abort", () => {
-			console.log(`[Task#${this.taskId}.${this.instanceId}] AbortSignal triggered for current request`)
-			this.currentRequestAbortController = undefined
-		}, { once: true })
+		abortSignal.addEventListener(
+			"abort",
+			() => {
+				console.log(`[Task#${this.taskId}.${this.instanceId}] AbortSignal triggered for current request`)
+				this.currentRequestAbortController = undefined
+			},
+			{ once: true },
+		)
 
 		try {
 			// Awaiting first chunk to see if it will throw an error.
@@ -4471,9 +4497,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				if (abortSignal.aborted) {
 					reject(new Error("Request cancelled by user"))
 				} else {
-					abortSignal.addEventListener("abort", () => {
-						reject(new Error("Request cancelled by user"))
-					}, { once: true })
+					abortSignal.addEventListener(
+						"abort",
+						() => {
+							reject(new Error("Request cancelled by user"))
+						},
+						{ once: true },
+					)
 				}
 			})
 

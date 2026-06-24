@@ -583,6 +583,29 @@ export class ClineProvider
 	}
 
 	/**
+	 * Push a newly-appended chat message as a delta instead of re-sending the entire
+	 * clineMessages array.
+	 *
+	 * Appending a single message used to trigger a full task-state push, which
+	 * re-serialized and re-sent every message in the conversation over the webview
+	 * postMessage bridge. For long or multiple concurrent conversations that is the
+	 * dominant responsiveness cost. Here we send only the new message (`messageAdded`)
+	 * and then refresh the remaining task-scoped fields (token totals, todos, queue,
+	 * active conversations) WITHOUT the large clineMessages/taskHistory arrays.
+	 *
+	 * Streaming token updates already use the single-message `messageUpdated` delta;
+	 * this closes the remaining full-payload path (message append).
+	 */
+	public async postTaskMessageAddedToWebview(taskId: string, message: ClineMessage): Promise<void> {
+		if (this.isTaskVisible(taskId)) {
+			await this.postMessageToWebview({ type: "messageAdded", clineMessage: message })
+			await this.postStateToWebviewWithoutClineMessages()
+			return
+		}
+		this.scheduleActiveConversationsStateToWebview()
+	}
+
+	/**
 	 * Initialize the TaskHistoryStore and migrate from globalState if needed.
 	 */
 	private async initializeTaskHistoryStore(): Promise<void> {
