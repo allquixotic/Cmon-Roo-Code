@@ -1,5 +1,6 @@
 import * as path from "path"
 import * as os from "os"
+import * as crypto from "crypto"
 import * as vscode from "vscode"
 import { getWorkspacePath } from "../../utils/path"
 import { t } from "../../i18n"
@@ -52,7 +53,9 @@ export async function openImage(dataUriOrPath: string, options?: { values?: { ac
 	const imageBuffer = Buffer.from(base64Data, "base64")
 
 	// Default behavior: open the image
-	const tempFilePath = path.join(os.tmpdir(), `temp_image_${Date.now()}.${format}`)
+	// Include a random suffix so concurrent conversations saving images in the same
+	// millisecond don't collide on the temp filename.
+	const tempFilePath = path.join(os.tmpdir(), `temp_image_${Date.now()}_${crypto.randomUUID()}.${format}`)
 	try {
 		await vscode.workspace.fs.writeFile(vscode.Uri.file(tempFilePath), imageBuffer)
 		// Check if this is a copy action

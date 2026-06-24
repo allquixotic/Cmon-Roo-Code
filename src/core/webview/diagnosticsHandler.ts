@@ -1,6 +1,7 @@
 import * as path from "path"
 import * as os from "os"
 import * as fs from "fs/promises"
+import * as crypto from "crypto"
 import * as vscode from "vscode"
 
 import { getTaskDirectoryPath } from "../../utils/storage"
@@ -73,7 +74,10 @@ export async function generateErrorDiagnostics(params: GenerateDiagnosticsParams
 		// Create a temporary diagnostics file
 		const tmpDir = os.tmpdir()
 		const timestamp = Date.now()
-		const tempFileName = `zoo-diagnostics-${taskId.slice(0, 8)}-${timestamp}.json`
+		// Use the full task id plus a short random suffix so two diagnostics dumps for
+		// the same (or a same-8-char-prefix) task in the same millisecond can't collide
+		// across concurrent conversations.
+		const tempFileName = `zoo-diagnostics-${taskId}-${timestamp}-${crypto.randomBytes(4).toString("hex")}.json`
 		const tempFilePath = path.join(tmpDir, tempFileName)
 
 		await fs.writeFile(tempFilePath, fullContent, "utf8")
