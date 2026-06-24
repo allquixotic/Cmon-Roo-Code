@@ -25,7 +25,7 @@ vi.mock("@aws-sdk/client-bedrock-runtime", () => {
 	}
 })
 
-import { AwsBedrockHandler } from "../bedrock"
+import { AwsBedrockHandler, __resetBedrockClientCache } from "../bedrock"
 import { ConverseStreamCommand, BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime"
 import {
 	BEDROCK_1M_CONTEXT_DEFAULT_MODEL_IDS,
@@ -46,6 +46,11 @@ describe("AwsBedrockHandler", () => {
 	beforeEach(() => {
 		// Clear all mocks before each test
 		vi.clearAllMocks()
+
+		// Reset the process-wide BedrockRuntimeClient pool so each test's handler
+		// construction actually instantiates a fresh (mocked) client, keeping the
+		// `new BedrockRuntimeClient` call-args assertions valid.
+		__resetBedrockClientCache()
 
 		handler = new AwsBedrockHandler({
 			apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",

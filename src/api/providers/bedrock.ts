@@ -13,6 +13,7 @@ import {
 } from "@aws-sdk/client-bedrock-runtime"
 import OpenAI from "openai"
 import { fromIni } from "@aws-sdk/credential-providers"
+import { createHash } from "node:crypto"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 import {
@@ -242,6 +243,95 @@ export type UsageType = {
 
 /************************************************************************************
  *
+ *     CLIENT / CREDENTIAL POOLING
+ *
+ *************************************************************************************/
+
+// This fork runs many conversations in parallel, and each conversation builds its own
+// AwsBedrockHandler. Constructing a fresh BedrockRuntimeClient per handler means N TCP
+// connection pools plus N credential reads for N parallel conversations. The AWS SDK v3
+// BedrockRuntimeClient is safe for concurrent use, so handlers whose client configuration
+// is identical (same region, endpoint, and credential identity) share one client.
+
+// Process-wide cache of BedrockRuntimeClient instances, keyed by a stable identity string
+// derived from the config's identity-bearing fields (NOT function references).
+const bedrockClientCache = new Map<string, BedrockRuntimeClient>()
+
+// Process-wide memoization of fromIni() credential providers, keyed by profile. fromIni
+// builds a provider that reads ~/.aws/config|credentials from disk; rebuilding it per
+// handler repeats that work for every conversation. Memoizing by profile keeps correctness
+// (different profiles never share a provider) while avoiding redundant provider construction.
+const bedrockIniCredentialsCache = new Map<string, ReturnType<typeof fromIni>>()
+
+/**
+ * Return a fromIni credential provider for the given profile, reusing a previously built
+ * provider for the same profile when available. Note: we intentionally do NOT pass
+ * ignoreCache here — the previous per-handler code set ignoreCache:true to defeat the SDK's
+ * in-provider cache, but that forced a fresh disk read for every handler. Memoizing the
+ * provider gives the same correctness (different profiles get different providers) while the
+ * SDK's own credential caching avoids re-reading the profile on every request.
+ */
+function getMemoizedIniCredentials(profile: string): ReturnType<typeof fromIni> {
+	let provider = bedrockIniCredentialsCache.get(profile)
+	if (!provider) {
+		provider = fromIni({ profile })
+		bedrockIniCredentialsCache.set(profile, provider)
+	}
+	return provider
+}
+
+/**
+ * Derive a stable, secret-free string that captures the CREDENTIAL IDENTITY of a client
+ * config. Two configs that would authenticate identically produce the same string; any
+ * difference (different profile, different access key, different api key, default chain)
+ * produces a different string. We never key on the credential function reference.
+ */
+function bedrockCredentialIdentity(options: ProviderSettings): string {
+	if (options.awsUseApiKey && options.awsApiKey) {
+		// Bearer token auth. Hash the token so the secret never lives in the cache key, but
+		// distinct tokens still yield distinct clients.
+		const hash = createHash("sha256").update(options.awsApiKey).digest("hex").slice(0, 16)
+		return `apiKey:${hash}`
+	}
+	if (options.awsUseProfile && options.awsProfile) {
+		return `profile:${options.awsProfile}`
+	}
+	if (options.awsAccessKey && options.awsSecretKey) {
+		// Access key id is non-secret and uniquely identifies the principal; the session token
+		// (when present) distinguishes otherwise-identical static credentials. We never include
+		// the secret access key.
+		const session = options.awsSessionToken
+			? createHash("sha256").update(options.awsSessionToken).digest("hex").slice(0, 16)
+			: ""
+		return `akid:${options.awsAccessKey}${session ? `:st:${session}` : ""}`
+	}
+	return "default-chain"
+}
+
+/**
+ * Compute the full, stable cache key for a BedrockRuntimeClient. Captures everything that
+ * distinguishes one client from another: region, the resolved endpoint (only when actually
+ * applied to the config), and the credential identity.
+ */
+function bedrockClientCacheKey(clientConfig: BedrockRuntimeClientConfig, options: ProviderSettings): string {
+	const region = clientConfig.region ?? ""
+	const endpoint = typeof clientConfig.endpoint === "string" ? clientConfig.endpoint : ""
+	return [`region:${region}`, `endpoint:${endpoint}`, `cred:${bedrockCredentialIdentity(options)}`].join("|")
+}
+
+/**
+ * Test-only escape hatch: clear the process-wide client and credential caches. Production
+ * code never calls this; the bedrock specs call it in beforeEach so that each test's handler
+ * construction actually instantiates a fresh (mocked) BedrockRuntimeClient and the
+ * `new BedrockRuntimeClient` call-count / call-args assertions remain valid.
+ */
+export function __resetBedrockClientCache(): void {
+	bedrockClientCache.clear()
+	bedrockIniCredentialsCache.clear()
+}
+
+/************************************************************************************
+ *
  *     PROVIDER
  *
  *************************************************************************************/
@@ -318,11 +408,10 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 				requestTimeout: 0,
 			}
 		} else if (this.options.awsUseProfile && this.options.awsProfile) {
-			// Use profile-based credentials if enabled and profile is set
-			clientConfig.credentials = fromIni({
-				profile: this.options.awsProfile,
-				ignoreCache: true,
-			})
+			// Use profile-based credentials if enabled and profile is set. The fromIni provider
+			// is memoized per profile so parallel conversations on the same profile don't each
+			// rebuild a provider that reads ~/.aws config from disk.
+			clientConfig.credentials = getMemoizedIniCredentials(this.options.awsProfile)
 		} else if (this.options.awsAccessKey && this.options.awsSecretKey) {
 			// Use direct credentials if provided
 			clientConfig.credentials = {
@@ -332,7 +421,19 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			}
 		}
 
-		this.client = new BedrockRuntimeClient(clientConfig)
+		// Pool/reuse BedrockRuntimeClient instances across handlers with an identical client
+		// configuration (same region, endpoint, and credential identity). The client is safe
+		// for concurrent use, so sharing one avoids N TCP connection pools across N parallel
+		// conversations. Everything else on this handler stays per-handler; only the underlying
+		// client instance is shared.
+		const cacheKey = bedrockClientCacheKey(clientConfig, this.options)
+		const cachedClient = bedrockClientCache.get(cacheKey)
+		if (cachedClient) {
+			this.client = cachedClient
+		} else {
+			this.client = new BedrockRuntimeClient(clientConfig)
+			bedrockClientCache.set(cacheKey, this.client)
+		}
 	}
 
 	override async *createMessage(

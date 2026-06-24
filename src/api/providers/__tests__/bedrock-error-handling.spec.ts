@@ -21,7 +21,7 @@ vi.mock("@aws-sdk/client-bedrock-runtime", () => ({
 	ConverseCommand: vi.fn(),
 }))
 
-import { AwsBedrockHandler } from "../bedrock"
+import { AwsBedrockHandler, __resetBedrockClientCache } from "../bedrock"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 describe("AwsBedrockHandler Error Handling", () => {
@@ -29,6 +29,9 @@ describe("AwsBedrockHandler Error Handling", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
+		// Reset the process-wide BedrockRuntimeClient pool so each test starts with a fresh
+		// (mocked) client rather than a client cached from a previous test.
+		__resetBedrockClientCache()
 		handler = new AwsBedrockHandler({
 			apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
 			awsAccessKey: "test-access-key",
