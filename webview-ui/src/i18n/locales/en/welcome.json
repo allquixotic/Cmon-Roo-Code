@@ -9,41 +9,41 @@
 		},
 		"roo": {
 			"description": "The best free models to get started",
-			"incentive": "Try CRC out for free"
+			"incentive": "Try Zoo Code out for free"
 		}
 	},
 	"landing": {
-		"greeting": "Welcome to CRC!",
-		"introduction": "With a range of built-in and extensible Modes, CRC lets you plan, architect, code, debug and boost your productivity like never before.",
-		"accountMention": "To get started, create your CRC Cloud account. Get powerful models, web control, support and more.",
-		"getStarted": "Create CRC Account",
+		"greeting": "Welcome to Zoo Code!",
+		"introduction": "With a range of built-in and extensible Modes, Zoo Code lets you plan, architect, code, debug and boost your productivity like never before.",
+		"accountMention": "To get started, create your Zoo Code Cloud account. Get powerful models, web control, support and more.",
+		"getStarted": "Create Zoo Code Account",
 		"noAccount": "or use without an account"
 	},
 	"providerSignup": {
 		"heading": "Choose your provider",
-		"chooseProvider": "CRC needs an LLM provider to work. Choose one to get started, and you can add more later.",
-		"rooCloudProvider": "CRC Router",
-		"rooCloudDescription": "The easiest way to start is with the CRC Router: a curated mix of free and paid models at a low cost.",
+		"chooseProvider": "Zoo Code needs an LLM provider to work. Choose one to get started, and you can add more later.",
+		"rooCloudProvider": "Zoo Code Router",
+		"rooCloudDescription": "The easiest way to start is with the Zoo Code Router: a curated mix of free and paid models at a low cost.",
 		"learnMore": "Learn more",
 		"useAnotherProvider": "3rd-party Provider",
 		"useAnotherProviderDescription": "Enter an API key and get going.",
 		"noApiKeys": "Don't want to deal with API keys and separate accounts?",
-		"backToRoo": "Go with the CRC Router.",
+		"backToRoo": "Go with the Zoo Code Router.",
 		"goBack": "Back",
 		"finish": "Finish"
 	},
 	"waitingForCloud": {
-		"heading": "Logging into CRC Cloud...",
-		"description": "We'll take you to your browser to sign up for CRC Cloud. We'll then bring you back here to finish.",
+		"heading": "Logging into Zoo Code Cloud...",
+		"description": "We'll take you to your browser to sign up for Zoo Code Cloud. We'll then bring you back here to finish.",
 		"noPrompt": "If you don't get prompted to open a URL, <clickHere>click here</clickHere>.",
 		"havingTrouble": "If you've completed sign up but are having trouble, <clickHere>click here</clickHere>.",
 		"pasteUrl": "Paste the callback URL shown in your browser:",
 		"docsLink": "Not working? <DocsLink>Check the docs</DocsLink>.",
-		"invalidURL": "That doesn't look like a valid callback URL. Please copy what CRC Cloud is showing in your browser.",
+		"invalidURL": "That doesn't look like a valid callback URL. Please copy what Zoo Code Cloud is showing in your browser.",
 		"goBack": "Go back"
 	},
 	"startRouter": "We recommend using an LLM Router:",
 	"startCustom": "Or you can bring your provider API key:",
 	"importSettings": "Import Settings",
-	"rooLogoAlt": "CRC logo"
+	"rooLogoAlt": "Zoo Code logo"
 }

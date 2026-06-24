@@ -691,7 +691,7 @@ export const MODELS_BY_PROVIDER: Record<
 		models: Object.keys(openAiNativeModels),
 	},
 	"qwen-code": { id: "qwen-code", label: "Qwen Code", models: Object.keys(qwenCodeModels) },
-	roo: { id: "roo", label: "CRC Router", models: [] },
+	roo: { id: "roo", label: "Zoo Code Router", models: [] },
 	sambanova: {
 		id: "sambanova",
 		label: "SambaNova",

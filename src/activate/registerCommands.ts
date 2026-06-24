@@ -22,7 +22,7 @@ import { t } from "../i18n"
 export function getVisibleProviderOrLog(outputChannel: vscode.OutputChannel): ClineProvider | undefined {
 	const visibleProvider = ClineProvider.getVisibleInstance()
 	if (!visibleProvider) {
-		outputChannel.appendLine("Cannot find any visible CRC instances.")
+		outputChannel.appendLine("Cannot find any visible Zoo Code instances.")
 		return undefined
 	}
 	return visibleProvider
@@ -33,43 +33,34 @@ let sidebarPanel: vscode.WebviewView | undefined = undefined
 let tabPanel: vscode.WebviewPanel | undefined = undefined
 
 /**
- * Returns the title string that should be used for the editor-tab webview
- * panel, honoring the "Masquerade as Roo Code" setting.
+ * Returns the title string that should be used for the editor-tab webview panel.
  */
-function getTabPanelTitle(contextProxy: ContextProxy): string {
-	const masquerade = contextProxy.getValue("masqueradeAsRooCode") ?? false
-	return masquerade ? "Roo Code" : "CRC"
+function getTabPanelTitle(): string {
+	return "Zoo Code"
 }
 
 /**
  * Returns the `WebviewPanel.iconPath` that should be used for the editor-tab
- * webview panel, honoring the "Masquerade as Roo Code" setting.
+ * webview panel.
  */
-function getTabPanelIconPath(
-	extensionUri: vscode.Uri,
-	contextProxy: ContextProxy,
-): { light: vscode.Uri; dark: vscode.Uri } {
-	const masquerade = contextProxy.getValue("masqueradeAsRooCode") ?? false
-	const lightIcon = masquerade ? "panel-light-roo.svg" : "panel-light.svg"
-	const darkIcon = masquerade ? "panel-dark-roo.svg" : "panel-dark.svg"
+function getTabPanelIconPath(extensionUri: vscode.Uri): { light: vscode.Uri; dark: vscode.Uri } {
 	return {
-		light: vscode.Uri.joinPath(extensionUri, "assets", "icons", lightIcon),
-		dark: vscode.Uri.joinPath(extensionUri, "assets", "icons", darkIcon),
+		light: vscode.Uri.joinPath(extensionUri, "assets", "icons", "panel-light.svg"),
+		dark: vscode.Uri.joinPath(extensionUri, "assets", "icons", "panel-dark.svg"),
 	}
 }
 
 /**
- * Refresh the editor-tab panel title + icon to match the current value of the
- * "Masquerade as Roo Code" setting. Safe to call any number of times and a
- * no-op when no tab panel is currently open.
+ * Refresh the editor-tab panel title + icon. Safe to call any number of times
+ * and a no-op when no tab panel is currently open.
  */
-export function refreshTabPanelBrandAssets(extensionUri: vscode.Uri, contextProxy: ContextProxy): void {
+export function refreshTabPanelBrandAssets(extensionUri: vscode.Uri): void {
 	if (!tabPanel) {
 		return
 	}
 	try {
-		tabPanel.title = getTabPanelTitle(contextProxy)
-		tabPanel.iconPath = getTabPanelIconPath(extensionUri, contextProxy)
+		tabPanel.title = getTabPanelTitle()
+		tabPanel.iconPath = getTabPanelIconPath(extensionUri)
 	} catch {
 		// Panel may have just been disposed; ignore.
 	}
@@ -300,7 +291,7 @@ export const openClineInNewTab = async ({ context, outputChannel }: Omit<Registe
 
 	const newPanel = vscode.window.createWebviewPanel(
 		ClineProvider.tabPanelId,
-		getTabPanelTitle(contextProxy),
+		getTabPanelTitle(),
 		targetCol,
 		{
 			enableScripts: true,
@@ -312,7 +303,7 @@ export const openClineInNewTab = async ({ context, outputChannel }: Omit<Registe
 	// Save as tab type panel.
 	setPanel(newPanel, "tab")
 
-	newPanel.iconPath = getTabPanelIconPath(context.extensionUri, contextProxy)
+	newPanel.iconPath = getTabPanelIconPath(context.extensionUri)
 
 	await tabProvider.resolveWebviewView(newPanel)
 

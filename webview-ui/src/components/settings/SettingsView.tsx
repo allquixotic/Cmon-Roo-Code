@@ -209,7 +209,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		maxGitStatusFiles,
 		autoImportSettingsOnStartup,
 		defaultRenderContext,
-		masqueradeAsRooCode,
 		autoCloseZooOpenedFiles,
 		autoCloseZooOpenedFilesAfterUserEdited,
 		autoCloseZooOpenedNewFiles,
@@ -429,7 +428,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 					chatFontSize: chatFontSize ?? null,
 					enterBehavior: enterBehavior ?? "send",
 					defaultRenderContext: defaultRenderContext ?? "editor",
-					masqueradeAsRooCode: masqueradeAsRooCode ?? false,
 					includeCurrentTime: includeCurrentTime ?? true,
 					includeCurrentCost: includeCurrentCost ?? true,
 					maxGitStatusFiles: maxGitStatusFiles ?? 0,
@@ -924,7 +922,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								reasoningBlockCollapsed={reasoningBlockCollapsed ?? true}
 								enterBehavior={enterBehavior ?? "send"}
 								defaultRenderContext={defaultRenderContext ?? "editor"}
-								masqueradeAsRooCode={masqueradeAsRooCode ?? false}
 								chatFontSize={chatFontSize ?? undefined}
 								autoCloseZooOpenedFiles={autoCloseZooOpenedFiles}
 								autoCloseZooOpenedFilesAfterUserEdited={autoCloseZooOpenedFilesAfterUserEdited}

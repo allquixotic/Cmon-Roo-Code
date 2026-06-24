@@ -233,14 +233,6 @@ export const globalSettingsSchema = z.object({
 	 */
 	enterBehavior: z.enum(["send", "newline"]).optional(),
 	defaultRenderContext: z.enum(["sidebar", "editor"]).optional(),
-	/**
-	 * When enabled, the extension displays "Roo Code" branding in all runtime-rendered UI
-	 * surfaces (webview translations, logos, webview panel title/icon) instead of "CRC".
-	 * Static VS Code manifest surfaces (activity bar icon, marketplace name, command palette
-	 * category prefix) are unaffected because they are read from package.nls.json at activation.
-	 * @default false
-	 */
-	masqueradeAsRooCode: z.boolean().optional(),
 	profileThresholds: z.record(z.string(), z.number()).optional(),
 	hasOpenedModeSelector: z.boolean().optional(),
 	lastModeExportPath: z.string().optional(),

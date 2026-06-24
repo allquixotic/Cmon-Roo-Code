@@ -62,7 +62,7 @@ export const PROVIDERS = [
 	{ value: "sambanova", label: "SambaNova", proxy: false },
 	{ value: "zai", label: "Z.ai", proxy: false },
 	{ value: "fireworks", label: "Fireworks AI", proxy: false },
-	{ value: "roo", label: "CRC Router", proxy: false },
+	{ value: "roo", label: "Zoo Code Router", proxy: false },
 	{ value: "vercel-ai-gateway", label: "Vercel AI Gateway", proxy: false },
 	{ value: "opencode-go", label: "Opencode Go", proxy: false },
 	{ value: "zoo-gateway", label: "Zoo Gateway", proxy: false },

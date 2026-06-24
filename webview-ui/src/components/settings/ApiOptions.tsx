@@ -84,7 +84,6 @@ import {
 } from "./providers"
 
 import { MODELS_BY_PROVIDER, PROVIDERS } from "./constants"
-import { applyBrandMasquerade } from "@src/utils/brand"
 import { inputEventTransform, noTransform } from "./transforms"
 import { ModelPicker } from "./ModelPicker"
 import { ApiErrorMessage } from "./ApiErrorMessage"
@@ -120,8 +119,7 @@ const ApiOptions = ({
 	setErrorMessage,
 }: ApiOptionsProps) => {
 	const { t } = useAppTranslation()
-	const { organizationAllowList, cloudIsAuthenticated, openAiCodexIsAuthenticated, masqueradeAsRooCode } =
-		useExtensionState()
+	const { organizationAllowList, cloudIsAuthenticated, openAiCodexIsAuthenticated } = useExtensionState()
 
 	const [customHeaders, setCustomHeaders] = useState<[string, string][]>(() => {
 		const headers = apiConfiguration?.openAiHeaders || {}
@@ -372,9 +370,9 @@ const ApiOptions = ({
 		const slug = getProviderDocsSlug(provider.value)
 		return {
 			url: buildDocLink(`providers/${slug}`, "provider_docs"),
-			name: applyBrandMasquerade(provider.label, !!masqueradeAsRooCode),
+			name: provider.label,
 		}
-	}, [selectedProvider, masqueradeAsRooCode])
+	}, [selectedProvider])
 
 	// Convert providers to SearchableSelect options
 	const providerOptions = useMemo(() => {
@@ -406,7 +404,7 @@ const ApiOptions = ({
 
 		const options = providersWithModels.map(({ value, label }) => ({
 			value,
-			label: applyBrandMasquerade(label, !!masqueradeAsRooCode),
+			label,
 		}))
 
 		if (!fromWelcomeView) {
@@ -428,7 +426,7 @@ const ApiOptions = ({
 		}
 
 		return options
-	}, [organizationAllowList, apiConfiguration.apiProvider, fromWelcomeView, masqueradeAsRooCode])
+	}, [organizationAllowList, apiConfiguration.apiProvider, fromWelcomeView])
 
 	return (
 		<div className="flex flex-col gap-3">

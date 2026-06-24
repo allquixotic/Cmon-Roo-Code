@@ -8,11 +8,11 @@ import { getCodeActionCommand } from "../utils/commands"
 import { EditorUtils } from "../integrations/editor/EditorUtils"
 
 export const TITLES: Record<CodeActionName, string> = {
-	EXPLAIN: "Explain with CRC",
-	FIX: "Fix with CRC",
-	IMPROVE: "Improve with CRC",
-	ADD_TO_CONTEXT: "Add to CRC",
-	NEW_TASK: "New CRC Task",
+	EXPLAIN: "Explain with Zoo Code",
+	FIX: "Fix with Zoo Code",
+	IMPROVE: "Improve with Zoo Code",
+	ADD_TO_CONTEXT: "Add to Zoo Code",
+	NEW_TASK: "New Zoo Code Task",
 } as const
 
 export class CodeActionProvider implements vscode.CodeActionProvider {

@@ -166,7 +166,7 @@ export class LmStudioHandler extends BaseProvider implements SingleCompletionHan
 			} as const
 		} catch (error) {
 			throw new Error(
-				"Please check the LM Studio developer logs to debug what went wrong. You may need to load the model with a larger context length to work with CRC's prompts.",
+				"Please check the LM Studio developer logs to debug what went wrong. You may need to load the model with a larger context length to work with Zoo Code's prompts.",
 			)
 		}
 	}

@@ -1,5 +1,4 @@
 import { useState } from "react"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 
 const RooHero = () => {
@@ -8,10 +7,8 @@ const RooHero = () => {
 		return w.IMAGES_BASE_URI || ""
 	})
 	const [isHovered, setIsHovered] = useState(false)
-	const { masqueradeAsRooCode } = useExtensionState()
 	const { t } = useAppTranslation()
-	const logoFilename = masqueradeAsRooCode ? "roo-code-logo.svg" : "roo-logo.svg"
-	const logoUrl = `${imagesBaseUri}/${logoFilename}`
+	const logoUrl = `${imagesBaseUri}/roo-logo.svg`
 
 	return (
 		<div

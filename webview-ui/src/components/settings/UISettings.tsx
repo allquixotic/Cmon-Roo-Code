@@ -18,7 +18,6 @@ interface UISettingsProps extends HTMLAttributes<HTMLDivElement> {
 	reasoningBlockCollapsed: boolean
 	enterBehavior: "send" | "newline"
 	defaultRenderContext?: "sidebar" | "editor"
-	masqueradeAsRooCode: boolean
 	chatFontSize?: number
 	autoCloseZooOpenedFiles?: boolean
 	autoCloseZooOpenedFilesAfterUserEdited?: boolean
@@ -30,7 +29,6 @@ export const UISettings = ({
 	reasoningBlockCollapsed,
 	enterBehavior,
 	defaultRenderContext = "editor",
-	masqueradeAsRooCode,
 	chatFontSize,
 	autoCloseZooOpenedFiles,
 	autoCloseZooOpenedFilesAfterUserEdited,
@@ -67,10 +65,6 @@ export const UISettings = ({
 
 	const handleDefaultRenderContextChange = (value: "sidebar" | "editor") => {
 		setCachedStateField("defaultRenderContext", value)
-	}
-
-	const handleMasqueradeAsRooCodeChange = (value: boolean) => {
-		setCachedStateField("masqueradeAsRooCode", value)
 	}
 
 	const handleChatFontSizeChange = (value: number) => {
@@ -164,24 +158,6 @@ export const UISettings = ({
 						</div>
 						<div className="text-vscode-descriptionForeground text-sm mt-1">
 							{t("settings:ui.defaultRenderContext.description")}
-						</div>
-					</SearchableSetting>
-
-					{/* Masquerade as Roo Code Setting */}
-					<SearchableSetting
-						settingId="ui-masquerade-roo-code"
-						section="ui"
-						label={t("settings:ui.masqueradeAsRooCode.label")}>
-						<div className="flex flex-col gap-1">
-							<VSCodeCheckbox
-								checked={masqueradeAsRooCode}
-								onChange={(e: any) => handleMasqueradeAsRooCodeChange(e.target.checked)}
-								data-testid="masquerade-roo-code-checkbox">
-								<span className="font-medium">{t("settings:ui.masqueradeAsRooCode.label")}</span>
-							</VSCodeCheckbox>
-							<div className="text-vscode-descriptionForeground text-sm ml-5 mt-1">
-								{t("settings:ui.masqueradeAsRooCode.description")}
-							</div>
 						</div>
 					</SearchableSetting>
 

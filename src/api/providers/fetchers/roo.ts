@@ -6,10 +6,10 @@ import { DEFAULT_HEADERS } from "../constants"
 import { resolveVersionedSettings, type VersionedSettings } from "./versionedSettings"
 
 /**
- * Fetches available models from the CRC Router
+ * Fetches available models from the Zoo Code Router
  *
- * @param baseUrl The base URL of the CRC Router
- * @param apiKey The API key (session token) for the CRC Router
+ * @param baseUrl The base URL of the Zoo Code Router
+ * @param apiKey The API key (session token) for the Zoo Code Router
  * @returns A promise that resolves to a record of model IDs to model info
  * @throws Will throw an error if the request fails or the response is not as expected.
  */
@@ -65,9 +65,9 @@ export async function getRooModels(baseUrl: string, apiKey?: string): Promise<Mo
 			const parsed = RooModelsResponseSchema.safeParse(data)
 
 			if (!parsed.success) {
-				console.error("Error fetching CRC Router models: Unexpected response format", data)
+				console.error("Error fetching Zoo Code Router models: Unexpected response format", data)
 				console.error("Validation errors:", parsed.error.format())
-				throw new Error("Failed to fetch CRC Router models: Unexpected response format.")
+				throw new Error("Failed to fetch Zoo Code Router models: Unexpected response format.")
 			}
 
 			// Process the validated model data
@@ -162,7 +162,7 @@ export async function getRooModels(baseUrl: string, apiKey?: string): Promise<Mo
 		}
 	} catch (error: any) {
 		// Enhanced error logging
-		console.error("[getRooModels] Error fetching CRC Router models:", {
+		console.error("[getRooModels] Error fetching Zoo Code Router models:", {
 			message: error.message || String(error),
 			name: error.name,
 			stack: error.stack,
@@ -172,21 +172,21 @@ export async function getRooModels(baseUrl: string, apiKey?: string): Promise<Mo
 
 		// Handle abort/timeout
 		if (error.name === "AbortError") {
-			throw new Error("Failed to fetch CRC Router models: Request timed out after 10 seconds.")
+			throw new Error("Failed to fetch Zoo Code Router models: Request timed out after 10 seconds.")
 		}
 
 		// Handle fetch errors
 		if (error.message?.includes("HTTP")) {
-			throw new Error(`Failed to fetch CRC Router models: ${error.message}. Check base URL and API key.`)
+			throw new Error(`Failed to fetch Zoo Code Router models: ${error.message}. Check base URL and API key.`)
 		}
 
 		// Handle network errors
 		if (error instanceof TypeError) {
 			throw new Error(
-				"Failed to fetch CRC Router models: No response from server. Check CRC Router service status and base URL.",
+				"Failed to fetch Zoo Code Router models: No response from server. Check Zoo Code Router service status and base URL.",
 			)
 		}
-		throw new Error(`Failed to fetch CRC Router models: ${error.message || "An unknown error occurred."}`)
+		throw new Error(`Failed to fetch Zoo Code Router models: ${error.message || "An unknown error occurred."}`)
 		throw new Error(`Failed to fetch Roo Code Cloud models: ${error.message || "An unknown error occurred."}`)
 	}
 }

@@ -1,35 +1,5 @@
 import i18next from "i18next"
 
-/**
- * Runtime flag for the "Masquerade as Roo Code" setting. The extension host
- * updates this flag whenever the setting is read from the context proxy so
- * that VS Code notifications / error messages emitted via `t(...)` reflect the
- * current branding without requiring a reload.
- */
-let masqueradeMode = false
-
-export function setMasqueradeMode(enabled: boolean): void {
-	masqueradeMode = enabled
-}
-
-export function applyBrandMasquerade(value: string, enabled: boolean = masqueradeMode): string {
-	if (!enabled || typeof value !== "string" || value.length === 0) {
-		return value
-	}
-	return value.replace(/\bCRC\b/g, "Roo Code")
-}
-
-i18next.use({
-	type: "postProcessor",
-	name: "brand",
-	process: (value: unknown) => {
-		if (typeof value !== "string") {
-			return value as any
-		}
-		return applyBrandMasquerade(value)
-	},
-} as any)
-
 // Build translations object
 const translations: Record<string, Record<string, any>> = {}
 
@@ -107,7 +77,6 @@ i18next.init({
 	interpolation: {
 		escapeValue: false,
 	},
-	postProcess: ["brand"],
 })
 
 export default i18next

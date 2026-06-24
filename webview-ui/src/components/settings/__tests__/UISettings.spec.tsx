@@ -11,7 +11,6 @@ describe("UISettings", () => {
 	const defaultProps = {
 		reasoningBlockCollapsed: false,
 		enterBehavior: "send" as const,
-		masqueradeAsRooCode: false,
 		setCachedStateField: vi.fn(),
 	}
 
@@ -57,30 +56,6 @@ describe("UISettings", () => {
 		fireEvent.click(getByTestId("render-context-editor-button"))
 
 		expect(setCachedStateField).toHaveBeenCalledWith("defaultRenderContext", "editor")
-	})
-
-	it("renders the masquerade checkbox unchecked by default", () => {
-		const { getByTestId } = render(<UISettings {...defaultProps} />)
-		const checkbox = getByTestId("masquerade-roo-code-checkbox") as HTMLInputElement
-		expect(checkbox).toBeTruthy()
-		expect(checkbox.checked).toBe(false)
-	})
-
-	it("reflects the initial masqueradeAsRooCode prop", () => {
-		const { getByTestId } = render(<UISettings {...defaultProps} masqueradeAsRooCode={true} />)
-		const checkbox = getByTestId("masquerade-roo-code-checkbox") as HTMLInputElement
-		expect(checkbox.checked).toBe(true)
-	})
-
-	it("cachedState-bound masquerade checkbox calls setCachedStateField on toggle", async () => {
-		const setCachedStateField = vi.fn()
-		const { getByTestId } = render(<UISettings {...defaultProps} setCachedStateField={setCachedStateField} />)
-
-		fireEvent.click(getByTestId("masquerade-roo-code-checkbox"))
-
-		await waitFor(() => {
-			expect(setCachedStateField).toHaveBeenCalledWith("masqueradeAsRooCode", true)
-		})
 	})
 
 	describe("chat font size", () => {

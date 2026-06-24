@@ -5,7 +5,6 @@ import TranslationProvider, { useAppTranslation } from "../TranslationContext"
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
 		language: "en",
-		masqueradeAsRooCode: false,
 	}),
 }))
 
@@ -40,9 +39,6 @@ vi.mock("../setup", () => ({
 		language: "en",
 	},
 	loadTranslations: vi.fn(),
-	setMasqueradeMode: vi.fn(),
-	isMasqueradeMode: vi.fn(() => false),
-	applyBrandMasquerade: (value: string) => value,
 }))
 
 const TestComponent = () => {

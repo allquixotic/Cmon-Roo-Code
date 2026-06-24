@@ -86,7 +86,7 @@ import {
 
 import { setPanel, refreshTabPanelBrandAssets } from "../../activate/registerCommands"
 
-import { t, setMasqueradeMode as setHostMasqueradeMode } from "../../i18n"
+import { t } from "../../i18n"
 
 import { buildApiHandler } from "../../api"
 import { forceFullModelDetailsLoad, hasLoadedFullDetails } from "../../api/providers/fetchers/lmstudio"
@@ -945,7 +945,7 @@ export class ClineProvider
 
 			// When the user's preferred render context is "editor", close the primary
 			// sidebar that VS Code reflexively opened to host the sidebar webview view.
-			// This keeps the workspace focused on the editor surface where CRC is now
+			// This keeps the workspace focused on the editor surface where Zoo Code is now
 			// rendered, instead of leaving the Explorer (or any other sidebar view)
 			// visible on the left.
 			await vscode.commands.executeCommand("workbench.action.closeSidebar")
@@ -1551,7 +1551,7 @@ export class ClineProvider
 
 		const file = "src/index.tsx"
 		const scriptUri = `http://${localServerUrl}/${file}`
-		const docTitle = (this.contextProxy.getValue("masqueradeAsRooCode") ?? false) ? "Roo Code" : "CRC"
+		const docTitle = "Zoo Code"
 
 		const reactRefresh = /*html*/ `
 			<script nonce="${nonce}" type="module">
@@ -1630,7 +1630,7 @@ export class ClineProvider
 		])
 		const imagesUri = getUri(webview, this.contextProxy.extensionUri, ["assets", "images"])
 		const audioUri = getUri(webview, this.contextProxy.extensionUri, ["webview-ui", "audio"])
-		const docTitle = (this.contextProxy.getValue("masqueradeAsRooCode") ?? false) ? "Roo Code" : "CRC"
+		const docTitle = "Zoo Code"
 
 		// Use a nonce to only allow a specific script to be run.
 		/*
@@ -2460,12 +2460,7 @@ export class ClineProvider
 		const taskStateSeq = ++this.clineMessagesSeq
 		const state = await this.getStateToPostToWebview()
 		state.clineMessagesSeq = taskStateSeq
-		// Keep the extension-host i18n post-processor in sync with the user's
-		// "Masquerade as Roo Code" setting so that any t(...) calls executed in
-		// the host (VS Code notifications, error toasts, etc.) render with the
-		// user's chosen branding.
-		setHostMasqueradeMode(state.masqueradeAsRooCode ?? false)
-		refreshTabPanelBrandAssets(this.context.extensionUri, this.contextProxy)
+		refreshTabPanelBrandAssets(this.context.extensionUri)
 		this.postMessageToWebview({ type: "state", state })
 	}
 
@@ -2693,7 +2688,6 @@ export class ClineProvider
 			openRouterImageApiKey,
 			openRouterImageGenerationSelectedModel,
 			defaultRenderContext,
-			masqueradeAsRooCode,
 			lockApiConfigAcrossModes,
 			autoCloseZooOpenedFiles,
 			autoCloseZooOpenedFilesAfterUserEdited,
@@ -2863,7 +2857,6 @@ export class ClineProvider
 			reasoningBlockCollapsed: reasoningBlockCollapsed ?? true,
 			chatFontSize,
 			enterBehavior: enterBehavior ?? "send",
-			masqueradeAsRooCode: masqueradeAsRooCode ?? false,
 			cloudUserInfo,
 			cloudIsAuthenticated: cloudIsAuthenticated ?? false,
 			cloudAuthSkipModel: this.context.globalState.get<boolean>("roo-auth-skip-model") ?? false,
@@ -3069,7 +3062,6 @@ export class ClineProvider
 			chatFontSize: stateValues.chatFontSize,
 			enterBehavior: stateValues.enterBehavior ?? "send",
 			defaultRenderContext: stateValues.defaultRenderContext ?? "editor",
-			masqueradeAsRooCode: stateValues.masqueradeAsRooCode ?? false,
 			cloudUserInfo,
 			cloudIsAuthenticated,
 			sharingEnabled,

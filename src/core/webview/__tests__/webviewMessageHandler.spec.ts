@@ -758,7 +758,7 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 		})
 	})
 
-	it("returns CRC Router models for requestRooModels", async () => {
+	it("returns Zoo Code Router models for requestRooModels", async () => {
 		const mockModels: ModelRecord = {
 			"model-1": {
 				maxTokens: 4096,

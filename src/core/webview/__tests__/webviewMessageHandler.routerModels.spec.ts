@@ -82,7 +82,7 @@ describe("webviewMessageHandler - requestRouterModels provider filter", () => {
 		})
 	})
 
-	it("returns CRC Router models for requestRooModels", async () => {
+	it("returns Zoo Code Router models for requestRooModels", async () => {
 		await webviewMessageHandler(mockProvider as any, { type: "requestRooModels" } as any)
 
 		expect(mockProvider.postMessageToWebview).toHaveBeenCalledWith({

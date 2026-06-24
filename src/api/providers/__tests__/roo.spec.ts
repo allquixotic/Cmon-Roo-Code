@@ -80,7 +80,7 @@ vitest.mock("@roo-code/cloud", () => ({
 vitest.mock("../../../i18n", () => ({
 	t: vitest.fn((key: string) => {
 		if (key === "common:errors.roo.authenticationRequired") {
-			return "Authentication required for CRC Cloud"
+			return "Authentication required for Zoo Code Cloud"
 		}
 		return key
 	}),
@@ -347,7 +347,7 @@ describe("RooHandler", () => {
 		it("should handle API errors", async () => {
 			mockCreate.mockRejectedValueOnce(new Error("API Error"))
 			await expect(handler.completePrompt("Test prompt")).rejects.toThrow(
-				"CRC Router completion error: API Error",
+				"Zoo Code Router completion error: API Error",
 			)
 		})
 

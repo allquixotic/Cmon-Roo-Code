@@ -1,7 +1,5 @@
 import i18next from "./setup"
 
-export { setMasqueradeMode, applyBrandMasquerade } from "./setup"
-
 /**
  * Initialize i18next with the specified language
  *

@@ -25,11 +25,10 @@ vi.mock("react-i18next", () => ({
 	},
 }))
 
-// RooHero now reads masqueradeAsRooCode from the ExtensionStateContext and renders
-// translated alt text. Stub both dependencies so this dialog-focused test keeps a
-// minimal render tree.
+// RooHero renders translated alt text. Stub the translation dependency so this
+// dialog-focused test keeps a minimal render tree.
 vi.mock("@/context/ExtensionStateContext", () => ({
-	useExtensionState: () => ({ masqueradeAsRooCode: false }),
+	useExtensionState: () => ({}),
 }))
 vi.mock("@/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({ t: (key: string) => key, i18n: {} }),

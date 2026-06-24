@@ -339,7 +339,6 @@ export type ExtensionState = Pick<
 	| "maxGitStatusFiles"
 	| "autoImportSettingsOnStartup"
 	| "defaultRenderContext"
-	| "masqueradeAsRooCode"
 	| "requestDelaySeconds"
 	| "showWorktreesInHomeScreen"
 	| "disabledTools"
