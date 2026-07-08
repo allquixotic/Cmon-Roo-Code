@@ -124,6 +124,17 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	)
 	const currentTaskId = isDraftSelected ? undefined : contextCurrentTaskId
 	const currentTaskItem = isDraftSelected ? undefined : contextCurrentTaskItem
+
+	// Last non-empty task id seen for the visible (non-draft) conversation. State pushes
+	// built during transient no-current-task windows in the extension (cancel/rehydrate,
+	// delegation swaps) can briefly clear currentTaskId while messages are still on
+	// screen; queueing during such a blip must not drop the user's message.
+	const lastKnownTaskIdRef = useRef<string | undefined>(undefined)
+	useEffect(() => {
+		if (currentTaskId) {
+			lastKnownTaskIdRef.current = currentTaskId
+		}
+	}, [currentTaskId])
 	const currentTaskTodos = useMemo(
 		() => (isDraftSelected ? EMPTY_TODOS : contextCurrentTaskTodos),
 		[contextCurrentTaskTodos, isDraftSelected],
@@ -844,9 +855,14 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				const targetTaskId = currentTaskId ?? currentTaskItem?.id
 
 				if (shouldQueueMessage) {
-					if (!targetTaskId && messagesRef.current.length > 0) {
-						console.error("[handleSendMessage] Cannot queue message: no target task id is available")
-						return
+					// currentTaskId can blip to undefined when a state push was built during a
+					// transient no-current-task window in the extension (cancel/rehydrate,
+					// delegation swap). Fall back to the last known id for this conversation;
+					// if even that is missing, send without a taskId so the extension resolves
+					// the visible task rather than dropping the message on the floor.
+					const queueTaskId = targetTaskId ?? lastKnownTaskIdRef.current
+					if (!queueTaskId && messagesRef.current.length > 0) {
+						console.error("[handleSendMessage] No target task id available; queueing to the visible task")
 					}
 					try {
 						vscode.postMessage({
@@ -854,7 +870,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							text,
 							images,
 							deliveryMode: "queue",
-							taskId: targetTaskId,
+							taskId: queueTaskId,
 						})
 						setInputValue("")
 						setSelectedImages([])

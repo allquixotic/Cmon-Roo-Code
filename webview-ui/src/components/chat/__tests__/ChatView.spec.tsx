@@ -1003,6 +1003,60 @@ describe("ChatView - Message Queueing Tests", () => {
 		)
 	})
 
+	it("queues with the last known task id when a state blip clears currentTaskId mid-stream", async () => {
+		const { getByTestId } = renderChatView()
+
+		const streamingMessages: ClineMessage[] = [
+			{
+				type: "say" as const,
+				say: "task" as const,
+				ts: Date.now() - 2000,
+				text: "Initial task",
+			},
+			{
+				type: "say" as const,
+				say: "api_req_started" as const,
+				ts: Date.now(),
+				text: JSON.stringify({ apiProtocol: "anthropic" }), // No cost = still streaming
+			},
+		]
+
+		// Hydrate with a streaming task so the last-known task id is recorded.
+		mockPostMessage({ currentTaskId: "task-1", clineMessages: streamingMessages })
+
+		await waitFor(() => {
+			expect(getByTestId("virtuoso-item-list")).toHaveTextContent("api_req_started")
+		})
+
+		// A state push built during a transient no-current-task window in the extension
+		// (cancel/rehydrate, delegation swap) clears currentTaskId but keeps messages.
+		mockPostMessage({ currentTaskId: undefined, clineMessages: streamingMessages })
+
+		vi.mocked(vscode.postMessage).mockClear()
+
+		const chatTextArea = getByTestId("chat-textarea")
+		const input = chatTextArea.querySelector("input")! as HTMLInputElement
+
+		await act(async () => {
+			fireEvent.change(input, { target: { value: "message during blip" } })
+		})
+		await act(async () => {
+			fireEvent.keyDown(input, { key: "Enter", code: "Enter" })
+		})
+
+		// The message must still be queued — routed via the last known task id
+		// instead of being dropped on the floor.
+		await waitFor(() => {
+			expect(vscode.postMessage).toHaveBeenCalledWith({
+				type: "queueMessage",
+				text: "message during blip",
+				images: [],
+				deliveryMode: "queue",
+				taskId: "task-1",
+			})
+		})
+	})
+
 	it("sends messages normally when API request is complete (cost present)", async () => {
 		const { getByTestId } = renderChatView()
 

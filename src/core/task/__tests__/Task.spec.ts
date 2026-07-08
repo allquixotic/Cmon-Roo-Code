@@ -1556,8 +1556,17 @@ describe("Cline", () => {
 
 				// Verify handleWebviewAskResponse was called directly (not webview)
 				expect(handleResponseSpy).toHaveBeenCalledWith("messageResponse", "test message", ["image1.png"])
-				// Should NOT route through webview anymore
-				expect(mockProvider.postMessageToWebview).not.toHaveBeenCalled()
+				// With no ask pending, the message must be preserved in the queue rather
+				// than written into the askResponse fields (which the next ask() clears).
+				expect(task.messageQueueService.getMessagesByMode("queue")).toEqual([
+					expect.objectContaining({ text: "test message", images: ["image1.png"] }),
+				])
+				// Should NOT route through the webview as user input (only queue-state
+				// broadcasts are allowed).
+				const inputRoutingCalls = vi
+					.mocked(mockProvider.postMessageToWebview)
+					.mock.calls.filter(([message]: any[]) => message?.type === "invoke")
+				expect(inputRoutingCalls).toHaveLength(0)
 			})
 
 			it("should handle empty messages gracefully", async () => {
@@ -2946,6 +2955,122 @@ describe("Deferred message dispatch boundaries", () => {
 				deliveryMode: "queue",
 			}),
 		])
+	})
+})
+
+describe("Orphaned askResponse routing", () => {
+	// ask() clears askResponse/askResponseText at the start of every new complete ask,
+	// so a messageResponse that arrives while NO ask() is blocked would be silently
+	// destroyed (the reported "my message went nowhere" bug: e.g. the webview raced a
+	// phase transition and sent askResponse instead of queueMessage during the API
+	// request phase). These specs pin the invariant: such responses are rerouted into
+	// the task's message queue and delivered at the next safe boundary instead.
+
+	function createProvider(): any {
+		const storageUri = { fsPath: path.join(os.tmpdir(), "test-storage") }
+		const ctx = {
+			globalState: {
+				get: vi.fn().mockImplementation((_key: keyof GlobalState) => undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+				keys: vi.fn().mockReturnValue([]),
+			},
+			globalStorageUri: storageUri,
+			workspaceState: {
+				get: vi.fn().mockImplementation((_key) => undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+				keys: vi.fn().mockReturnValue([]),
+			},
+			secrets: {
+				get: vi.fn().mockResolvedValue(undefined),
+				store: vi.fn().mockResolvedValue(undefined),
+				delete: vi.fn().mockResolvedValue(undefined),
+			},
+			extensionUri: { fsPath: "/mock/extension/path" },
+			extension: { packageJSON: { version: "1.0.0" } },
+		} as unknown as vscode.ExtensionContext
+
+		const output = {
+			appendLine: vi.fn(),
+			append: vi.fn(),
+			clear: vi.fn(),
+			show: vi.fn(),
+			hide: vi.fn(),
+			dispose: vi.fn(),
+		}
+
+		const provider = new ClineProvider(ctx, output as any, "sidebar", new ContextProxy(ctx)) as any
+		provider.postMessageToWebview = vi.fn().mockResolvedValue(undefined)
+		provider.postStateToWebview = vi.fn().mockResolvedValue(undefined)
+		provider.postStateToWebviewWithoutTaskHistory = vi.fn().mockResolvedValue(undefined)
+		provider.getState = vi.fn().mockResolvedValue({})
+		return provider
+	}
+
+	const apiConfig: ProviderSettings = {
+		apiProvider: "anthropic",
+		apiModelId: "claude-3-5-sonnet-20241022",
+		apiKey: "test-api-key",
+	} as any
+
+	function createTask(): Task {
+		return new Task({
+			provider: createProvider(),
+			apiConfiguration: apiConfig,
+			task: "initial task",
+			startTask: false,
+		})
+	}
+
+	it("queues a messageResponse that arrives while no ask is pending", () => {
+		const task = createTask()
+
+		task.handleWebviewAskResponse("messageResponse", "orphaned message", ["img.png"])
+
+		// The message must land in the queue instead of the askResponse fields
+		// (where the next ask() would wipe it).
+		expect(task.messageQueueService.getMessagesByMode("queue")).toEqual([
+			expect.objectContaining({ text: "orphaned message", images: ["img.png"], deliveryMode: "queue" }),
+		])
+		expect((task as any).askResponse).toBeUndefined()
+		expect((task as any).askResponseText).toBeUndefined()
+	})
+
+	it("still records button responses (no text) while no ask is pending", () => {
+		const task = createTask()
+
+		task.handleWebviewAskResponse("yesButtonClicked")
+
+		expect(task.messageQueueService.isEmpty()).toBe(true)
+		expect((task as any).askResponse).toBe("yesButtonClicked")
+	})
+
+	it("delivers a messageResponse directly while an ask is blocked waiting", () => {
+		const task = createTask()
+
+		// Simulate an ask() blocked in its wait region (p-wait-for is module-mocked in
+		// this spec, so drive the pending counter directly).
+		;(task as any).pendingAskCount = 1
+		task.handleWebviewAskResponse("messageResponse", "direct answer")
+
+		expect((task as any).askResponse).toBe("messageResponse")
+		expect((task as any).askResponseText).toBe("direct answer")
+		// Nothing should have leaked into the queue.
+		expect(task.messageQueueService.isEmpty()).toBe(true)
+	})
+
+	it("auto-delivers a previously orphaned message at the next followup ask", async () => {
+		const task = createTask()
+		vi.spyOn(task as any, "saveClineMessages").mockResolvedValue(undefined)
+
+		// Orphaned: no ask pending yet.
+		task.handleWebviewAskResponse("messageResponse", "queued while streaming")
+		expect(task.messageQueueService.isEmpty()).toBe(false)
+
+		// The next auto-dispatchable ask must consume it instead of hanging.
+		const result = await task.ask("followup", "next question")
+		expect(result.response).toBe("messageResponse")
+		expect(result.text).toBe("queued while streaming")
+		expect(task.messageQueueService.isEmpty()).toBe(true)
 	})
 })
 

@@ -314,6 +314,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private askResponseImages?: string[]
 	public lastMessageTs?: number
 	private autoApprovalTimeoutRef?: NodeJS.Timeout
+	// Number of ask() calls currently blocked waiting for a response. Used by
+	// handleWebviewAskResponse to detect "orphaned" messageResponses: ask() clears
+	// askResponse/askResponseText at the start of every new complete ask, so a
+	// response written while nothing is waiting would be silently destroyed.
+	private pendingAskCount = 0
 
 	// Tool Use
 	consecutiveMistakeCount: number = 0
@@ -1383,97 +1388,108 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		const timeouts: NodeJS.Timeout[] = []
 
-		// Auto-approval (state/approval) was resolved above before the message was added.
-		if (approval.decision === "approve") {
-			this.approveAsk()
-		} else if (approval.decision === "deny") {
-			this.denyAsk()
-		} else if (approval.decision === "timeout") {
-			// Store the auto-approval timeout so it can be cancelled if user interacts
-			this.autoApprovalTimeoutRef = setTimeout(() => {
-				const { askResponse, text, images } = approval.fn()
-				this.handleWebviewAskResponse(askResponse, text, images)
-				this.autoApprovalTimeoutRef = undefined
-			}, approval.timeout)
-			timeouts.push(this.autoApprovalTimeoutRef)
-		}
-
-		// The state is mutable if the message is complete and the task will
-		// block (via the `pWaitFor`).
-		const isBlocking = !(this.askResponse !== undefined || this.lastMessageTs !== askTs)
-		const hasDeferredMessage = !this.messageQueueService.isEmpty()
-		const shouldPauseQueuedDrainForAsk = this.deferQueuedMessageDrainUntilResume && isResumableAsk(type)
-		const shouldAutoDispatchDeferredMessageForAsk =
-			this.canAutoDispatchDeferredMessageForAsk(type) && !shouldPauseQueuedDrainForAsk
-		const hasAutoDispatchCandidate = hasDeferredMessage && shouldAutoDispatchDeferredMessageForAsk
-		const isStatusMutable = !partial && isBlocking && !hasAutoDispatchCandidate && approval.decision === "ask"
-
-		if (isStatusMutable) {
-			const statusMutationTimeout = 2_000
-
-			if (isInteractiveAsk(type)) {
-				timeouts.push(
-					setTimeout(() => {
-						const message = this.findMessageByTimestamp(askTs)
-
-						if (message) {
-							this.interactiveAsk = message
-							this.emit(RooCodeEventName.TaskInteractive, this.taskId)
-							/* v8 ignore next 3 -- fires inside 2s timer after ask() resolves; not reachable in unit tests */
-							void this.postTaskMessageToWebview({ type: "interactionRequired" }).catch((error) => {
-								console.error("[Task#ask] postTaskMessageToWebview interactionRequired failed:", error)
-							})
-						}
-					}, statusMutationTimeout),
-				)
-			} else if (isResumableAsk(type)) {
-				timeouts.push(
-					setTimeout(() => {
-						const message = this.findMessageByTimestamp(askTs)
-
-						if (message) {
-							this.resumableAsk = message
-							this.emit(RooCodeEventName.TaskResumable, this.taskId)
-						}
-					}, statusMutationTimeout),
-				)
-			} else if (isIdleAsk(type)) {
-				timeouts.push(
-					setTimeout(() => {
-						const message = this.findMessageByTimestamp(askTs)
-
-						if (message) {
-							this.idleAsk = message
-							this.emit(RooCodeEventName.TaskIdle, this.taskId)
-						}
-					}, statusMutationTimeout),
-				)
+		// From here until the pWaitFor below resolves, a response can legitimately arrive
+		// (auto-approval, button click, auto-dispatched queue message). Mark the ask as
+		// pending so handleWebviewAskResponse delivers directly instead of queueing.
+		this.pendingAskCount++
+		try {
+			// Auto-approval (state/approval) was resolved above before the message was added.
+			if (approval.decision === "approve") {
+				this.approveAsk()
+			} else if (approval.decision === "deny") {
+				this.denyAsk()
+			} else if (approval.decision === "timeout") {
+				// Store the auto-approval timeout so it can be cancelled if user interacts
+				this.autoApprovalTimeoutRef = setTimeout(() => {
+					const { askResponse, text, images } = approval.fn()
+					this.handleWebviewAskResponse(askResponse, text, images)
+					this.autoApprovalTimeoutRef = undefined
+				}, approval.timeout)
+				timeouts.push(this.autoApprovalTimeoutRef)
 			}
-		} else if (hasAutoDispatchCandidate) {
-			this.consumeDeferredMessageForAsk(type)
+
+			// The state is mutable if the message is complete and the task will
+			// block (via the `pWaitFor`).
+			const isBlocking = !(this.askResponse !== undefined || this.lastMessageTs !== askTs)
+			const hasDeferredMessage = !this.messageQueueService.isEmpty()
+			const shouldPauseQueuedDrainForAsk = this.deferQueuedMessageDrainUntilResume && isResumableAsk(type)
+			const shouldAutoDispatchDeferredMessageForAsk =
+				this.canAutoDispatchDeferredMessageForAsk(type) && !shouldPauseQueuedDrainForAsk
+			const hasAutoDispatchCandidate = hasDeferredMessage && shouldAutoDispatchDeferredMessageForAsk
+			const isStatusMutable = !partial && isBlocking && !hasAutoDispatchCandidate && approval.decision === "ask"
+
+			if (isStatusMutable) {
+				const statusMutationTimeout = 2_000
+
+				if (isInteractiveAsk(type)) {
+					timeouts.push(
+						setTimeout(() => {
+							const message = this.findMessageByTimestamp(askTs)
+
+							if (message) {
+								this.interactiveAsk = message
+								this.emit(RooCodeEventName.TaskInteractive, this.taskId)
+								/* v8 ignore next 3 -- fires inside 2s timer after ask() resolves; not reachable in unit tests */
+								void this.postTaskMessageToWebview({ type: "interactionRequired" }).catch((error) => {
+									console.error(
+										"[Task#ask] postTaskMessageToWebview interactionRequired failed:",
+										error,
+									)
+								})
+							}
+						}, statusMutationTimeout),
+					)
+				} else if (isResumableAsk(type)) {
+					timeouts.push(
+						setTimeout(() => {
+							const message = this.findMessageByTimestamp(askTs)
+
+							if (message) {
+								this.resumableAsk = message
+								this.emit(RooCodeEventName.TaskResumable, this.taskId)
+							}
+						}, statusMutationTimeout),
+					)
+				} else if (isIdleAsk(type)) {
+					timeouts.push(
+						setTimeout(() => {
+							const message = this.findMessageByTimestamp(askTs)
+
+							if (message) {
+								this.idleAsk = message
+								this.emit(RooCodeEventName.TaskIdle, this.taskId)
+							}
+						}, statusMutationTimeout),
+					)
+				}
+			} else if (hasAutoDispatchCandidate) {
+				this.consumeDeferredMessageForAsk(type)
+			}
+
+			// Wait for askResponse to be set
+			await pWaitFor(
+				() => {
+					if (this.abort) {
+						return true
+					}
+					if (this.askResponse !== undefined || this.lastMessageTs !== askTs) {
+						return true
+					}
+
+					// If a deferred message arrives while we're blocked on a handoff ask (for example
+					// a follow-up suggestion click that was queued while the agent still owned the turn),
+					// consume it immediately so the task doesn't hang.
+					if (shouldAutoDispatchDeferredMessageForAsk && !this.messageQueueService.isEmpty()) {
+						this.consumeDeferredMessageForAsk(type)
+					}
+
+					return false
+				},
+				{ interval: 100 },
+			)
+		} finally {
+			this.pendingAskCount--
 		}
-
-		// Wait for askResponse to be set
-		await pWaitFor(
-			() => {
-				if (this.abort) {
-					return true
-				}
-				if (this.askResponse !== undefined || this.lastMessageTs !== askTs) {
-					return true
-				}
-
-				// If a deferred message arrives while we're blocked on a handoff ask (for example
-				// a follow-up suggestion click that was queued while the agent still owned the turn),
-				// consume it immediately so the task doesn't hang.
-				if (shouldAutoDispatchDeferredMessageForAsk && !this.messageQueueService.isEmpty()) {
-					this.consumeDeferredMessageForAsk(type)
-				}
-
-				return false
-			},
-			{ interval: 100 },
-		)
 
 		if (this.abort) {
 			throw new Error(`[RooCode#ask] task ${this.taskId}.${this.instanceId} aborted`)
@@ -1507,6 +1523,22 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[]) {
+		// Orphaned message guard: if a text-bearing response arrives while NO ask() is
+		// waiting (e.g. the webview raced a phase transition and sent askResponse instead
+		// of queueMessage, or submitUserMessage was invoked mid-stream via the API),
+		// writing it to askResponse* would silently destroy it — ask() clears those
+		// fields at the start of every new ask. Route it into the message queue instead,
+		// where the normal queue/steer handoff will deliver it at the next safe boundary.
+		if (
+			askResponse === "messageResponse" &&
+			this.pendingAskCount === 0 &&
+			!this.abort &&
+			(text?.trim() || images?.length)
+		) {
+			this.messageQueueService.addMessage(text ?? "", images)
+			return
+		}
+
 		// Clear any pending auto-approval timeout when user responds
 		this.cancelAutoApprovalTimeout()
 
