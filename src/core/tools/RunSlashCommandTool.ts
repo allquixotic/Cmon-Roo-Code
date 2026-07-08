@@ -111,11 +111,9 @@ export class RunSlashCommandTool extends BaseTool<"run_slash_command"> {
 				const provider = task.providerRef.deref()
 				const targetMode = getModeBySlug(command.mode, (await provider?.getState())?.customModes)
 				if (targetMode) {
-					if (typeof (task as any).switchTaskMode === "function") {
-						await task.switchTaskMode(command.mode)
-					} else {
-						await provider?.handleModeSwitch(command.mode as any)
-					}
+					// Task-scoped switch: only touches global state when this task
+					// is the visible conversation.
+					await task.switchTaskMode(command.mode)
 				}
 			}
 

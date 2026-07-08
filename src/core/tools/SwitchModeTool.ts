@@ -63,12 +63,10 @@ export class SwitchModeTool extends BaseTool<"switch_mode"> {
 				return
 			}
 
-			// Switch the mode using shared handler
-			if (typeof (task as any).switchTaskMode === "function") {
-				await task.switchTaskMode(mode_slug)
-			} else {
-				await task.providerRef.deref()?.handleModeSwitch(mode_slug as any)
-			}
+			// Task-scoped switch: only touches global state when this task is the
+			// visible conversation (a global handleModeSwitch here would mutate the
+			// VISIBLE task's mode when invoked from a background conversation).
+			await task.switchTaskMode(mode_slug)
 
 			pushToolResult(
 				`Successfully switched from ${getModeBySlug(currentMode)?.name ?? currentMode} mode to ${

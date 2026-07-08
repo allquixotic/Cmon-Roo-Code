@@ -32,12 +32,14 @@ describe("SwitchModeTool", () => {
 	let mockTask: Task
 	let mockCallbacks: ToolCallbacks
 	let mockHandleModeSwitch: ReturnType<typeof vi.fn>
+	let mockSwitchTaskMode: ReturnType<typeof vi.fn>
 	let mockGetState: ReturnType<typeof vi.fn>
 
 	beforeEach(() => {
 		vi.clearAllMocks()
 
 		mockHandleModeSwitch = vi.fn().mockResolvedValue(undefined)
+		mockSwitchTaskMode = vi.fn().mockResolvedValue(undefined)
 		mockGetState = vi.fn().mockResolvedValue({ mode: "code", customModes: [] })
 
 		mockTask = {
@@ -46,6 +48,7 @@ describe("SwitchModeTool", () => {
 			didToolFailInCurrentTurn: false,
 			sayAndCreateMissingParamError: vi.fn().mockResolvedValue("Missing parameter error"),
 			ask: vi.fn().mockResolvedValue({}),
+			switchTaskMode: mockSwitchTaskMode,
 			providerRef: {
 				deref: vi.fn().mockReturnValue({
 					getState: mockGetState,
@@ -110,6 +113,7 @@ describe("SwitchModeTool", () => {
 		)
 		// Should NOT attempt to switch or ask approval
 		expect(mockCallbacks.askApproval).not.toHaveBeenCalled()
+		expect(mockSwitchTaskMode).not.toHaveBeenCalled()
 		expect(mockHandleModeSwitch).not.toHaveBeenCalled()
 	})
 
@@ -126,6 +130,7 @@ describe("SwitchModeTool", () => {
 		expect(mockCallbacks.pushToolResult).toHaveBeenCalledWith("Already in Code mode.")
 		// Should NOT ask approval or switch
 		expect(mockCallbacks.askApproval).not.toHaveBeenCalled()
+		expect(mockSwitchTaskMode).not.toHaveBeenCalled()
 		expect(mockHandleModeSwitch).not.toHaveBeenCalled()
 	})
 
@@ -144,6 +149,7 @@ describe("SwitchModeTool", () => {
 			JSON.stringify({ tool: "switchMode", mode: "architect", reason: "need architecture view" }),
 		)
 		// But should NOT switch mode or push result
+		expect(mockSwitchTaskMode).not.toHaveBeenCalled()
 		expect(mockHandleModeSwitch).not.toHaveBeenCalled()
 		expect(mockCallbacks.pushToolResult).not.toHaveBeenCalled()
 	})
@@ -165,8 +171,10 @@ describe("SwitchModeTool", () => {
 			}),
 		)
 
-		// Should have called handleModeSwitch with the target slug
-		expect(mockHandleModeSwitch).toHaveBeenCalledWith("architect")
+		// Should have switched task-scoped, never via the provider-global handler
+		// (which would mutate the VISIBLE task when invoked from a background one).
+		expect(mockSwitchTaskMode).toHaveBeenCalledWith("architect")
+		expect(mockHandleModeSwitch).not.toHaveBeenCalled()
 
 		// Should have pushed success result
 		expect(mockCallbacks.pushToolResult).toHaveBeenCalledWith(
@@ -184,7 +192,8 @@ describe("SwitchModeTool", () => {
 			JSON.stringify({ tool: "switchMode", mode: "ask", reason: "" }),
 		)
 
-		expect(mockHandleModeSwitch).toHaveBeenCalledWith("ask")
+		expect(mockSwitchTaskMode).toHaveBeenCalledWith("ask")
+		expect(mockHandleModeSwitch).not.toHaveBeenCalled()
 
 		expect(mockCallbacks.pushToolResult).toHaveBeenCalledWith("Successfully switched from Code mode to Ask mode.")
 	})
@@ -213,6 +222,7 @@ describe("SwitchModeTool", () => {
 		expect(mockCallbacks.handleError).toHaveBeenCalledWith("switching mode", stateError)
 		// Should NOT have asked for approval or attempted switch
 		expect(mockCallbacks.askApproval).not.toHaveBeenCalled()
+		expect(mockSwitchTaskMode).not.toHaveBeenCalled()
 		expect(mockHandleModeSwitch).not.toHaveBeenCalled()
 	})
 
@@ -231,11 +241,11 @@ describe("SwitchModeTool", () => {
 		)
 	})
 
-	// ===== handleModeSwitch failure =====
+	// ===== switchTaskMode failure =====
 
-	it("should handle handleModeSwitch throwing an error", async () => {
+	it("should handle switchTaskMode throwing an error", async () => {
 		const switchError = new Error("Failed to switch mode")
-		mockHandleModeSwitch.mockRejectedValue(switchError)
+		mockSwitchTaskMode.mockRejectedValue(switchError)
 
 		const block = createBlock({ mode_slug: "architect", reason: "test" })
 
@@ -243,8 +253,8 @@ describe("SwitchModeTool", () => {
 
 		// Should have asked for approval first
 		expect(mockCallbacks.askApproval).toHaveBeenCalled()
-		// Should have called handleModeSwitch (which throws)
-		expect(mockHandleModeSwitch).toHaveBeenCalledWith("architect")
+		// Should have called switchTaskMode (which throws)
+		expect(mockSwitchTaskMode).toHaveBeenCalledWith("architect")
 		// Error should be caught and reported
 		expect(mockCallbacks.handleError).toHaveBeenCalledWith("switching mode", switchError)
 	})
@@ -268,6 +278,7 @@ describe("SwitchModeTool", () => {
 		)
 		// Should NOT execute the actual switch
 		expect(mockCallbacks.askApproval).not.toHaveBeenCalled()
+		expect(mockSwitchTaskMode).not.toHaveBeenCalled()
 		expect(mockHandleModeSwitch).not.toHaveBeenCalled()
 	})
 
@@ -303,7 +314,8 @@ describe("SwitchModeTool", () => {
 		await switchModeTool.handle(mockTask, block, mockCallbacks)
 
 		expect(mockCallbacks.askApproval).toHaveBeenCalled()
-		expect(mockHandleModeSwitch).toHaveBeenCalledWith("custom-mode")
+		expect(mockSwitchTaskMode).toHaveBeenCalledWith("custom-mode")
+		expect(mockHandleModeSwitch).not.toHaveBeenCalled()
 		expect(mockCallbacks.pushToolResult).toHaveBeenCalledWith(
 			"Successfully switched from Code mode to Custom Mode mode because: testing custom modes.",
 		)

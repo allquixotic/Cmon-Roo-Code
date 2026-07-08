@@ -966,10 +966,61 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		if (provider.isTaskVisible(this.taskId)) {
+			// Visible conversation: the global handler keeps global state and the
+			// webview in sync and activates the mode-bound provider profile.
 			await provider.handleModeSwitch(mode as any)
-		} else {
-			await this.postTaskStateToWebview()
+			return
 		}
+
+		// Background conversation: global state belongs to the visible conversation,
+		// so everything below must stay task-scoped. The global path emits this
+		// event inside handleModeSwitch; emit it here for API observers.
+		this.emit(RooCodeEventName.TaskModeSwitched, this.taskId, mode)
+
+		// Resolve the mode-bound provider profile TASK-SCOPED (mirrors
+		// ClineProvider.delegateParentAndOpenChild): routing through the global
+		// handleModeSwitch/activateProviderProfile would clobber the visible
+		// conversation's mode/profile and race concurrent switches.
+		try {
+			const lockApiConfigAcrossModes = provider.context.workspaceState.get("lockApiConfigAcrossModes", false)
+			if (!lockApiConfigAcrossModes) {
+				const savedConfigId = await provider.providerSettingsManager.getModeConfigId(mode)
+				if (savedConfigId) {
+					const listApiConfig = await provider.providerSettingsManager.listConfig()
+					const profileName = listApiConfig.find(({ id }) => id === savedConfigId)?.name
+					if (profileName) {
+						const {
+							id: _profileId,
+							name: _profileName,
+							...providerSettings
+						} = await provider.providerSettingsManager.getProfile({ name: profileName })
+						if (providerSettings.apiProvider) {
+							this.updateApiConfiguration(providerSettings)
+							this.setTaskApiConfigName(profileName)
+
+							const latestHistoryItem = provider.taskHistoryStore.get(this.taskId)
+							if (latestHistoryItem) {
+								await provider.updateTaskHistory(
+									{ ...latestHistoryItem, apiConfigName: profileName },
+									{ broadcast: false },
+								)
+							}
+						}
+					}
+				}
+			}
+			// When the mode has no saved config, handleModeSwitch would bind the
+			// current global config to it — a user-level setting that a background
+			// conversation must not mutate, so no setModeConfig here.
+		} catch (error) {
+			provider.log(
+				`[Task#${this.taskId}] Task-scoped profile resolution failed for mode '${mode}' (keeping current config): ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			)
+		}
+
+		await this.postTaskStateToWebview()
 	}
 
 	public async switchTaskProviderProfile(name: string): Promise<void> {

@@ -23,6 +23,7 @@ describe("runSlashCommandTool", () => {
 			recordToolError: vi.fn(),
 			sayAndCreateMissingParamError: vi.fn().mockResolvedValue("Missing parameter error"),
 			ask: vi.fn().mockResolvedValue({}),
+			switchTaskMode: vi.fn().mockResolvedValue(undefined),
 			cwd: "/test/project",
 			providerRef: {
 				deref: vi.fn().mockReturnValue({
@@ -471,7 +472,11 @@ Deploy application to production`,
 
 		await runSlashCommandTool.handle(mockTask as Task, block, mockCallbacks)
 
-		expect(mockHandleModeSwitch).toHaveBeenCalledWith("debug")
+		// Task-scoped switch on the invoking task, never the provider-global
+		// handler (which would mutate the VISIBLE task's mode when the command
+		// runs in a background conversation).
+		expect(mockTask.switchTaskMode).toHaveBeenCalledWith("debug")
+		expect(mockHandleModeSwitch).not.toHaveBeenCalled()
 		expect(mockCallbacks.pushToolResult).toHaveBeenCalledWith(
 			`Command: /debug-app
 Description: Debug the application
@@ -518,6 +523,7 @@ Start debugging the application`,
 
 		await runSlashCommandTool.handle(mockTask as Task, block, mockCallbacks)
 
+		expect(mockTask.switchTaskMode).not.toHaveBeenCalled()
 		expect(mockHandleModeSwitch).not.toHaveBeenCalled()
 	})
 
