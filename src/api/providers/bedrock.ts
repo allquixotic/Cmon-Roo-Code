@@ -1758,6 +1758,11 @@ Please check:
 				"strict tool",
 				"strict mode is not supported",
 				"strict: true",
+				// Anthropic-side rejection (seen with Opus 4.8): Bedrock forwards toolSpec.strict
+				// into the model payload as tools.N.custom.strict and the model rejects it as an
+				// unknown field ("Extra inputs are not permitted") instead of a Bedrock-side error.
+				"custom.strict",
+				"strict: extra inputs are not permitted",
 				"textformat is not supported",
 				"output_config is not supported",
 				"outputconfig.textformat",

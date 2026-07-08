@@ -250,6 +250,37 @@ describe("AwsBedrockHandler structured output", () => {
 			expect(noticeChunks.length).toBeGreaterThan(0)
 		})
 
+		it("recovers when the model itself rejects strict as an unknown field (Opus 4.8 shape)", async () => {
+			// Bedrock forwards toolSpec.strict into the Anthropic payload; models that don't
+			// know the field fail with a pydantic-style "Extra inputs are not permitted"
+			// instead of a Bedrock-side "does not support strict" message.
+			const handler = buildHandler({ apiModelId: "us.anthropic.claude-opus-4-8-20251101-v1:0" } as any)
+			const markUnsupported = vi.fn()
+			const metadata: ApiHandlerCreateMessageMetadata = {
+				taskId: "t1",
+				tools: sampleTools,
+				isModelStructuredOutputUnsupported: () => false,
+				markModelStructuredOutputUnsupported: markUnsupported,
+			}
+
+			mockSend.mockReset()
+			mockSend.mockRejectedValueOnce(
+				makeValidationError(
+					"The model returned the following errors: tools.0.custom.strict: Extra inputs are not permitted",
+				),
+			)
+			mockSend.mockResolvedValueOnce({ stream: [] })
+
+			await drain(handler.createMessage("sys", [{ role: "user", content: "hi" }], metadata))
+
+			expect(mockSend).toHaveBeenCalledTimes(2)
+			expect(markUnsupported).toHaveBeenCalledWith("us.anthropic.claude-opus-4-8-20251101-v1:0")
+			const firstPayload = mockConverseStreamCommand.mock.calls[0][0] as any
+			const secondPayload = mockConverseStreamCommand.mock.calls[1][0] as any
+			expect(firstPayload.toolConfig.tools[0].toolSpec.strict).toBe(true)
+			expect(secondPayload.toolConfig.tools[0].toolSpec.strict).toBeUndefined()
+		})
+
 		it("does not mark model unsupported when strict was already disabled", async () => {
 			const handler = buildHandler({ awsBedrockStructuredOutput: false } as any)
 			const markUnsupported = vi.fn()
@@ -310,6 +341,35 @@ describe("AwsBedrockHandler structured output", () => {
 			expect(getErrorType(makeValidationError("does not support strict", 400))).toBe(
 				"STRUCTURED_OUTPUT_UNSUPPORTED",
 			)
+		})
+
+		it("classifies model-side 'extra inputs' strict rejections as STRUCTURED_OUTPUT_UNSUPPORTED", () => {
+			const handler = buildHandler()
+			const getErrorType = (handler as any).getErrorType.bind(handler)
+			expect(
+				getErrorType(
+					makeValidationError(
+						"The model returned the following errors: tools.0.custom.strict: Extra inputs are not permitted",
+						400,
+					),
+				),
+			).toBe("STRUCTURED_OUTPUT_UNSUPPORTED")
+			// Any tool index and alternate path shapes must also match.
+			expect(
+				getErrorType(makeValidationError("tools.3.custom.strict: Extra inputs are not permitted", 400)),
+			).toBe("STRUCTURED_OUTPUT_UNSUPPORTED")
+			expect(getErrorType(makeValidationError("tools.0.strict: Extra inputs are not permitted", 400))).toBe(
+				"STRUCTURED_OUTPUT_UNSUPPORTED",
+			)
+		})
+
+		it("does not classify unrelated 'extra inputs' rejections as structured-output", () => {
+			const handler = buildHandler()
+			const getErrorType = (handler as any).getErrorType.bind(handler)
+			const result = getErrorType(
+				makeValidationError("output_config.effort: Extra inputs are not permitted", 400),
+			)
+			expect(result).not.toBe("STRUCTURED_OUTPUT_UNSUPPORTED")
 		})
 
 		it("classifies compiling messages as STRUCTURED_OUTPUT_COMPILING", () => {
