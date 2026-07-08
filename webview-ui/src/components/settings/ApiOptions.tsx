@@ -76,6 +76,7 @@ import {
 	XAI,
 	ZAi,
 	Fireworks,
+	Friendli,
 	VercelAiGateway,
 	OpenCodeGo,
 	ZooGateway,
@@ -227,7 +228,15 @@ const ApiOptions = ({
 				requestLmStudioModels(apiConfiguration?.lmStudioBaseUrl)
 			} else if (selectedProvider === "vscode-lm") {
 				vscode.postMessage({ type: "requestVsCodeLmModels" })
-			} else if (selectedProvider === "litellm" || selectedProvider === "roo" || selectedProvider === "poe") {
+			} else if (selectedProvider === "litellm") {
+				vscode.postMessage({
+					type: "requestRouterModels",
+					values: {
+						litellmApiKey: apiConfiguration?.litellmApiKey,
+						litellmBaseUrl: apiConfiguration?.litellmBaseUrl,
+					},
+				})
+			} else if (selectedProvider === "roo" || selectedProvider === "poe") {
 				vscode.postMessage({ type: "requestRouterModels" })
 			}
 		},
@@ -724,6 +733,13 @@ const ApiOptions = ({
 
 					{selectedProvider === "fireworks" && (
 						<Fireworks
+							apiConfiguration={apiConfiguration}
+							setApiConfigurationField={setApiConfigurationField}
+						/>
+					)}
+
+					{selectedProvider === "friendli" && (
+						<Friendli
 							apiConfiguration={apiConfiguration}
 							setApiConfigurationField={setApiConfigurationField}
 						/>

@@ -30,11 +30,11 @@
 
 Bạn có thể xem hướng dẫn nhanh để chuyển từ Roo Code sang Zoo Code trong [hướng dẫn chuyển đổi Roo→Zoo](https://docs.zoocode.dev/roo-to-zoo-migration). Chúng tôi muốn hỗ trợ người dùng nhiều nhất có thể trong quá trình chuyển đổi, và đó chính là lý do chúng tôi có [Reddit](https://www.reddit.com/r/ZooCode) và [Discord](https://discord.gg/VxfP4Vx3gX). Nếu bạn gặp vấn đề hoặc có câu hỏi, cứ vào hỏi nhé.
 
-## Điểm mới trong v3.62.0
+## Điểm mới trong v3.66.0
 
-- **Hỗ trợ GLM-5.2** — mô hình GLM mới nhất hiện có trong cài đặt nhà cung cấp của bạn
-- **Cải tiến OpenCode-Go** — tham số mô hình gốc, định tuyến định dạng Anthropic và sửa lỗi context-token để phản hồi đáng tin cậy hơn
-- **Chế độ tool-writer** — chế độ chuyên biệt mới để viết và duy trì các định nghĩa công cụ, hiện có trên Marketplace
+- **Hỗ trợ Claude Sonnet 5** — mô hình Claude mới nhất hiện có sẵn trên các nhà cung cấp Anthropic, Bedrock và Vertex
+- **Nâng cấp lên Semble v0.4.1** — phân tích kết quả làm phẳng và thông điệp trạng thái đã địa phương hóa
+- **Bảo vệ chuyển đổi trạng thái vòng đời tác vụ** — một bảo vệ chuyển đổi trạng thái mới và đối chiếu ủy quyền khi khởi động ngăn chặn các chuyển đổi trạng thái tác vụ không hợp lệ
 
 ## Zoo Code có thể làm gì cho BẠN?
 

@@ -1,224 +1,336 @@
-// npx vitest run __tests__/provider-delegation.spec.ts
+// npx vitest api/providers/__tests__/bedrock-reasoning.test.ts
 
-import { describe, it, expect, vi } from "vitest"
-import { RooCodeEventName } from "@roo-code/types"
-import { ClineProvider } from "../../../core/webview/ClineProvider"
+import { AwsBedrockHandler, __resetBedrockClientCache } from "../bedrock"
+import { BedrockRuntimeClient, ConverseStreamCommand } from "@aws-sdk/client-bedrock-runtime"
+import { logger } from "../../../utils/logging"
 
-describe("ClineProvider.delegateParentAndOpenChild()", () => {
-	it("persists parent delegation metadata and emits TaskDelegated", async () => {
-		const providerEmit = vi.fn()
-		const parentTask = { taskId: "parent-1", emit: vi.fn() } as any
+// Mock the AWS SDK
+vi.mock("@aws-sdk/client-bedrock-runtime")
+vi.mock("../../../utils/logging")
 
-		const childStart = vi.fn()
-		const updateTaskHistory = vi.fn()
-		const removeClineFromStack = vi.fn().mockResolvedValue(undefined)
-		const createTask = vi.fn().mockResolvedValue({ taskId: "child-1", start: childStart })
-		const handleModeSwitch = vi.fn().mockResolvedValue(undefined)
-		const getTaskWithId = vi.fn().mockImplementation(async (id: string) => {
-			if (id === "parent-1") {
-				return {
-					historyItem: {
-						id: "parent-1",
-						task: "Parent",
-						tokensIn: 0,
-						tokensOut: 0,
-						totalCost: 0,
-						childIds: [],
-					},
-				}
-			}
-			// child-1
+// Store the command payload for verification
+let capturedPayload: any = null
+
+describe("AwsBedrockHandler - Extended Thinking", () => {
+	let handler: AwsBedrockHandler
+	let mockSend: ReturnType<typeof vi.fn>
+
+	beforeEach(() => {
+		capturedPayload = null
+		mockSend = vi.fn()
+		// The handler pools BedrockRuntimeClient instances process-wide; reset so each
+		// test's handler construction actually calls the mocked constructor.
+		__resetBedrockClientCache()
+
+		// Mock ConverseStreamCommand to capture the payload
+		;(ConverseStreamCommand as unknown as ReturnType<typeof vi.fn>).mockImplementation(function (payload) {
+			capturedPayload = payload
 			return {
-				historyItem: {
-					id: "child-1",
-					task: "Do something",
-					tokensIn: 0,
-					tokensOut: 0,
-					totalCost: 0,
-				},
+				input: payload,
 			}
 		})
-
-		const provider = {
-			emit: providerEmit,
-			getCurrentTask: vi.fn(() => parentTask),
-			getTaskById: vi.fn((id: string) => (id === "parent-1" ? parentTask : undefined)),
-			removeClineFromStack,
-			createTask,
-			getTaskWithId,
-			updateTaskHistory,
-			handleModeSwitch,
-			log: vi.fn(),
-		} as unknown as ClineProvider
-
-		const params = {
-			parentTaskId: "parent-1",
-			message: "Do something",
-			initialTodos: [],
-			mode: "code",
-		}
-
-		const child = await (ClineProvider.prototype as any).delegateParentAndOpenChild.call(provider, params)
-
-		expect(child.taskId).toBe("child-1")
-
-		// Invariant: parent closed before child creation
-		expect(removeClineFromStack).toHaveBeenCalledTimes(1)
-		expect(removeClineFromStack).toHaveBeenCalledWith({ taskId: "parent-1", skipDelegationRepair: true })
-		// Child task is created with startTask: false and initialStatus: "active"
-		expect(createTask).toHaveBeenCalledWith("Do something", undefined, parentTask, {
-			initialTodos: [],
-			initialStatus: "active",
-			startTask: false,
+		;(BedrockRuntimeClient as unknown as ReturnType<typeof vi.fn>).mockImplementation(function () {
+			return {
+				send: mockSend,
+				config: { region: "us-east-1" },
+			}
 		})
-
-		// Metadata persistence - parent gets "delegated" status (child status is set at creation via initialStatus)
-		expect(updateTaskHistory).toHaveBeenCalledTimes(1)
-
-		// Parent set to "delegated"
-		const parentSaved = updateTaskHistory.mock.calls[0][0]
-		expect(parentSaved).toEqual(
-			expect.objectContaining({
-				id: "parent-1",
-				status: "delegated",
-				delegatedToId: "child-1",
-				awaitingChildId: "child-1",
-				childIds: expect.arrayContaining(["child-1"]),
-			}),
-		)
-
-		// child.start() must be called AFTER parent metadata is persisted
-		expect(childStart).toHaveBeenCalledTimes(1)
-
-		// Event emission (provider-level)
-		expect(providerEmit).toHaveBeenCalledWith(RooCodeEventName.TaskDelegated, "parent-1", "child-1")
-
-		// Mode switch
-		expect(handleModeSwitch).toHaveBeenCalledWith("code", { updateCurrentTask: false })
+		;(logger.info as unknown as ReturnType<typeof vi.fn>).mockImplementation(function () {})
+		;(logger.error as unknown as ReturnType<typeof vi.fn>).mockImplementation(function () {})
 	})
 
-	it("calls child.start() only after parent metadata is persisted (no race condition)", async () => {
-		const callOrder: string[] = []
-
-		const parentTask = { taskId: "parent-1", emit: vi.fn() } as any
-		const childStart = vi.fn(() => callOrder.push("child.start"))
-
-		const updateTaskHistory = vi.fn(async () => {
-			callOrder.push("updateTaskHistory")
-		})
-		const removeClineFromStack = vi.fn().mockResolvedValue(undefined)
-		const createTask = vi.fn(async () => {
-			callOrder.push("createTask")
-			return { taskId: "child-1", start: childStart }
-		})
-		const handleModeSwitch = vi.fn().mockResolvedValue(undefined)
-		const getTaskWithId = vi.fn().mockResolvedValue({
-			historyItem: {
-				id: "parent-1",
-				task: "Parent",
-				tokensIn: 0,
-				tokensOut: 0,
-				totalCost: 0,
-				childIds: [],
-			},
-		})
-
-		const provider = {
-			emit: vi.fn(),
-			getCurrentTask: vi.fn(() => parentTask),
-			getTaskById: vi.fn((id: string) => (id === "parent-1" ? parentTask : undefined)),
-			removeClineFromStack,
-			createTask,
-			getTaskWithId,
-			updateTaskHistory,
-			handleModeSwitch,
-			log: vi.fn(),
-		} as unknown as ClineProvider
-
-		await (ClineProvider.prototype as any).delegateParentAndOpenChild.call(provider, {
-			parentTaskId: "parent-1",
-			message: "Do something",
-			initialTodos: [],
-			mode: "code",
-		})
-
-		// Verify ordering: createTask → updateTaskHistory → child.start
-		expect(callOrder).toEqual(["createTask", "updateTaskHistory", "child.start"])
+	afterEach(() => {
+		vi.clearAllMocks()
 	})
 
-	it("uses the invoking parent id when the current visible task differs", async () => {
-		const parentTask = {
-			taskId: "parent-1",
-			emit: vi.fn(),
-			flushPendingToolResultsToHistory: vi.fn().mockResolvedValue(true),
-		} as any
-		const visibleTask = { taskId: "visible-other", emit: vi.fn() } as any
-		const childStart = vi.fn()
-		const updateTaskHistory = vi.fn()
-		const removeClineFromStack = vi.fn().mockResolvedValue(undefined)
-		const createTask = vi.fn().mockResolvedValue({ taskId: "child-1", start: childStart })
-		const handleModeSwitch = vi.fn().mockResolvedValue(undefined)
-		const getTaskWithId = vi.fn().mockImplementation(async (id: string) => {
-			if (id === "parent-1") {
-				return {
-					historyItem: {
-						id: "parent-1",
-						task: "Parent",
-						tokensIn: 0,
-						tokensOut: 0,
-						totalCost: 0,
-						childIds: [],
-					},
-				}
+	describe("Extended Thinking Support", () => {
+		it("should include thinking parameter for Claude Sonnet 4 when reasoning is enabled", async () => {
+			handler = new AwsBedrockHandler({
+				apiProvider: "bedrock",
+				apiModelId: "anthropic.claude-sonnet-4-20250514-v1:0",
+				awsRegion: "us-east-1",
+				enableReasoningEffort: true,
+				modelMaxTokens: 8192,
+				modelMaxThinkingTokens: 4096,
+			})
+
+			// Mock the stream response
+			mockSend.mockResolvedValue({
+				stream: (async function* () {
+					yield {
+						messageStart: { role: "assistant" },
+					}
+					yield {
+						contentBlockStart: {
+							content_block: { type: "thinking", thinking: "Let me think..." },
+							contentBlockIndex: 0,
+						},
+					}
+					yield {
+						contentBlockDelta: {
+							delta: { type: "thinking_delta", thinking: " about this problem." },
+						},
+					}
+					yield {
+						contentBlockStart: {
+							start: { text: "Here's the answer:" },
+							contentBlockIndex: 1,
+						},
+					}
+					yield {
+						metadata: {
+							usage: { inputTokens: 100, outputTokens: 50 },
+						},
+					}
+				})(),
+			})
+
+			const messages = [{ role: "user" as const, content: "Test message" }]
+			const stream = handler.createMessage("System prompt", messages)
+
+			const chunks = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
 			}
-			return {
-				historyItem: {
-					id: "child-1",
-					task: "Do something",
-					tokensIn: 0,
-					tokensOut: 0,
-					totalCost: 0,
+
+			// Verify the command was called with the correct payload
+			expect(mockSend).toHaveBeenCalledTimes(1)
+			expect(capturedPayload).toBeDefined()
+			expect(capturedPayload.additionalModelRequestFields).toBeDefined()
+			expect(capturedPayload.additionalModelRequestFields.thinking).toEqual({
+				type: "enabled",
+				budget_tokens: 4096, // Uses the full modelMaxThinkingTokens value
+			})
+
+			// Verify reasoning chunks were yielded
+			const reasoningChunks = chunks.filter((c) => c.type === "reasoning")
+			expect(reasoningChunks).toHaveLength(2)
+			expect(reasoningChunks[0].text).toBe("Let me think...")
+			expect(reasoningChunks[1].text).toBe(" about this problem.")
+
+			// Verify that topP is NOT present when thinking is enabled
+			expect(capturedPayload.inferenceConfig).not.toHaveProperty("topP")
+		})
+
+		it("should pass thinking parameters from metadata", async () => {
+			handler = new AwsBedrockHandler({
+				apiProvider: "bedrock",
+				apiModelId: "anthropic.claude-3-7-sonnet-20250219-v1:0",
+				awsRegion: "us-east-1",
+			})
+
+			mockSend.mockResolvedValue({
+				stream: (async function* () {
+					yield { messageStart: { role: "assistant" } }
+					yield { metadata: { usage: { inputTokens: 100, outputTokens: 50 } } }
+				})(),
+			})
+
+			const messages = [{ role: "user" as const, content: "Test message" }]
+			const metadata = {
+				taskId: "test-task",
+				thinking: {
+					enabled: true,
+					maxTokens: 16384,
+					maxThinkingTokens: 8192,
 				},
 			}
+
+			const stream = handler.createMessage("System prompt", messages, metadata)
+			const chunks = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Verify the thinking parameter was passed correctly
+			expect(mockSend).toHaveBeenCalledTimes(1)
+			expect(capturedPayload).toBeDefined()
+			expect(capturedPayload.additionalModelRequestFields).toBeDefined()
+			expect(capturedPayload.additionalModelRequestFields.thinking).toEqual({
+				type: "enabled",
+				budget_tokens: 8192,
+			})
+
+			// Verify that topP is NOT present when thinking is enabled via metadata
+			expect(capturedPayload.inferenceConfig).not.toHaveProperty("topP")
 		})
 
-		const provider = {
-			emit: vi.fn(),
-			getCurrentTask: vi.fn(() => visibleTask),
-			getTaskById: vi.fn((id: string) =>
-				id === "parent-1" ? parentTask : id === "visible-other" ? visibleTask : undefined,
-			),
-			removeClineFromStack,
-			createTask,
-			getTaskWithId,
-			updateTaskHistory,
-			handleModeSwitch,
-			log: vi.fn(),
-		} as unknown as ClineProvider
+		it("should log when extended thinking is enabled", async () => {
+			handler = new AwsBedrockHandler({
+				apiProvider: "bedrock",
+				apiModelId: "anthropic.claude-opus-4-20250514-v1:0",
+				awsRegion: "us-east-1",
+				enableReasoningEffort: true,
+				modelMaxThinkingTokens: 5000,
+			})
 
-		const child = await (ClineProvider.prototype as any).delegateParentAndOpenChild.call(provider, {
-			parentTaskId: "parent-1",
-			message: "Do something",
-			initialTodos: [],
-			mode: "code",
+			mockSend.mockResolvedValue({
+				stream: (async function* () {
+					yield { messageStart: { role: "assistant" } }
+				})(),
+			})
+
+			const messages = [{ role: "user" as const, content: "Test" }]
+			const stream = handler.createMessage("System prompt", messages)
+
+			for await (const chunk of stream) {
+				// consume stream
+			}
+
+			// Verify logging
+			expect(logger.info).toHaveBeenCalledWith(
+				expect.stringContaining("Extended thinking enabled"),
+				expect.objectContaining({
+					ctx: "bedrock",
+					modelId: "anthropic.claude-opus-4-20250514-v1:0",
+				}),
+			)
 		})
 
-		expect(child.taskId).toBe("child-1")
-		expect(removeClineFromStack).toHaveBeenCalledWith({ taskId: "parent-1", skipDelegationRepair: true })
-		expect(createTask).toHaveBeenCalledWith("Do something", undefined, parentTask, {
-			initialTodos: [],
-			initialStatus: "active",
-			startTask: false,
+		it("should not include topP when thinking is disabled (global removal)", async () => {
+			handler = new AwsBedrockHandler({
+				apiProvider: "bedrock",
+				apiModelId: "anthropic.claude-3-7-sonnet-20250219-v1:0",
+				awsRegion: "us-east-1",
+				// Note: no enableReasoningEffort = true, so thinking is disabled
+			})
+
+			mockSend.mockResolvedValue({
+				stream: (async function* () {
+					yield { messageStart: { role: "assistant" } }
+					yield {
+						contentBlockStart: {
+							start: { text: "Hello" },
+							contentBlockIndex: 0,
+						},
+					}
+					yield {
+						contentBlockDelta: {
+							delta: { text: " world" },
+						},
+					}
+					yield { metadata: { usage: { inputTokens: 100, outputTokens: 50 } } }
+				})(),
+			})
+
+			const messages = [{ role: "user" as const, content: "Test message" }]
+			const stream = handler.createMessage("System prompt", messages)
+
+			const chunks = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Verify that topP is NOT present for any model (removed globally)
+			expect(mockSend).toHaveBeenCalledTimes(1)
+			expect(capturedPayload).toBeDefined()
+			expect(capturedPayload.inferenceConfig).not.toHaveProperty("topP")
+
+			// Verify that additionalModelRequestFields contains fine-grained-tool-streaming for Claude models
+			expect(capturedPayload.additionalModelRequestFields).toBeDefined()
+			expect(capturedPayload.additionalModelRequestFields.anthropic_beta).toContain(
+				"fine-grained-tool-streaming-2025-05-14",
+			)
 		})
-		expect(updateTaskHistory).toHaveBeenCalledWith(
-			expect.objectContaining({
-				id: "parent-1",
-				status: "delegated",
-				delegatedToId: "child-1",
-				awaitingChildId: "child-1",
-			}),
-		)
-		expect(handleModeSwitch).toHaveBeenCalledWith("code", { updateCurrentTask: false })
-		expect(childStart).toHaveBeenCalledTimes(1)
+
+		it("should enable reasoning when enableReasoningEffort is true in settings", async () => {
+			handler = new AwsBedrockHandler({
+				apiProvider: "bedrock",
+				apiModelId: "anthropic.claude-sonnet-4-20250514-v1:0",
+				awsRegion: "us-east-1",
+				enableReasoningEffort: true, // This should trigger reasoning
+				modelMaxThinkingTokens: 4096,
+			})
+
+			mockSend.mockResolvedValue({
+				stream: (async function* () {
+					yield { messageStart: { role: "assistant" } }
+					yield {
+						contentBlockStart: {
+							content_block: { type: "thinking", thinking: "Let me think..." },
+							contentBlockIndex: 0,
+						},
+					}
+					yield {
+						contentBlockDelta: {
+							delta: { type: "thinking_delta", thinking: " about this problem." },
+						},
+					}
+					yield { metadata: { usage: { inputTokens: 100, outputTokens: 50 } } }
+				})(),
+			})
+
+			const messages = [{ role: "user" as const, content: "Test message" }]
+			const stream = handler.createMessage("System prompt", messages)
+
+			const chunks = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Verify thinking was enabled via settings
+			expect(mockSend).toHaveBeenCalledTimes(1)
+			expect(capturedPayload).toBeDefined()
+			expect(capturedPayload.additionalModelRequestFields).toBeDefined()
+			expect(capturedPayload.additionalModelRequestFields.thinking).toEqual({
+				type: "enabled",
+				budget_tokens: 4096,
+			})
+
+			// Verify that topP is NOT present when thinking is enabled via settings
+			expect(capturedPayload.inferenceConfig).not.toHaveProperty("topP")
+
+			// Verify reasoning chunks were yielded
+			const reasoningChunks = chunks.filter((c) => c.type === "reasoning")
+			expect(reasoningChunks).toHaveLength(2)
+			expect(reasoningChunks[0].text).toBe("Let me think...")
+			expect(reasoningChunks[1].text).toBe(" about this problem.")
+		})
+
+		it("should support API key authentication", async () => {
+			handler = new AwsBedrockHandler({
+				apiProvider: "bedrock",
+				apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+				awsRegion: "us-east-1",
+				awsUseApiKey: true,
+				awsApiKey: "test-api-key-token",
+			})
+
+			mockSend.mockResolvedValue({
+				stream: (async function* () {
+					yield { messageStart: { role: "assistant" } }
+					yield {
+						contentBlockStart: {
+							start: { text: "Hello from API key auth" },
+							contentBlockIndex: 0,
+						},
+					}
+					yield { metadata: { usage: { inputTokens: 100, outputTokens: 50 } } }
+				})(),
+			})
+
+			const messages = [{ role: "user" as const, content: "Test message" }]
+			const stream = handler.createMessage("System prompt", messages)
+
+			const chunks = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Verify the client was created with API key token
+			expect(BedrockRuntimeClient).toHaveBeenCalledWith(
+				expect.objectContaining({
+					region: "us-east-1",
+					token: { token: "test-api-key-token" },
+					authSchemePreference: ["httpBearerAuth"],
+				}),
+			)
+
+			// Verify the stream worked correctly
+			expect(mockSend).toHaveBeenCalledTimes(1)
+			const textChunks = chunks.filter((c) => c.type === "text")
+			expect(textChunks).toHaveLength(1)
+			expect(textChunks[0].text).toBe("Hello from API key auth")
+		})
 	})
 })

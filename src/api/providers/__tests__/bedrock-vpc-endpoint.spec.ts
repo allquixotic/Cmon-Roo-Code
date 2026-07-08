@@ -25,7 +25,7 @@ vi.mock("@aws-sdk/client-bedrock-runtime", () => {
 	}
 })
 
-import { AwsBedrockHandler } from "../bedrock"
+import { AwsBedrockHandler, __resetBedrockClientCache } from "../bedrock"
 import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime"
 
 // Get access to the mocked functions
@@ -35,6 +35,9 @@ describe("Amazon Bedrock VPC Endpoint Functionality", () => {
 	beforeEach(() => {
 		// Clear all mocks before each test
 		vi.clearAllMocks()
+		// The handler pools BedrockRuntimeClient instances process-wide; reset so each
+		// test's handler construction actually calls the mocked constructor.
+		__resetBedrockClientCache()
 	})
 
 	// Test Scenario 1: Input Validation Test

@@ -30,11 +30,11 @@
 
 Roo Code'dan Zoo Code'a geçmek için hızlı bir rehberi [Roo→Zoo geçiş rehberinde](https://docs.zoocode.dev/roo-to-zoo-migration) bulabilirsin. Geçiş sürecinde kullanıcılara elimizden geldiğince yardımcı olmak istiyoruz ve bunun için [Reddit](https://www.reddit.com/r/ZooCode) ile [Discord](https://discord.gg/VxfP4Vx3gX) topluluklarımız var. Bir sorun yaşarsan ya da sorunun olursa gel ve sor.
 
-## v3.62.0'daki Yenilikler
+## v3.66.0'daki Yenilikler
 
-- **GLM-5.2 desteği** — en yeni GLM modeli artık sağlayıcı ayarlarında mevcut
-- **OpenCode-Go iyileştirmeleri** — yerel model parametreleri, Anthropic formatı yönlendirme ve daha güvenilir yanıtlar için context-token düzeltmesi
-- **Tool-writer modu** — araç tanımlarını yazmak ve sürdürmek için yeni bir uzmanlaşmış mod, artık Marketplace'te mevcut
+- **Claude Sonnet 5 desteği** — en yeni Claude modeli artık Anthropic, Bedrock ve Vertex sağlayıcılarında kullanılabilir
+- **Semble v0.4.1 yükseltmesi** — düzleştirilmiş sonuç ayrıştırma ve yerelleştirilmiş durum mesajları
+- **Görev yaşam döngüsü durum geçiş koruması** — yeni bir durum geçiş koruması ve başlangıç yetkilendirme uzlaştırması geçersiz görev durum geçişlerini önler
 
 ## Zoo Code SİZİN İçin Ne Yapabilir?
 

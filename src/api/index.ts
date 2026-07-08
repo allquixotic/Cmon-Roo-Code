@@ -31,6 +31,7 @@ import {
 	SambaNovaHandler,
 	ZAiHandler,
 	FireworksHandler,
+	FriendliHandler,
 	VercelAiGatewayHandler,
 	OpencodeGoHandler,
 	ZooGatewayHandler,
@@ -120,6 +121,13 @@ export interface ApiHandler {
 	getModel(): { id: string; info: ModelInfo }
 
 	/**
+	 * Optional context window for context-management / auto-condense when it must differ from
+	 * getModel().info.contextWindow. Only VS Code LM overrides it (static `maxInputTokens` vs its
+	 * inflated live window); others leave it undefined and callers fall back.
+	 */
+	getCondenseContextWindow?(): number
+
+	/**
 	 * Counts tokens for content blocks
 	 * All providers extend BaseProvider which provides a default tiktoken implementation,
 	 * but they can override this to use their native token counting endpoints
@@ -192,6 +200,8 @@ export function buildApiHandler(configuration: ProviderSettings): ApiHandler {
 			return new ZAiHandler(options)
 		case "fireworks":
 			return new FireworksHandler(options)
+		case "friendli":
+			return new FriendliHandler(options)
 		case "vercel-ai-gateway":
 			return new VercelAiGatewayHandler(options)
 		case "opencode-go":

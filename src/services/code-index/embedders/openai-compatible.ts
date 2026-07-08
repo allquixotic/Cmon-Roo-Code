@@ -10,7 +10,7 @@ import { getDefaultModelId, getModelQueryPrefix } from "../../../shared/embeddin
 import { t } from "../../../i18n"
 import { withValidationErrorHandling, HttpError, formatEmbeddingError } from "../shared/validation-helpers"
 import { Mutex } from "async-mutex"
-import { handleOpenAIError } from "../../../api/providers/utils/openai-error-handler"
+import { handleOpenAIError } from "../../../api/providers/utils/error-handler"
 
 interface EmbeddingItem {
 	embedding: string | number[]

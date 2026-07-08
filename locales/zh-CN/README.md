@@ -30,11 +30,11 @@
 
 你可以在 [Roo→Zoo 迁移指南](https://docs.zoocode.dev/roo-to-zoo-migration) 中找到从 Roo Code 迁移到 Zoo Code 的快速说明。我们希望在大家迁移过程中尽可能提供帮助，这也是我们设立 [Reddit](https://www.reddit.com/r/ZooCode) 和 [Discord](https://discord.gg/VxfP4Vx3gX) 社区的原因。如果你遇到问题或有任何疑问，欢迎加入后直接提问。
 
-## v3.62.0 新增内容
+## v3.66.0 新增内容
 
-- **GLM-5.2 支持** — 最新 GLM 模型现已在提供商设置中可用
-- **OpenCode-Go 改进** — 原生模型参数、Anthropic 格式路由和 context-token 修复，提供更可靠的响应
-- **Tool-writer 模式** — 用于编写和维护工具定义的新专用模式，现已在 Marketplace 中可用
+- **Claude Sonnet 5 支持** — 最新 Claude 模型现已在 Anthropic、Bedrock 和 Vertex 提供商上可用
+- **Semble v0.4.1 升级** — 扁平化的结果解析和本地化的状态消息
+- **任务生命周期状态转换守卫** — 新的状态转换守卫和启动时的委派对账可防止无效的任务状态转换
 
 ## Zoo Code 能为您做什么？
 

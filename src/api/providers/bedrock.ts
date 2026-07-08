@@ -70,9 +70,7 @@ interface BedrockInferenceConfig {
 //   - Adaptive (Claude Opus 4.7+):                 { type: "adaptive", display: "summarized" }
 //     paired with a top-level `output_config.effort` string on the payload itself.
 interface BedrockAdditionalModelFields {
-	thinking?:
-		| { type: "enabled"; budget_tokens: number }
-		| { type: "adaptive"; display?: "summarized" | "none" }
+	thinking?: { type: "enabled"; budget_tokens: number } | { type: "adaptive"; display?: "summarized" | "none" }
 	anthropic_beta?: string[]
 	[key: string]: any // Add index signature to be compatible with DocumentType
 }
@@ -88,7 +86,7 @@ interface BedrockPayload {
 	toolConfig?: ToolConfiguration
 	// Adaptive-thinking models (e.g. Claude Opus 4.7 on Bedrock) use this top-level
 	// `output_config.effort` knob instead of the legacy `thinking.budget_tokens` number.
-	output_config?: { effort: "low" | "medium" | "high" }
+	output_config?: { effort: "low" | "medium" | "high" | "xhigh" | "max" }
 }
 
 /**
@@ -113,10 +111,12 @@ function mapReasoningBudgetToBedrockEffort(budget: number | undefined): "low" | 
  * accepts on `output_config.effort`. Unknown or disabled values return undefined so
  * the caller can fall back to the budget-derived mapping.
  */
-function normalizeReasoningEffortForBedrock(value: unknown): "low" | "medium" | "high" | undefined {
+function normalizeReasoningEffortForBedrock(value: unknown): "low" | "medium" | "high" | "xhigh" | "max" | undefined {
 	if (typeof value !== "string") return undefined
 	const v = value.toLowerCase()
-	if (v === "low" || v === "medium" || v === "high") return v
+	// Claude 4.7+ adaptive-thinking models accept the extended effort levels
+	// ("xhigh"/"max") in addition to the classic three buckets.
+	if (v === "low" || v === "medium" || v === "high" || v === "xhigh" || v === "max") return v
 	if (v === "minimal") return "low"
 	return undefined
 }
@@ -471,7 +471,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 
 		let additionalModelRequestFields: BedrockAdditionalModelFields | undefined
 		let thinkingEnabled = false
-		let adaptiveThinkingEffort: "low" | "medium" | "high" | undefined
+		let adaptiveThinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | undefined
 
 		// Resolve the base model id first so the thinking branch can decide between the
 		// legacy budget_tokens payload and the newer adaptive + output_config.effort payload.
@@ -777,7 +777,10 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 						//However, we want to keep the id of the model to be the ID for the router for
 						//subsequent requests so they are sent back through the router
 						const invokedArnInfo = this.parseArn(streamEvent.trace.promptRouter.invokedModelId)
-						const invokedModel = this.getModelById(invokedArnInfo.modelId as string, invokedArnInfo.modelType)
+						const invokedModel = this.getModelById(
+							invokedArnInfo.modelId as string,
+							invokedArnInfo.modelType,
+						)
 						if (invokedModel) {
 							invokedModel.id = modelConfig.id
 							this.costModelConfig = invokedModel
@@ -1234,9 +1237,10 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 
 	/**
 	 * Detect models that require the adaptive-thinking API contract. Starting with Claude
-	 * Opus 4.7 (and the matching Sonnet 4.7) — continuing in Opus/Sonnet 4.8 and Claude
-	 * Fable 5 — Anthropic removed sampling params (temperature/top_p/top_k) and replaced
-	 * `budget_tokens`-based thinking with `thinking.type: "adaptive"` + `output_config.effort`.
+	 * Opus 4.7 (and the matching Sonnet 4.7) — continuing in Opus/Sonnet 4.8, Claude
+	 * Fable 5, and Claude Sonnet 5 — Anthropic removed sampling params (temperature/top_p/top_k)
+	 * and replaced `budget_tokens`-based thinking with `thinking.type: "adaptive"` +
+	 * `output_config.effort`.
 	 * Matches on the prefix-stripped base model id so cross-region/global prefixes
 	 * (`us.`, `eu.`, `global.`) are handled, and future-proofs the Sonnet 4.7/4.8 ids that
 	 * have no registry entry yet.
@@ -1248,7 +1252,8 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			baseModelId.includes("opus-4-8") ||
 			baseModelId.includes("fable-5") ||
 			baseModelId.includes("sonnet-4-7") ||
-			baseModelId.includes("sonnet-4-8")
+			baseModelId.includes("sonnet-4-8") ||
+			baseModelId.includes("sonnet-5")
 		)
 	}
 

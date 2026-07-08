@@ -32,6 +32,14 @@
 		"title": "Iniciar nueva tarea",
 		"tooltip": "Comienza una nueva tarea"
 	},
+	"seeNewChanges": {
+		"title": "Ver cambios nuevos",
+		"tooltip": "Muestra los cambios hechos desde tu último prompt"
+	},
+	"restoreChanges": {
+		"title": "Restaurar cambios",
+		"tooltip": "Restaura los archivos y el estado de la tarea a tu último prompt"
+	},
 	"proceedAnyways": {
 		"title": "Continuar de todos modos",
 		"tooltip": "Continuar mientras se ejecuta el comando"
@@ -333,9 +341,9 @@
 		"support": "Apoya a Zoo Code dándonos una estrella en <githubLink>GitHub</githubLink>.",
 		"release": {
 			"heading": "Novedades:",
-			"highlight1": "Soporte para GLM-5.2 — el último modelo GLM ya está disponible en la configuración del proveedor.",
-			"highlight2": "Mejoras de OpenCode-Go — parámetros de modelo nativos, enrutamiento en formato Anthropic y corrección de context-token para respuestas más fiables.",
-			"highlight3": "Modo tool-writer — un nuevo modo especializado para escribir y mantener definiciones de herramientas, ya disponible en el Marketplace."
+			"highlight1": "Soporte para Claude Sonnet 5 — el modelo de Claude más reciente ya está disponible en los proveedores Anthropic, Bedrock y Vertex.",
+			"highlight2": "Actualización a Semble v0.4.1 — análisis de resultados aplanado y mensajes de estado localizados.",
+			"highlight3": "Guardia de transición de estado del ciclo de vida de tareas — una nueva guardia de transición de estado y la reconciliación de delegación al inicio evitan transiciones de estado de tareas no válidas."
 		},
 		"cloudAgents": {
 			"heading": "Novedades en la Nube:",

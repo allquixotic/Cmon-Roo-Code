@@ -35,7 +35,8 @@ vi.mock("vscode", () => {
 vi.mock("../core/task-persistence/taskMessages", () => ({
 	readTaskMessages: vi.fn().mockResolvedValue([]),
 }))
-vi.mock("../core/task-persistence", () => ({
+vi.mock("../core/task-persistence", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../core/task-persistence")>()),
 	readApiMessages: vi.fn().mockResolvedValue([]),
 	saveApiMessages: vi.fn().mockResolvedValue(undefined),
 	saveTaskMessages: vi.fn().mockResolvedValue(undefined),
@@ -106,7 +107,9 @@ describe("Nested delegation resume (A → B → C)", () => {
 		const emitSpy = vi.fn()
 		const removeClineFromStack = vi.fn().mockImplementation(async ({ taskId }: { taskId?: string } = {}) => {
 			const resolvedTaskId = taskId ?? currentActiveId
-			;(provider as any).clineStack = (provider as any).clineStack.filter((task: any) => task.taskId !== resolvedTaskId)
+			;(provider as any).clineStack = (provider as any).clineStack.filter(
+				(task: any) => task.taskId !== resolvedTaskId,
+			)
 			if (currentActiveId === resolvedTaskId) {
 				currentActiveId = undefined
 			}
@@ -121,7 +124,9 @@ describe("Nested delegation resume (A → B → C)", () => {
 				expect(opts).toEqual(expect.objectContaining({ startTask: false }))
 				// Reopen the parent
 				currentActiveId = historyItem.id
-				;(provider as any).clineStack = (provider as any).clineStack.filter((task: any) => task.taskId !== historyItem.id)
+				;(provider as any).clineStack = (provider as any).clineStack.filter(
+					(task: any) => task.taskId !== historyItem.id,
+				)
 				;(provider as any).clineStack.push({ taskId: historyItem.id })
 				if (opts?.focus !== false) {
 					visibleTaskId = historyItem.id
@@ -152,6 +157,25 @@ describe("Nested delegation resume (A → B → C)", () => {
 			return Object.values(historyIndex)
 		})
 
+		const taskHistoryStore = {
+			atomicUpdatePair: vi.fn(
+				async (
+					firstId: string,
+					secondId: string,
+					firstUpdater: (h: any) => any,
+					secondUpdater: (h: any) => any,
+				) => {
+					// Apply both updaters and persist to historyIndex atomically
+					const updatedFirst = firstUpdater(historyIndex[firstId])
+					const updatedSecond = secondUpdater(historyIndex[secondId])
+					historyIndex[firstId] = updatedFirst
+					historyIndex[secondId] = updatedSecond
+					return Object.values(historyIndex)
+				},
+			),
+			get: vi.fn((id: string) => historyIndex[id]),
+		}
+
 		const provider = makeProviderStub({
 			contextProxy: { globalStorageUri: { fsPath: "/tmp" } },
 			clineStack: [{ taskId: "C" }] as any[],
@@ -163,6 +187,7 @@ describe("Nested delegation resume (A → B → C)", () => {
 			removeClineFromStack,
 			createTaskWithHistoryItem,
 			updateTaskHistory,
+			taskHistoryStore,
 			// Wire through provider method so attemptCompletionTool can call it
 			reopenParentFromDelegation: vi.fn(async (params: any) => {
 				return await (ClineProvider.prototype as any).reopenParentFromDelegation.call(provider, params)
@@ -319,14 +344,33 @@ describe("Nested delegation resume (A → B → C)", () => {
 			overwriteApiConversationHistory: vi.fn().mockResolvedValue(undefined),
 		})
 
+		const taskHistoryStore = {
+			atomicUpdatePair: vi.fn(
+				async (
+					firstId: string,
+					secondId: string,
+					firstUpdater: (h: any) => any,
+					secondUpdater: (h: any) => any,
+				) => {
+					historyIndex[firstId] = firstUpdater(historyIndex[firstId])
+					historyIndex[secondId] = secondUpdater(historyIndex[secondId])
+					return Object.values(historyIndex)
+				},
+			),
+			get: vi.fn((id: string) => historyIndex[id]),
+		}
+
 		const provider: any = makeProviderStub({
 			contextProxy: { globalStorageUri: { fsPath: "/tmp" } },
 			clineStack: [liveOtherTask, liveChildTask] as any[],
 			visibleTaskId: "X",
+			taskHistoryStore,
 			getTaskById: vi.fn((id: string) => (provider as any).clineStack.find((task: any) => task.taskId === id)),
 			isTaskVisible: vi.fn((id: string) => provider.visibleTaskId === id),
 			removeClineFromStack: vi.fn(async ({ taskId }: { taskId: string }) => {
-				;(provider as any).clineStack = (provider as any).clineStack.filter((task: any) => task.taskId !== taskId)
+				;(provider as any).clineStack = (provider as any).clineStack.filter(
+					(task: any) => task.taskId !== taskId,
+				)
 			}),
 			createTaskWithHistoryItem,
 			updateTaskHistory,

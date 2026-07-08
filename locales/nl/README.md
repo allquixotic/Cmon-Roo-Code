@@ -30,11 +30,11 @@
 
 Je vindt een korte handleiding voor de overstap van Roo Code naar Zoo Code in de [Roo→Zoo-migratiegids](https://docs.zoocode.dev/roo-to-zoo-migration). We willen gebruikers zo goed mogelijk helpen tijdens de overgang, en precies daarvoor zijn onze [Reddit](https://www.reddit.com/r/ZooCode) en [Discord](https://discord.gg/VxfP4Vx3gX) er. Als je ergens tegenaan loopt of vragen hebt, kom langs en vraag het.
 
-## Nieuw in v3.62.0
+## Nieuw in v3.66.0
 
-- **GLM-5.2-ondersteuning** — het nieuwste GLM-model is nu beschikbaar in je providerinstellingen
-- **OpenCode-Go-verbeteringen** — native modelparameters, Anthropic-formaat routing en een context-token-fix voor betrouwbaardere antwoorden
-- **Tool-writer-modus** — een nieuwe gespecialiseerde modus voor het schrijven en onderhouden van tool-definities, nu beschikbaar in de Marketplace
+- **Claude Sonnet 5 ondersteuning** — het nieuwste Claude-model is nu beschikbaar bij de Anthropic, Bedrock en Vertex providers
+- **Semble v0.4.1 upgrade** — afgevlakte resultaatverwerking en gelokaliseerde statusberichten
+- **Taak-levenscyclus statusovergangsbewaking** — een nieuwe statusovergangsbewaking en opstart-delegatieverzoening voorkomen ongeldige taakstatusovergangen
 
 ## Wat kan Zoo Code voor JOU doen?
 

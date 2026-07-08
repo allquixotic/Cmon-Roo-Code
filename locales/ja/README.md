@@ -30,11 +30,11 @@
 
 Roo Code から Zoo Code へ移行するためのクイックガイドは、[Roo→Zoo 移行ガイド](https://docs.zoocode.dev/roo-to-zoo-migration) で確認できます。移行中のユーザーをできるだけ支援したいと考えていて、そのために [Reddit](https://www.reddit.com/r/ZooCode) と [Discord](https://discord.gg/VxfP4Vx3gX) を用意しています。困ったことや質問があれば、気軽に参加して聞いてください。
 
-## v3.62.0 の新機能
+## v3.66.0 の新機能
 
-- **GLM-5.2 サポート** — 最新の GLM モデルがプロバイダー設定で利用可能になりました
-- **OpenCode-Go の改善** — ネイティブモデルパラメータ、Anthropic フォーマットルーティング、より信頼性の高い応答のための context-token 修正
-- **Tool-writer モード** — ツール定義の作成と保守のための新しい専門モードが Marketplace で利用可能になりました
+- **Claude Sonnet 5 サポート** — 最新の Claude モデルが Anthropic、Bedrock、Vertex の各プロバイダーで利用可能になりました
+- **Semble v0.4.1 へのアップグレード** — 平坦な結果解析とローカライズされたステータスメッセージ
+- **タスクライフサイクル状態遷移ガード** — 新しい状態遷移ガードと起動時の委任調整により、無効なタスク状態遷移を防ぎます
 
 ## Zoo Codeがあなたのためにできること
 

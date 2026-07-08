@@ -1214,7 +1214,7 @@ items:
     parameters:
       - name: GitHub Personal Access Token
         key: GITHUB_PERSONAL_ACCESS_TOKEN
-        placeholder: YOUR_GITHUB_TOKEN
+        placeholder: "YOUR_GITHUB_PAT (classic PAT from https://github.com/settings/tokens/new)"
   - id: gitlab
     name: GitLab
     description: Enables comprehensive GitLab project management including file operations, issue tracking, merge requests,

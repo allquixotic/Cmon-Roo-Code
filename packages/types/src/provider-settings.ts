@@ -8,6 +8,7 @@ import {
 	bedrockModels,
 	deepSeekModels,
 	fireworksModels,
+	friendliModels,
 	geminiModels,
 	mistralModels,
 	moonshotModels,
@@ -120,6 +121,7 @@ export const providerNames = [
 	"baseten",
 	"deepseek",
 	"fireworks",
+	"friendli",
 	"gemini",
 	"gemini-cli",
 	"mistral",
@@ -403,6 +405,10 @@ const fireworksSchema = apiModelIdProviderModelSchema.extend({
 	fireworksApiKey: z.string().optional(),
 })
 
+const friendliSchema = apiModelIdProviderModelSchema.extend({
+	friendliApiKey: z.string().optional(),
+})
+
 const qwenCodeSchema = apiModelIdProviderModelSchema.extend({
 	qwenCodeOauthPath: z.string().optional(),
 })
@@ -463,6 +469,7 @@ export const providerSettingsSchemaDiscriminated = z.discriminatedUnion("apiProv
 	sambaNovaSchema.merge(z.object({ apiProvider: z.literal("sambanova") })),
 	zaiSchema.merge(z.object({ apiProvider: z.literal("zai") })),
 	fireworksSchema.merge(z.object({ apiProvider: z.literal("fireworks") })),
+	friendliSchema.merge(z.object({ apiProvider: z.literal("friendli") })),
 	qwenCodeSchema.merge(z.object({ apiProvider: z.literal("qwen-code") })),
 	rooSchema.merge(z.object({ apiProvider: z.literal("roo") })),
 	vercelAiGatewaySchema.merge(z.object({ apiProvider: z.literal("vercel-ai-gateway") })),
@@ -500,6 +507,7 @@ export const providerSettingsSchema = z.object({
 	...sambaNovaSchema.shape,
 	...zaiSchema.shape,
 	...fireworksSchema.shape,
+	...friendliSchema.shape,
 	...qwenCodeSchema.shape,
 	...rooSchema.shape,
 	...vercelAiGatewaySchema.shape,
@@ -582,6 +590,7 @@ export const modelIdKeysByProvider: Record<TypicalProvider, ModelIdKey> = {
 	zai: "apiModelId",
 	fireworks: "apiModelId",
 	roo: "apiModelId",
+	friendli: "apiModelId",
 	"vercel-ai-gateway": "vercelAiGatewayModelId",
 	"opencode-go": "opencodeGoModelId",
 	"zoo-gateway": "zooGatewayModelId",
@@ -654,6 +663,11 @@ export const MODELS_BY_PROVIDER: Record<
 		id: "fireworks",
 		label: "Fireworks",
 		models: Object.keys(fireworksModels),
+	},
+	friendli: {
+		id: "friendli",
+		label: "Friendli",
+		models: Object.keys(friendliModels),
 	},
 	gemini: {
 		id: "gemini",
