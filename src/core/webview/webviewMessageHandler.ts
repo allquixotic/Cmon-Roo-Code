@@ -29,6 +29,7 @@ import { saveTaskMessages } from "../task-persistence"
 import { importRooTaskHistory } from "../task-persistence/importRooTaskHistory"
 
 import { ClineProvider } from "./ClineProvider"
+import type { Task } from "../task/Task"
 import { handleCheckpointRestoreOperation } from "./checkpointRestoreHandler"
 import { generateErrorDiagnostics } from "./diagnosticsHandler"
 import {
@@ -193,16 +194,19 @@ export const webviewMessageHandler = async (
 	 * Resolves image file mentions in incoming messages.
 	 * Matches read_file behavior: respects size limits and model capabilities.
 	 */
-	const resolveIncomingImages = async (payload: { text?: string; images?: string[] }) => {
+	const resolveIncomingImages = async (payload: { text?: string; images?: string[]; task?: Task }) => {
 		const text = payload.text ?? ""
 		const images = payload.images
-		const currentTask = provider.getCurrentTask()
+		// Resolve against the TARGET task's ignore rules and cwd when provided —
+		// the message may be addressed to a background conversation whose workspace
+		// and .rooignore differ from the visible one.
+		const task = payload.task ?? provider.getCurrentTask()
 		const state = await provider.getState()
 		const resolved = await resolveImageMentions({
 			text,
 			images,
-			cwd: getCurrentCwd(),
-			rooIgnoreController: currentTask?.rooIgnoreController,
+			cwd: task?.cwd || getCurrentCwd(),
+			rooIgnoreController: task?.rooIgnoreController,
 			maxImageFileSize: state.maxImageFileSize,
 			maxTotalImageSize: state.maxTotalImageSize,
 		})
@@ -687,7 +691,11 @@ export const webviewMessageHandler = async (
 					break
 				}
 				const expectedTaskId = targetTask.taskId
-				const resolved = await resolveIncomingImages({ text: message.text, images: message.images })
+				const resolved = await resolveIncomingImages({
+					text: message.text,
+					images: message.images,
+					task: targetTask,
+				})
 				const stillActive = provider.resolveMessageTask(expectedTaskId)
 				if (!stillActive || stillActive.taskId !== expectedTaskId) {
 					provider.log(`[askResponse] dropped after image resolve — task ${expectedTaskId} no longer active`)
@@ -1549,11 +1557,13 @@ export const webviewMessageHandler = async (
 			break
 		}
 		case "completionCheckpointDiff": {
-			const currentCline = provider.getCurrentTask()
-			const checkpoint = currentCline ? resolveCompletionCheckpoint(currentCline) : undefined
+			// Route by taskId: the button belongs to a specific conversation, and the
+			// visible task can change between the click and this handler running.
+			const targetCline = provider.resolveMessageTask(message.taskId)
+			const checkpoint = targetCline ? resolveCompletionCheckpoint(targetCline) : undefined
 
-			if (currentCline && checkpoint) {
-				await currentCline.checkpointDiff({
+			if (targetCline && checkpoint) {
+				await targetCline.checkpointDiff({
 					ts: checkpoint.ts,
 					commitHash: checkpoint.commitHash,
 					mode: "to-current",
@@ -1563,24 +1573,29 @@ export const webviewMessageHandler = async (
 			break
 		}
 		case "completionCheckpointRestore": {
-			const currentCline = provider.getCurrentTask()
-			const checkpoint = currentCline ? resolveCompletionCheckpoint(currentCline) : undefined
+			// Route by taskId: this is a destructive cancel+rewind — it must target the
+			// task that owns the clicked completion checkpoint, never whichever task
+			// happens to be visible when the handler runs.
+			const targetCline = provider.resolveMessageTask(message.taskId)
+			const checkpoint = targetCline ? resolveCompletionCheckpoint(targetCline) : undefined
 
-			if (currentCline && checkpoint) {
-				const originalTaskId = currentCline.taskId
-				await provider.cancelTask()
+			if (targetCline && checkpoint) {
+				const originalTaskId = targetCline.taskId
+				await provider.cancelTask(originalTaskId)
 
 				try {
-					await pWaitFor(() => provider.getCurrentTask()?.isInitialized === true, { timeout: 3_000 })
+					await pWaitFor(() => provider.getTaskById(originalTaskId)?.isInitialized === true, {
+						timeout: 3_000,
+					})
 				} catch (error) {
 					vscode.window.showErrorMessage(t("common:errors.checkpoint_timeout"))
 					return
 				}
 
 				try {
-					const restoredTask = provider.getCurrentTask()
+					const restoredTask = provider.getTaskById(originalTaskId)
 
-					if (!restoredTask || restoredTask.taskId !== originalTaskId) {
+					if (!restoredTask) {
 						vscode.window.showErrorMessage(t("common:errors.checkpoint_failed"))
 						return
 					}
@@ -3620,7 +3635,11 @@ export const webviewMessageHandler = async (
 				break
 			}
 			const expectedTaskId = targetTask.taskId
-			const resolved = await resolveIncomingImages({ text: message.text, images: message.images })
+			const resolved = await resolveIncomingImages({
+				text: message.text,
+				images: message.images,
+				task: targetTask,
+			})
 			const stillActive = provider.resolveMessageTask(expectedTaskId)
 			if (!stillActive || stillActive.taskId !== expectedTaskId) {
 				provider.log(`[queueMessage] dropped after image resolve — task ${expectedTaskId} no longer active`)
@@ -3637,9 +3656,20 @@ export const webviewMessageHandler = async (
 		case "editQueuedMessage": {
 			if (message.payload) {
 				const { id, text, images, deliveryMode } = message.payload as EditQueuedMessagePayload
-				provider
-					.resolveMessageTask(message.taskId)
-					?.messageQueueService.updateMessage(id, text, images, deliveryMode)
+				const targetTask = provider.resolveMessageTask(message.taskId)
+				if (!targetTask) {
+					// Task closed while the edit was open — put the edited text back
+					// into the chat box rather than dropping it.
+					await restoreDroppedInput("queueMessage", text, images)
+					break
+				}
+				const updated = targetTask.messageQueueService.updateMessage(id, text, images, deliveryMode)
+				if (!updated) {
+					// The original message was dequeued (auto-dispatched) while the user
+					// was editing. The stale version was delivered; preserve the user's
+					// edit by enqueueing it as a new message instead of discarding it.
+					targetTask.messageQueueService.addMessage(text, images, deliveryMode ?? "queue")
+				}
 			}
 
 			break

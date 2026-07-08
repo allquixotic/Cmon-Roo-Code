@@ -120,8 +120,10 @@ describe("Nested delegation resume (A → B → C)", () => {
 		const createTaskWithHistoryItem = vi
 			.fn()
 			.mockImplementation(async (historyItem: any, opts?: { startTask?: boolean; focus?: boolean }) => {
-				// Assert startTask:false to avoid resume asks
-				expect(opts).toEqual(expect.objectContaining({ startTask: false }))
+				// Assert startTask:false to avoid resume asks; parent has no live instance on
+				// either hop, so replaceExistingTask must be false (contract: step 7 passes
+				// replaceExistingTask = getTaskById(parentTaskId) !== undefined)
+				expect(opts).toEqual(expect.objectContaining({ startTask: false, replaceExistingTask: false }))
 				// Reopen the parent
 				currentActiveId = historyItem.id
 				;(provider as any).clineStack = (provider as any).clineStack.filter(
@@ -410,7 +412,7 @@ describe("Nested delegation resume (A → B → C)", () => {
 				completedByChildId: "C",
 				awaitingChildId: undefined,
 			}),
-			{ startTask: false, focus: false },
+			{ startTask: false, focus: false, replaceExistingTask: false },
 		)
 	})
 })

@@ -158,7 +158,24 @@ async function cleanupStaleArchives(
  * @param storageDir - Directory to store the extracted binary (e.g. globalStorageUri.fsPath)
  * @returns The full path to the semble executable, or undefined if the platform is unsupported.
  */
-export async function downloadSemble(storageDir: string): Promise<string | undefined> {
+export function downloadSemble(storageDir: string): Promise<string | undefined> {
+	// In-flight dedup: concurrent callers (one CodeIndexManager per workspace folder,
+	// or a settings-change re-init racing an orphaned initialize) share one install.
+	// Without this, each invocation rm's the shared staging dir and streams into the
+	// same archive path, corrupting the other's download. Cleared in finally so a
+	// failed download does not poison the key for later retries.
+	const existing = inFlightDownloads.get(storageDir)
+	if (existing) {
+		return existing
+	}
+	const download = doDownloadSemble(storageDir).finally(() => inFlightDownloads.delete(storageDir))
+	inFlightDownloads.set(storageDir, download)
+	return download
+}
+
+const inFlightDownloads = new Map<string, Promise<string | undefined>>()
+
+async function doDownloadSemble(storageDir: string): Promise<string | undefined> {
 	const info = getArchiveInfo()
 	if (!info) {
 		return undefined

@@ -14,7 +14,10 @@ export type HistoryItemStatus = NonNullable<HistoryItem["status"]>
 const VALID_TRANSITIONS: Record<HistoryItemStatus, HistoryItemStatus[]> = {
 	active: ["delegated", "completed", "interrupted"],
 	delegated: ["active"],
-	interrupted: ["completed"],
+	// interrupted → delegated: a cancelled subtask can be resumed from history and
+	// keeps its persisted "interrupted" status while running (nothing transitions it
+	// back to "active"); it must still be able to spawn subtasks via new_task.
+	interrupted: ["completed", "delegated"],
 	completed: [],
 }
 
@@ -62,17 +65,60 @@ export interface TaskHistoryStoreOptions {
 	 * globalState during the transition period.
 	 */
 	onWrite?: (items: HistoryItem[]) => Promise<void>
+	/**
+	 * Override for the delegation-repair grace window (ms). Tests pass 0 so
+	 * freshly written fixtures are still eligible for reconciliation.
+	 */
+	delegationRepairGraceMs?: number
 }
 
 export class TaskHistoryStore {
 	private readonly globalStoragePath: string
-	private readonly onWrite?: (items: HistoryItem[]) => Promise<void>
+	private readonly onWriteSubscribers = new Set<(items: HistoryItem[]) => Promise<void>>()
 	private cache: Map<string, HistoryItem> = new Map()
 	private writeLock: Promise<void> = Promise.resolve()
 	private indexWriteTimer: ReturnType<typeof setTimeout> | null = null
 	private fsWatcher: fsSync.FSWatcher | null = null
 	private reconcileTimer: ReturnType<typeof setTimeout> | null = null
 	private disposed = false
+	private initializeStarted = false
+	private refCount = 0
+
+	/**
+	 * Process-wide registry keyed by storage path. Multiple ClineProviders in one
+	 * extension host (sidebar + "Open in New Tab" editor panels) MUST share a single
+	 * store instance: separate instances each hold their own write lock and cache
+	 * over the same files, and a second instance's startup delegation reconciliation
+	 * cannot distinguish a crash orphan from a delegation that is live right now in
+	 * another provider — it would sever it.
+	 */
+	private static instances = new Map<string, TaskHistoryStore>()
+
+	/**
+	 * Get (or create) the shared store for a storage path. Callers own a reference
+	 * and must call `release()` when disposed; the store shuts down when the last
+	 * reference is released.
+	 */
+	/**
+	 * Test-only: clear the process-wide registry so each test gets isolated stores.
+	 * Does NOT dispose registered instances (tests own their lifecycles).
+	 */
+	static __resetInstancesForTests(): void {
+		TaskHistoryStore.instances.clear()
+	}
+
+	static getOrCreate(globalStoragePath: string, options?: TaskHistoryStoreOptions): TaskHistoryStore {
+		let store = TaskHistoryStore.instances.get(globalStoragePath)
+		if (!store || store.disposed) {
+			store = new TaskHistoryStore(globalStoragePath)
+			TaskHistoryStore.instances.set(globalStoragePath, store)
+		}
+		store.refCount++
+		if (options?.onWrite) {
+			store.onWriteSubscribers.add(options.onWrite)
+		}
+		return store
+	}
 
 	/**
 	 * Promise that resolves when initialization is complete.
@@ -87,20 +133,53 @@ export class TaskHistoryStore {
 	/** Periodic reconciliation interval in milliseconds. */
 	private static readonly RECONCILE_INTERVAL_MS = 5 * 60 * 1000
 
+	/**
+	 * Grace window during which startup delegation reconciliation will NOT repair a
+	 * recently-written parent item: a freshly persisted delegation whose child has
+	 * not written its first history file yet looks identical to a crash orphan.
+	 */
+	private static readonly DELEGATION_REPAIR_GRACE_MS = 60_000
+	private readonly delegationRepairGraceMs: number
+
 	constructor(globalStoragePath: string, options?: TaskHistoryStoreOptions) {
 		this.globalStoragePath = globalStoragePath
-		this.onWrite = options?.onWrite
+		this.delegationRepairGraceMs = options?.delegationRepairGraceMs ?? TaskHistoryStore.DELEGATION_REPAIR_GRACE_MS
+		if (options?.onWrite) {
+			this.onWriteSubscribers.add(options.onWrite)
+		}
 		this.initialized = new Promise<void>((resolve) => {
 			this.resolveInitialized = resolve
 		})
+	}
+
+	/**
+	 * Release one reference to a shared store obtained via getOrCreate().
+	 * Unsubscribes the given onWrite callback (if provided) and disposes the
+	 * store when the last reference is gone.
+	 */
+	release(onWrite?: (items: HistoryItem[]) => Promise<void>): void {
+		if (onWrite) {
+			this.onWriteSubscribers.delete(onWrite)
+		}
+		this.refCount = Math.max(0, this.refCount - 1)
+		if (this.refCount === 0) {
+			TaskHistoryStore.instances.delete(this.globalStoragePath)
+			this.dispose()
+		}
 	}
 
 	// ────────────────────────────── Lifecycle ──────────────────────────────
 
 	/**
 	 * Load index, reconcile if needed, start watchers.
+	 * Idempotent: concurrent/subsequent calls (e.g. a second provider sharing the
+	 * store) await the first initialization instead of re-running reconciliation.
 	 */
 	async initialize(): Promise<void> {
+		if (this.initializeStarted) {
+			return this.initialized
+		}
+		this.initializeStarted = true
 		try {
 			const tasksDir = await this.getTasksDir()
 			await fs.mkdir(tasksDir, { recursive: true })
@@ -183,8 +262,8 @@ export class TaskHistoryStore {
 	 * Writes the per-task file immediately (source of truth),
 	 * updates the in-memory Map, and schedules a debounced index write.
 	 */
-	async upsert(item: HistoryItem): Promise<HistoryItem[]> {
-		return this.withLock(() => this.upsertCore(item))
+	async upsert(item: HistoryItem, options: { preserveExistingStatus?: boolean } = {}): Promise<HistoryItem[]> {
+		return this.withLock(() => this.upsertCore(item, options))
 	}
 
 	/**
@@ -193,19 +272,31 @@ export class TaskHistoryStore {
 	 * Enforces state-machine transition rules when `item.status` changes.
 	 * Pass `skipTransitionCheck: true` only for administrative repairs (reconciliation,
 	 * migration) that need to write corrected state outside the normal task lifecycle.
+	 *
+	 * Pass `preserveExistingStatus: true` for saves that do not intend a status
+	 * transition (e.g. Task.saveClineMessages): the status decision then happens
+	 * INSIDE the lock — the item keeps whatever status is currently persisted,
+	 * closing the TOCTOU where a stale pre-read status (captured before a queued
+	 * transition applied) would silently revert e.g. "delegated" back to "active".
+	 * First inserts still use the incoming item's status (initialStatus semantics).
 	 */
 	private async upsertCore(
 		item: HistoryItem,
-		options: { skipTransitionCheck?: boolean } = {},
+		options: { skipTransitionCheck?: boolean; preserveExistingStatus?: boolean } = {},
 	): Promise<HistoryItem[]> {
 		const existing = this.cache.get(item.id)
 
-		// Enforce transition validity at the write boundary so that any caller
-		// (including fire-and-forget saves) cannot silently stomp a terminal status.
-		// Skip when there is no existing record — first insert has no prior state to transition from.
-		// Normalize existing.status (undefined = legacy "active") before comparing so that writing
-		// status: "active" onto a legacy item without a status field is not treated as a transition.
-		if (!options.skipTransitionCheck && existing && item.status !== undefined) {
+		if (options.preserveExistingStatus && existing) {
+			// No transition intended: keep the currently persisted status regardless
+			// of what the caller captured. No transition check needed (no transition
+			// can occur by construction).
+			item = existing.status !== undefined ? { ...item, status: existing.status } : item
+		} else if (!options.skipTransitionCheck && existing && item.status !== undefined) {
+			// Enforce transition validity at the write boundary so that any caller
+			// (including fire-and-forget saves) cannot silently stomp a terminal status.
+			// Skip when there is no existing record — first insert has no prior state to transition from.
+			// Normalize existing.status (undefined = legacy "active") before comparing so that writing
+			// status: "active" onto a legacy item without a status field is not treated as a transition.
 			const normalizedExisting: HistoryItemStatus = existing.status ?? "active"
 			if (item.status !== normalizedExisting) {
 				assertValidTransition(existing.status, item.status)
@@ -226,8 +317,8 @@ export class TaskHistoryStore {
 		const all = this.getAll()
 
 		// Call onWrite callback inside the lock for serialized write-through
-		if (this.onWrite) {
-			await this.onWrite(all)
+		for (const subscriber of this.onWriteSubscribers) {
+			await subscriber(all)
 		}
 
 		return all
@@ -251,8 +342,8 @@ export class TaskHistoryStore {
 			this.scheduleIndexWrite()
 
 			// Call onWrite callback inside the lock for serialized write-through
-			if (this.onWrite) {
-				await this.onWrite(this.getAll())
+			for (const subscriber of this.onWriteSubscribers) {
+				await subscriber(this.getAll())
 			}
 		})
 	}
@@ -276,8 +367,8 @@ export class TaskHistoryStore {
 			this.scheduleIndexWrite()
 
 			// Call onWrite callback inside the lock for serialized write-through
-			if (this.onWrite) {
-				await this.onWrite(this.getAll())
+			for (const subscriber of this.onWriteSubscribers) {
+				await subscriber(this.getAll())
 			}
 		})
 	}
@@ -357,6 +448,13 @@ export class TaskHistoryStore {
 	 * - Parent `delegated`, child `completed` → parent → `active` (interrupted handoff)
 	 *
 	 * A parent awaiting an `active`, `interrupted`, or `delegated` child is left as-is — the child is resumable.
+	 *
+	 * Repairs are guarded against LIVE delegations (this can run while another
+	 * provider/window is mid-delegation over the same storage): before repairing,
+	 * the parent and child files are re-read fresh from disk (the index-seeded
+	 * cache can be stale), and a parent whose file was written within the grace
+	 * window is skipped — a freshly persisted delegation whose child has not
+	 * written its first history file yet is indistinguishable from a crash orphan.
 	 */
 	private async reconcileDelegationState(): Promise<void> {
 		return this.withLock(async () => {
@@ -367,8 +465,24 @@ export class TaskHistoryStore {
 				// are visible when evaluating chained delegations.
 				const byId = new Map(Array.from(this.cache.values()).map((i) => [i.id, i]))
 
-				for (const [, item] of byId) {
+				for (const [, cachedItem] of byId) {
+					if (cachedItem.status !== "delegated") {
+						continue
+					}
+
+					// Fresh read: the cache may be stale relative to writes from another
+					// store instance (second window) or in-flight index debounce.
+					const item = (await this.readTaskFile(cachedItem.id)) ?? cachedItem
 					if (item.status !== "delegated") {
+						this.cache.set(item.id, item)
+						continue
+					}
+
+					// Recency guard: skip repairs for parents written moments ago — the
+					// delegation is likely live in another provider, with the child's
+					// first save still in flight. The periodic reconciliation pass will
+					// repair it later if it truly is an orphan.
+					if (await this.isRecentlyWritten(item.id)) {
 						continue
 					}
 
@@ -384,7 +498,9 @@ export class TaskHistoryStore {
 						continue
 					}
 
-					const child = byId.get(item.awaitingChildId)
+					// Fresh read of the child as well: it may exist on disk without being
+					// in this store's cache yet (created by another provider).
+					const child = (await this.readTaskFile(item.awaitingChildId)) ?? byId.get(item.awaitingChildId)
 
 					if (!child) {
 						await this.upsertCore(
@@ -401,6 +517,7 @@ export class TaskHistoryStore {
 						)
 						repairsInThisPass++
 					} else if (child.status === "completed") {
+						this.cache.set(child.id, child)
 						await this.upsertCore(
 							{
 								...item,
@@ -417,11 +534,34 @@ export class TaskHistoryStore {
 							`[TaskHistoryStore] Reconciled interrupted handoff: task ${item.id} → active (child ${item.awaitingChildId} already completed)`,
 						)
 						repairsInThisPass++
+					} else {
+						// child.status === "active", "interrupted", or "delegated" → leave
+						// as-is this pass, but adopt the fresh child state into the cache.
+						this.cache.set(child.id, child)
 					}
-					// child.status === "active", "interrupted", or "delegated" → leave as-is this pass
 				}
 			} while (repairsInThisPass > 0)
 		})
+	}
+
+	/**
+	 * True when a task's history file was modified within the delegation-repair
+	 * grace window. Missing files count as NOT recent (they cannot be live).
+	 */
+	private async isRecentlyWritten(taskId: string): Promise<boolean> {
+		// Grace <= 0 disables the guard entirely. This must be an explicit check:
+		// Date.now() is integer ms while stat.mtimeMs has sub-ms precision, so a
+		// same-millisecond write can yield a NEGATIVE age that would pass `< 0`.
+		if (this.delegationRepairGraceMs <= 0) {
+			return false
+		}
+		try {
+			const filePath = await this.getTaskFilePath(taskId)
+			const stat = await fs.stat(filePath)
+			return Date.now() - stat.mtimeMs < this.delegationRepairGraceMs
+		} catch {
+			return false
+		}
 	}
 
 	// ────────────────────────────── Cache invalidation ──────────────────────────────
@@ -760,8 +900,8 @@ export class TaskHistoryStore {
 
 			this.scheduleIndexWrite()
 			const all = this.getAll()
-			if (this.onWrite) {
-				await this.onWrite(all)
+			for (const subscriber of this.onWriteSubscribers) {
+				await subscriber(all)
 			}
 			return all
 		})

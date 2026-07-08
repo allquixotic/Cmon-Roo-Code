@@ -6,6 +6,7 @@ import * as vscode from "vscode"
 import type { HistoryItem, ExtensionMessage } from "@roo-code/types"
 
 import { ContextProxy } from "../../config/ContextProxy"
+import { TaskHistoryStore } from "../../task-persistence/TaskHistoryStore"
 import { ClineProvider } from "../ClineProvider"
 
 // Mock setup
@@ -270,6 +271,12 @@ describe("ClineProvider Task History Synchronization", () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks()
+
+		// TaskHistoryStore instances are shared via a static registry keyed by
+		// storage path (TaskHistoryStore.getOrCreate). Every test here constructs
+		// a fresh ClineProvider against the same mock storage path, so the
+		// registry must be reset to keep per-test store isolation.
+		TaskHistoryStore.__resetInstancesForTests()
 
 		// Initialize task history state
 		taskHistoryState = []

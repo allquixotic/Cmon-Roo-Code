@@ -341,6 +341,15 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private deferQueuedMessageDrainUntilResume = false
 	private didSteerCurrentTurn = false
 	private interruptedAssistantText?: string
+	// Steer messages that were dequeued into the volatile userMessageContent but have
+	// not yet been persisted to apiConversationHistory. On a mid-stream failure retry
+	// or a user cancel, userMessageContent is discarded — these must be re-enqueued
+	// (retry) or included in the provider's queue snapshot (cancel) or they are lost
+	// while still showing as delivered in the transcript.
+	private steeredMessagesPendingPersist: QueuedMessage[] = []
+	// Ids of re-enqueued steer messages whose user_feedback row already exists in the
+	// transcript; consuming them again must not duplicate the say().
+	private resurfacedSteerIds = new Set<string>()
 
 	// Streaming
 	isWaitingForFirstChunk = false
@@ -467,6 +476,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		initialTodos,
 		workspacePath,
 		initialStatus,
+		taskMode,
 		rateLimitClock,
 		diffFuzzyThreshold,
 	}: TaskOptions) {
@@ -540,6 +550,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			this._taskApiConfigName = historyItem.apiConfigName
 			this.taskModeReady = Promise.resolve()
 			this.taskApiConfigReady = Promise.resolve()
+		} else if (taskMode) {
+			// Explicit task-scoped mode (delegated children): set synchronously so the
+			// task never depends on — or races — the global (visible-conversation) mode.
+			this._taskMode = taskMode
+			this._taskApiConfigName = undefined
+			this.taskModeReady = Promise.resolve()
+			this.taskApiConfigReady = this.initializeTaskApiConfigName(provider)
 		} else {
 			// For new tasks, don't set the mode/apiConfigName yet - wait for async initialization.
 			this._taskMode = undefined
@@ -639,10 +656,16 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private async initializeTaskMode(provider: ClineProvider): Promise<void> {
 		try {
 			const state = await provider.getState()
-			this._taskMode = state?.mode || defaultModeSlug
+			// Avoid clobbering a newer value that may have been set while awaiting
+			// provider state (e.g. an explicit taskMode or a task-scoped mode switch).
+			if (this._taskMode === undefined) {
+				this._taskMode = state?.mode || defaultModeSlug
+			}
 		} catch (error) {
-			// If there's an error getting state, use the default mode
-			this._taskMode = defaultModeSlug
+			// If there's an error getting state, use the default mode (unless a newer value was set)
+			if (this._taskMode === undefined) {
+				this._taskMode = defaultModeSlug
+			}
 			// Use the provider's log method for better error visibility
 			const errorMessage = `Failed to initialize task mode: ${error instanceof Error ? error.message : String(error)}`
 			provider.log(errorMessage)
@@ -1096,6 +1119,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		if (saved) {
 			// Clear the pending content since it's now saved
 			this.userMessageContent = []
+			// Any steer messages folded into that content are now durable.
+			this.steeredMessagesPendingPersist = []
 		} else {
 			console.warn(
 				`[Task#${this.taskId}] flushPendingToolResultsToHistory: save failed, retaining pending tool results in memory`,
@@ -1230,8 +1255,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			this.debouncedEmitTokenUsage(tokenUsage, this.toolUsage)
 
 			const provider = this.providerRef.deref()
-			const existingStatus = provider?.taskHistoryStore.get(this.taskId)?.status
-			await provider?.updateTaskHistory(existingStatus ? { ...historyItem, status: existingStatus } : historyItem)
+			// preserveExistingStatus resolves the status INSIDE the store's write lock:
+			// a pre-read here could capture a stale status while a transition (e.g.
+			// active → delegated) is queued-but-unapplied on the lock, and this save
+			// would then silently revert it.
+			await provider?.updateTaskHistory(historyItem, { preserveExistingStatus: true })
 			return true
 		} catch (error) {
 			console.error("Failed to save Roo messages:", error)
@@ -1790,7 +1818,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			return false
 		}
 
-		await this.say("user_feedback", message.text, message.images)
+		// Re-enqueued steers already have a user_feedback row in the transcript.
+		if (!this.resurfacedSteerIds.delete(message.id)) {
+			await this.say("user_feedback", message.text, message.images)
+		}
+		this.steeredMessagesPendingPersist.push(message)
 		this.interruptedAssistantText = this.getAssistantTextUpToContentIndex(completedContentIndex)
 		this.appendSyntheticToolResultsForSkippedBlocks(completedContentIndex)
 		this.appendDeferredMessageToUserContent(message)
@@ -1808,9 +1840,37 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			return false
 		}
 
-		await this.say("user_feedback", message.text, message.images)
+		// Re-enqueued steers already have a user_feedback row in the transcript.
+		if (!this.resurfacedSteerIds.delete(message.id)) {
+			await this.say("user_feedback", message.text, message.images)
+		}
+		this.steeredMessagesPendingPersist.push(message)
 		this.appendDeferredMessageToUserContent(message)
 		return true
+	}
+
+	/**
+	 * Steer messages consumed into the current turn's volatile user content that have
+	 * not yet been persisted to API history. Exposed so cancel/rehydrate flows can
+	 * include them in the queue snapshot restored onto the replacement task.
+	 */
+	public get pendingUnpersistedSteerMessages(): QueuedMessage[] {
+		return [...this.steeredMessagesPendingPersist]
+	}
+
+	/**
+	 * Re-enqueue steer messages consumed this turn whose content is about to be
+	 * discarded (mid-stream failure retry). Their transcript rows already exist, so
+	 * they are marked to skip the duplicate say() when consumed again.
+	 */
+	private requeuePendingUnpersistedSteerMessages(): void {
+		for (const message of this.steeredMessagesPendingPersist) {
+			const requeued = this.messageQueueService.addMessage(message.text, message.images, "steer")
+			if (requeued) {
+				this.resurfacedSteerIds.add(requeued.id)
+			}
+		}
+		this.steeredMessagesPendingPersist = []
 	}
 
 	async handleTerminalOperation(terminalOperation: "continue" | "abort") {
@@ -2869,6 +2929,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				((currentItem.retryAttempt ?? 0) === 0 && !isEmptyUserContent) || currentItem.userMessageWasRemoved
 			if (shouldAddUserMessage) {
 				await this.addToApiConversationHistory({ role: "user", content: finalUserContent })
+				// Any steer messages folded into this user content are now durable.
+				this.steeredMessagesPendingPersist = []
 			}
 
 			// Since we sent off a placeholder api_req_started message to update the
@@ -3526,6 +3588,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 								}
 							}
 
+							// Steer messages consumed into this turn's volatile user content
+							// would be silently dropped by the retry (the retried request
+							// replays currentUserContent only) — put them back in the queue.
+							this.requeuePendingUnpersistedSteerMessages()
+
 							// Push the same content back onto the stack to retry, incrementing the retry attempt counter
 							stack.push({
 								userContent: currentUserContent,
@@ -3938,19 +4005,43 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						continue
 					} else {
 						// Prompt the user for retry decision
-						const { response } = await this.ask(
+						const { response, text, images } = await this.ask(
 							"api_req_failed",
 							"The model returned no assistant messages. This may indicate an issue with the API or the model's output.",
 						)
 
-						if (response === "yesButtonClicked") {
-							await this.say("api_req_retried")
+						if (response === "yesButtonClicked" || response === "messageResponse") {
+							if (response === "messageResponse") {
+								// api_req_failed is an idle ask, so a queued message can be
+								// auto-dispatched into it (or the user typed feedback instead
+								// of clicking Retry). Deliver it as feedback on the retried
+								// request rather than misreading it as a decline — dropping
+								// the text here silently destroys a queued user message.
+								await this.say("user_feedback", text ?? "", images)
+								if (text) {
+									currentUserContent.push({
+										type: "text" as const,
+										text: `<user_message>\n${text}\n</user_message>`,
+									})
+								}
+								if (images?.length) {
+									currentUserContent.push(...formatResponse.imageBlocks(images))
+								}
+							} else {
+								await this.say("api_req_retried")
+							}
 
-							// Push the same content back to retry
+							// Push the same content back to retry.
+							// userMessageWasRemoved is required: the user message was popped
+							// from apiConversationHistory above, and retries skip re-adding
+							// it unless this flag is set — without it the retried request
+							// would end on an assistant message and the feedback would never
+							// reach the model.
 							stack.push({
 								userContent: currentUserContent,
 								includeFileDetails: false,
 								retryAttempt: (currentItem.retryAttempt ?? 0) + 1,
+								userMessageWasRemoved: true,
 							})
 
 							// Continue to retry the request

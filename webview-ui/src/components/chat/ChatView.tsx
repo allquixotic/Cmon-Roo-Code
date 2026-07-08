@@ -442,7 +442,17 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					// before the state snapshot reached the webview. isAnswered:true is
 					// stamped on the message atomically with addToClineMessages, so the
 					// webview never needs to show -- and then clear -- approval buttons.
+					// Reset the ask UI state instead of just breaking: leaving a stale
+					// clineAsk behind would make the next Enter answer an already-resolved
+					// ask (the extension's next ask() would then wipe that response). With
+					// clineAsk cleared and sending disabled, the queue predicate routes the
+					// message into queueMessage, which is always safe while the task runs.
 					if (lastMessage.isAnswered) {
+						setClineAsk(undefined)
+						setEnableButtons(false)
+						setPrimaryButtonText(undefined)
+						setSecondaryButtonText(undefined)
+						setSendingDisabled(true)
 						break
 					}
 					// Reset user response flag when a new ask arrives to allow auto-approval
@@ -852,7 +862,9 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					isCondensing ||
 					clineAskRef.current === "command_output" ||
 					(!clineAskRef.current && sendingDisabled)
-				const targetTaskId = currentTaskId ?? currentTaskItem?.id
+				// A draft-born task is created WITH the draft id, so the draft id is a
+				// valid queue target even before the created task's state round-trips.
+				const targetTaskId = currentTaskId ?? currentTaskItem?.id ?? selectedDraftId
 
 				if (shouldQueueMessage) {
 					// currentTaskId can blip to undefined when a state push was built during a

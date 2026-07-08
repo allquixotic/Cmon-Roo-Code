@@ -9,6 +9,7 @@ import type { GlobalState, ProviderSettings } from "@roo-code/types"
 import { Task } from "../Task"
 import { ClineProvider } from "../../webview/ClineProvider"
 import { ContextProxy } from "../../config/ContextProxy"
+import { TaskHistoryStore } from "../../task-persistence"
 
 // ─── Hoisted mocks ───────────────────────────────────────────────────────────
 
@@ -74,6 +75,40 @@ vi.mock("p-wait-for", () => ({
 
 vi.mock("../../task-persistence", async (importOriginal) => {
 	const mod = await importOriginal<typeof import("../../task-persistence")>()
+
+	const makeStoreMock = () => ({
+		initialize: vi.fn().mockResolvedValue(undefined),
+		dispose: vi.fn(),
+		release: vi.fn(),
+		get: vi.fn(),
+		getAll: vi.fn().mockReturnValue([]),
+		upsert: vi.fn().mockResolvedValue([]),
+		delete: vi.fn().mockResolvedValue(undefined),
+		deleteMany: vi.fn().mockResolvedValue(undefined),
+		reconcile: vi.fn().mockResolvedValue(undefined),
+		migrateFromGlobalState: vi.fn().mockResolvedValue(undefined),
+		initialized: Promise.resolve(),
+	})
+
+	// Mirror the new static-registry contract: getOrCreate shares one instance
+	// per storage path, and __resetInstancesForTests clears the registry.
+	const instances = new Map<string, ReturnType<typeof makeStoreMock>>()
+	const TaskHistoryStore = vi.fn().mockImplementation(function () {
+		return makeStoreMock()
+	}) as ReturnType<typeof vi.fn> & {
+		getOrCreate: ReturnType<typeof vi.fn>
+		__resetInstancesForTests: () => void
+	}
+	TaskHistoryStore.getOrCreate = vi.fn((globalStoragePath: string) => {
+		let instance = instances.get(globalStoragePath)
+		if (!instance) {
+			instance = makeStoreMock()
+			instances.set(globalStoragePath, instance)
+		}
+		return instance
+	})
+	TaskHistoryStore.__resetInstancesForTests = () => instances.clear()
+
 	return {
 		...mod,
 		saveApiMessages: mockSaveApiMessages,
@@ -81,19 +116,7 @@ vi.mock("../../task-persistence", async (importOriginal) => {
 		readApiMessages: mockReadApiMessages,
 		readTaskMessages: mockReadTaskMessages,
 		taskMetadata: mockTaskMetadata,
-		TaskHistoryStore: vi.fn().mockImplementation(function () {
-			return {
-				initialize: vi.fn().mockResolvedValue(undefined),
-				dispose: vi.fn(),
-				get: vi.fn(),
-				getAll: vi.fn().mockReturnValue([]),
-				upsert: vi.fn().mockResolvedValue([]),
-				delete: vi.fn().mockResolvedValue(undefined),
-				deleteMany: vi.fn().mockResolvedValue(undefined),
-				reconcile: vi.fn().mockResolvedValue(undefined),
-				initialized: Promise.resolve(),
-			}
-		}),
+		TaskHistoryStore,
 	}
 })
 
@@ -209,6 +232,10 @@ describe("Task persistence", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
+
+		// Providers now share TaskHistoryStore instances per storage path via a
+		// static registry; clear it so each test gets an isolated store.
+		;(TaskHistoryStore as unknown as { __resetInstancesForTests: () => void }).__resetInstancesForTests()
 
 		const storageUri = { fsPath: path.join(os.tmpdir(), "test-storage") }
 
@@ -419,7 +446,7 @@ describe("Task persistence", () => {
 			expect(callArgs.messages).toEqual(task.clineMessages)
 		})
 
-		it("preserves an existing lifecycle status during metadata saves", async () => {
+		it("delegates lifecycle-status preservation to the store via preserveExistingStatus", async () => {
 			mockSaveTaskMessages.mockResolvedValueOnce(undefined)
 			mockTaskMetadata.mockResolvedValueOnce({
 				historyItem: {
@@ -455,12 +482,18 @@ describe("Task persistence", () => {
 
 			await (task as Record<string, any>).saveClineMessages()
 
+			// Task no longer pre-reads the persisted status (a pre-read could race a
+			// queued status transition on the store's write lock and revert it). The
+			// historyItem is forwarded as-is and the store resolves the existing
+			// status inside its write lock via preserveExistingStatus.
+			expect(taskHistoryStore.get).not.toHaveBeenCalled()
 			expect(updateTaskHistory).toHaveBeenCalledWith(
 				expect.objectContaining({
 					id: "task-with-advanced-status",
-					status: "completed",
+					status: "interrupted",
 					tokensIn: 10,
 				}),
+				{ preserveExistingStatus: true },
 			)
 		})
 	})

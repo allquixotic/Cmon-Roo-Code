@@ -3,6 +3,7 @@
 import * as vscode from "vscode"
 import { ClineProvider } from "../ClineProvider"
 import { ContextProxy } from "../../config/ContextProxy"
+import { TaskHistoryStore } from "../../task-persistence/TaskHistoryStore"
 import type { HistoryItem } from "@roo-code/types"
 
 vi.mock("vscode", () => ({
@@ -217,6 +218,9 @@ describe("ClineProvider - Sticky Provider Profile", () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks()
+		// TaskHistoryStore.getOrCreate shares instances per storage path; reset the
+		// registry so each test's provider gets an isolated store.
+		TaskHistoryStore.__resetInstancesForTests()
 		taskIdCounter = 0
 		originalRooCliRuntimeEnv = process.env.ROO_CLI_RUNTIME
 		delete process.env.ROO_CLI_RUNTIME

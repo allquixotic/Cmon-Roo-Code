@@ -59,6 +59,12 @@ describe("webviewMessageHandler - checkpoint operations", () => {
 		// Setup mock provider
 		mockProvider = {
 			getCurrentTask: vi.fn(() => mockCline),
+			getTaskById: vi.fn((taskId?: string) => (taskId === "test-task-123" ? mockCline : undefined)),
+			resolveMessageTask: vi.fn((taskId?: string) =>
+				taskId !== undefined && taskId !== ""
+					? mockProvider.getTaskById(taskId)
+					: mockProvider.getCurrentTask(),
+			),
 			postMessageToWebview: vi.fn(),
 			getTaskWithId: vi.fn(() => ({
 				historyItem: { id: "test-task-123", messages: mockCline.clineMessages },
@@ -162,8 +168,9 @@ describe("webviewMessageHandler - checkpoint operations", () => {
 		})
 
 		it("diffs changes from the checkpoint created after the latest prompt", async () => {
-			await webviewMessageHandler(mockProvider, { type: "completionCheckpointDiff" })
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointDiff", taskId: "test-task-123" })
 
+			expect(mockProvider.resolveMessageTask).toHaveBeenCalledWith("test-task-123")
 			expect(mockCline.checkpointDiff).toHaveBeenCalledWith({
 				ts: 4,
 				commitHash: "latest-prompt-checkpoint",
@@ -171,20 +178,72 @@ describe("webviewMessageHandler - checkpoint operations", () => {
 			})
 		})
 
+		it("routes the diff by taskId even when a different task is visible", async () => {
+			const otherTask = {
+				taskId: "other-visible-task",
+				isInitialized: true,
+				clineMessages: [],
+				checkpointDiff: vi.fn(),
+				checkpointRestore: vi.fn(),
+			}
+			mockProvider.getCurrentTask.mockReturnValue(otherTask)
+
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointDiff", taskId: "test-task-123" })
+
+			expect(mockCline.checkpointDiff).toHaveBeenCalledWith({
+				ts: 4,
+				commitHash: "latest-prompt-checkpoint",
+				mode: "to-current",
+			})
+			expect(otherTask.checkpointDiff).not.toHaveBeenCalled()
+		})
+
 		it("restores files and task state to the checkpoint created after the latest prompt", async () => {
 			const callOrder: string[] = []
 			mockProvider.cancelTask.mockImplementation(async () => callOrder.push("cancelTask"))
 			mockCline.checkpointRestore.mockImplementation(async () => callOrder.push("checkpointRestore"))
 
-			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore" })
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore", taskId: "test-task-123" })
 
-			expect(mockProvider.cancelTask).toHaveBeenCalled()
+			expect(mockProvider.cancelTask).toHaveBeenCalledWith("test-task-123")
 			expect(mockCline.checkpointRestore).toHaveBeenCalledWith({
 				ts: 4,
 				commitHash: "latest-prompt-checkpoint",
 				mode: "restore",
 			})
 			expect(callOrder).toEqual(["cancelTask", "checkpointRestore"])
+		})
+
+		it("restores on the rehydrated task instance returned by getTaskById after cancellation", async () => {
+			const replacementTask = {
+				taskId: "test-task-123",
+				isInitialized: true,
+				clineMessages: [],
+				checkpointDiff: vi.fn(),
+				checkpointRestore: vi.fn(),
+			}
+			// resolveMessageTask sees the original task; every lookup after
+			// cancelTask returns the rehydrated replacement instance.
+			mockProvider.getTaskById.mockReturnValueOnce(mockCline).mockReturnValue(replacementTask)
+
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore", taskId: "test-task-123" })
+
+			expect(mockProvider.cancelTask).toHaveBeenCalledWith("test-task-123")
+			expect(replacementTask.checkpointRestore).toHaveBeenCalledWith({
+				ts: 4,
+				commitHash: "latest-prompt-checkpoint",
+				mode: "restore",
+			})
+			expect(mockCline.checkpointRestore).not.toHaveBeenCalled()
+		})
+
+		it("does nothing when the taskId no longer resolves to a live task", async () => {
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointDiff", taskId: "stale-task-id" })
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore", taskId: "stale-task-id" })
+
+			expect(mockCline.checkpointDiff).not.toHaveBeenCalled()
+			expect(mockCline.checkpointRestore).not.toHaveBeenCalled()
+			expect(mockProvider.cancelTask).not.toHaveBeenCalled()
 		})
 
 		it("does not diff or restore when no latest-prompt checkpoint exists", async () => {
@@ -194,8 +253,8 @@ describe("webviewMessageHandler - checkpoint operations", () => {
 				{ ts: 3, type: "ask", ask: "completion_result", text: "", partial: false },
 			]
 
-			await webviewMessageHandler(mockProvider, { type: "completionCheckpointDiff" })
-			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore" })
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointDiff", taskId: "test-task-123" })
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore", taskId: "test-task-123" })
 
 			expect(mockCline.checkpointDiff).not.toHaveBeenCalled()
 			expect(mockCline.checkpointRestore).not.toHaveBeenCalled()
@@ -203,7 +262,7 @@ describe("webviewMessageHandler - checkpoint operations", () => {
 		})
 
 		it("resolves the latest completion checkpoint in the extension host", async () => {
-			await webviewMessageHandler(mockProvider, { type: "completionCheckpointDiff" })
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointDiff", taskId: "test-task-123" })
 
 			expect(mockCline.checkpointDiff).toHaveBeenCalledWith({
 				ts: 4,
@@ -215,9 +274,9 @@ describe("webviewMessageHandler - checkpoint operations", () => {
 		it("does not restore when task re-initialization times out", async () => {
 			;(pWaitFor as any).mockRejectedValueOnce(new Error("timed out"))
 
-			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore" })
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore", taskId: "test-task-123" })
 
-			expect(mockProvider.cancelTask).toHaveBeenCalled()
+			expect(mockProvider.cancelTask).toHaveBeenCalledWith("test-task-123")
 			expect(mockCline.checkpointRestore).not.toHaveBeenCalled()
 			const vscode = await import("vscode")
 			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("errors.checkpoint_timeout")
@@ -228,7 +287,7 @@ describe("webviewMessageHandler - checkpoint operations", () => {
 			const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
 			mockCline.checkpointRestore.mockRejectedValueOnce(restoreError)
 
-			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore" })
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore", taskId: "test-task-123" })
 
 			const vscode = await import("vscode")
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -239,15 +298,18 @@ describe("webviewMessageHandler - checkpoint operations", () => {
 			consoleErrorSpy.mockRestore()
 		})
 
-		it("does not restore when task identity changes during cancellation", async () => {
-			mockProvider.getCurrentTask.mockReturnValueOnce(mockCline).mockReturnValue({
-				...mockCline,
-				taskId: "different-task-id",
-			})
+		it("does not restore when the task disappears after re-initialization", async () => {
+			// Call sequence for getTaskById: resolveMessageTask lookup, the
+			// pWaitFor re-initialization probe, then the final rehydrate lookup
+			// which finds the task gone.
+			mockProvider.getTaskById
+				.mockReturnValueOnce(mockCline)
+				.mockReturnValueOnce(mockCline)
+				.mockReturnValue(undefined)
 
-			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore" })
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore", taskId: "test-task-123" })
 
-			expect(mockProvider.cancelTask).toHaveBeenCalled()
+			expect(mockProvider.cancelTask).toHaveBeenCalledWith("test-task-123")
 			expect(mockCline.checkpointRestore).not.toHaveBeenCalled()
 			const vscode = await import("vscode")
 			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("errors.checkpoint_failed")

@@ -25,15 +25,25 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 	),
 }))
 
-describe("SeeNewChangesButtons", () => {
-	beforeEach(() => vi.clearAllMocks())
+const mockExtensionState: { currentTaskId?: string; currentTaskItem?: { id: string } } = {}
 
-	it("posts the Kilo-style see-new-changes action", () => {
+vi.mock("@src/context/ExtensionStateContext", () => ({
+	useExtensionState: () => mockExtensionState,
+}))
+
+describe("SeeNewChangesButtons", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		mockExtensionState.currentTaskId = "task-123"
+		mockExtensionState.currentTaskItem = { id: "item-456" }
+	})
+
+	it("posts the Kilo-style see-new-changes action with the owning task's id", () => {
 		const { getByText } = render(<SeeNewChangesButtons />)
 
 		fireEvent.click(getByText("chat:seeNewChanges.title"))
 
-		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "completionCheckpointDiff" })
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "completionCheckpointDiff", taskId: "task-123" })
 	})
 
 	it("requires confirmation before restoring changes", () => {
@@ -48,7 +58,33 @@ describe("SeeNewChangesButtons", () => {
 
 		fireEvent.click(getByText("chat:checkpoint.menu.confirm chat:restoreChanges.title"))
 
-		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "completionCheckpointRestore" })
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "completionCheckpointRestore", taskId: "task-123" })
+	})
+
+	it("falls back to the current task item's id when currentTaskId is unset", () => {
+		mockExtensionState.currentTaskId = undefined
+
+		const { getByText } = render(<SeeNewChangesButtons />)
+
+		fireEvent.click(getByText("chat:seeNewChanges.title"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "completionCheckpointDiff", taskId: "item-456" })
+
+		fireEvent.click(getByText("chat:restoreChanges.title"))
+		fireEvent.click(getByText("chat:checkpoint.menu.confirm chat:restoreChanges.title"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "completionCheckpointRestore", taskId: "item-456" })
+	})
+
+	it("posts an undefined taskId when no task context is available", () => {
+		mockExtensionState.currentTaskId = undefined
+		mockExtensionState.currentTaskItem = undefined
+
+		const { getByText } = render(<SeeNewChangesButtons />)
+
+		fireEvent.click(getByText("chat:seeNewChanges.title"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "completionCheckpointDiff", taskId: undefined })
 	})
 
 	it("returns to the initial actions when restore confirmation is cancelled", () => {

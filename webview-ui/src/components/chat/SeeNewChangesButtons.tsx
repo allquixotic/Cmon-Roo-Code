@@ -3,20 +3,26 @@ import { useTranslation } from "react-i18next"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
 import { vscode } from "@src/utils/vscode"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 
 export const SeeNewChangesButtons = () => {
 	const { t } = useTranslation()
+	const { currentTaskId, currentTaskItem } = useExtensionState()
 	const [restoringChanges, setRestoringChanges] = useState(false)
 
+	// Attach the owning task's id: the visible task can change between the click
+	// and the extension handling the message, and restore is destructive.
+	const taskId = currentTaskId ?? currentTaskItem?.id
+
 	const seeNewChangesCallback = useCallback(() => {
-		vscode.postMessage({ type: "completionCheckpointDiff" })
-	}, [])
+		vscode.postMessage({ type: "completionCheckpointDiff", taskId })
+	}, [taskId])
 
 	const restoreChangesCallback = useCallback(() => setRestoringChanges(true), [])
 
 	const confirmRestoreChangesCallback = useCallback(() => {
-		vscode.postMessage({ type: "completionCheckpointRestore" })
-	}, [])
+		vscode.postMessage({ type: "completionCheckpointRestore", taskId })
+	}, [taskId])
 
 	const cancelRestoreChangesCallback = useCallback(() => setRestoringChanges(false), [])
 

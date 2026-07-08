@@ -234,21 +234,26 @@ vi.mock("../../../services/skills/SkillsManager", () => ({
 
 vi.mock("../../task-persistence", async (importOriginal) => {
 	const mod = await importOriginal<typeof import("../../task-persistence")>()
+	// ClineProvider now attaches to a process-wide shared store via the static
+	// TaskHistoryStore.getOrCreate registry and releases it (refcounted) on dispose.
+	const makeStore = () => ({
+		initialize: vi.fn().mockResolvedValue(undefined),
+		dispose: vi.fn(),
+		initialized: Promise.resolve(),
+		get: vi.fn().mockReturnValue(undefined),
+		getAll: vi.fn().mockReturnValue([]),
+		upsert: vi.fn().mockResolvedValue([]),
+		delete: vi.fn().mockResolvedValue(undefined),
+		deleteMany: vi.fn().mockResolvedValue(undefined),
+		migrateFromGlobalState: vi.fn().mockResolvedValue(undefined),
+		release: vi.fn(),
+	})
 	return {
 		...mod,
-		TaskHistoryStore: vi.fn().mockImplementation(function () {
-			return {
-				initialize: vi.fn().mockResolvedValue(undefined),
-				dispose: vi.fn(),
-				initialized: Promise.resolve(),
-				get: vi.fn().mockReturnValue(undefined),
-				getAll: vi.fn().mockReturnValue([]),
-				upsert: vi.fn().mockResolvedValue([]),
-				delete: vi.fn().mockResolvedValue(undefined),
-				deleteMany: vi.fn().mockResolvedValue(undefined),
-				migrateFromGlobalState: vi.fn().mockResolvedValue(undefined),
-			}
-		}),
+		TaskHistoryStore: {
+			getOrCreate: vi.fn(() => makeStore()),
+			__resetInstancesForTests: vi.fn(),
+		},
 		readApiMessages: vi.fn().mockResolvedValue([]),
 		saveApiMessages: vi.fn().mockResolvedValue(undefined),
 		saveTaskMessages: vi.fn().mockResolvedValue(undefined),
@@ -330,6 +335,7 @@ describe("ClineProvider flicker-free cancel", () => {
 
 		provider.postStateToWebview = vi.fn().mockResolvedValue(undefined)
 		provider.postStateToWebviewWithoutTaskHistory = vi.fn().mockResolvedValue(undefined)
+		provider.postStateToWebviewWithoutClineMessages = vi.fn().mockResolvedValue(undefined)
 		// Mock private method using any cast
 		;(provider as any).updateGlobalState = vi.fn().mockResolvedValue(undefined)
 		provider.activateProviderProfile = vi.fn().mockResolvedValue(undefined)
@@ -358,6 +364,7 @@ describe("ClineProvider flicker-free cancel", () => {
 			cancelCurrentRequest: vi.fn(),
 			cancelAutoApprovalTimeout: vi.fn(),
 			supersedePendingAsk: vi.fn(),
+			pendingUnpersistedSteerMessages: [],
 			messageQueueService: { messages: [] },
 			terminalProcess: { abort: vi.fn() },
 			rootTask: undefined,
@@ -375,7 +382,8 @@ describe("ClineProvider flicker-free cancel", () => {
 			emit: vi.fn(),
 			on: vi.fn(),
 			off: vi.fn(),
-			messageQueueService: { restoreMessages: vi.fn() },
+			pendingUnpersistedSteerMessages: [],
+			messageQueueService: { messages: [], restoreMessages: vi.fn() },
 			setDeferQueuedMessageDrainUntilResume: vi.fn(),
 		}
 
@@ -386,6 +394,10 @@ describe("ClineProvider flicker-free cancel", () => {
 	})
 
 	afterEach(async () => {
+		// dispose() drains the stack via removeClineFromStack(), which several
+		// tests stub to a no-op; clear the stack of test doubles first so the
+		// drain loop terminates.
+		;(provider as any).clineStack = []
 		await provider.dispose()
 	})
 
@@ -541,6 +553,7 @@ describe("ClineProvider flicker-free cancel", () => {
 		}
 		const replacementTask = {
 			messageQueueService: {
+				messages: [],
 				restoreMessages: vi.fn(),
 			},
 			setDeferQueuedMessageDrainUntilResume: vi.fn(),
@@ -595,6 +608,7 @@ describe("ClineProvider flicker-free cancel", () => {
 			cancelCurrentRequest: vi.fn(),
 			cancelAutoApprovalTimeout: vi.fn(),
 			supersedePendingAsk: vi.fn(),
+			pendingUnpersistedSteerMessages: [],
 			messageQueueService: { messages: [] },
 			terminalProcess: { abort: vi.fn() },
 			rootTask: undefined,
@@ -606,6 +620,7 @@ describe("ClineProvider flicker-free cancel", () => {
 		}
 		const replacementTask = {
 			messageQueueService: {
+				messages: [],
 				restoreMessages: vi.fn(),
 			},
 			setDeferQueuedMessageDrainUntilResume: vi.fn(),
@@ -705,14 +720,19 @@ describe("ClineProvider flicker-free cancel", () => {
 		)
 		// Parent is NOT transitioned to active — it stays delegated
 		expect(updateTaskHistorySpy).not.toHaveBeenCalledWith(expect.objectContaining({ id: "parent-1" }))
-		// Rehydrated child keeps its parent link so it can resume and report back
+		// Rehydrated child keeps its parent link so it can resume and report back.
+		// The rehydrate is a flicker-free in-place replacement; the child was not
+		// visible so it must not steal focus from the visible conversation.
 		expect(createTaskWithHistoryItemSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
 				id: "child-1",
 				parentTaskId: "parent-1",
 				rootTaskId: "root-1",
 			}),
+			{ replaceExistingTask: true, focus: false },
 		)
+		// Successful interrupted write clears any stale fail-closed guard entry.
+		expect((provider as any).cancelledDelegationChildIds.has("child-1")).toBe(false)
 	})
 
 	it("detaches runtime parent links when delegated parent detach fails", async () => {
@@ -765,12 +785,15 @@ describe("ClineProvider flicker-free cancel", () => {
 		expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
 			expect.stringContaining("[cancelTask] Failed to mark child interrupted for child-1: parent lookup failed"),
 		)
+		// The severing write must NOT retry a status transition: it preserves the
+		// child's existing persisted status inside the store lock.
 		expect(updateTaskHistorySpy).toHaveBeenCalledWith(
 			expect.objectContaining({
 				id: "child-1",
 				parentTaskId: undefined,
 				rootTaskId: undefined,
 			}),
+			{ preserveExistingStatus: true },
 		)
 		expect(createTaskWithHistoryItemSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -780,6 +803,7 @@ describe("ClineProvider flicker-free cancel", () => {
 				parentTask: undefined,
 				rootTask: undefined,
 			}),
+			{ replaceExistingTask: true, focus: false },
 		)
 		expect((provider as any).cancelledDelegationChildIds.has("child-1")).toBe(true)
 	})
@@ -827,10 +851,15 @@ describe("ClineProvider flicker-free cancel", () => {
 
 		await expect(provider.cancelTask()).rejects.toThrow("standalone persist failed")
 		expect(createTaskWithHistoryItemSpy).not.toHaveBeenCalled()
-		expect((provider as any).cancelledDelegationChildIds.has("child-1")).toBe(true)
+		// The fail-closed reopen guard is only poisoned AFTER the severing write
+		// lands; a transient persistence failure must not permanently block this
+		// child's completion handoff for the rest of the session.
+		expect((provider as any).cancelledDelegationChildIds.has("child-1")).toBe(false)
 	})
 
-	it("marks a cancelled delegated child as 'interrupted' and keeps parent delegated", async () => {
+	it("leaves a cancelled child's status intact when the child is itself delegated", async () => {
+		// "delegated" → "interrupted" is not a valid transition, and the
+		// grandchild's completion handoff needs the delegated status intact.
 		const childHistory: HistoryItem = {
 			id: "child-1",
 			number: 2,
@@ -842,7 +871,9 @@ describe("ClineProvider flicker-free cancel", () => {
 			workspace: "/test/workspace",
 			parentTaskId: "parent-1",
 			rootTaskId: "root-1",
-			status: "active",
+			status: "delegated",
+			awaitingChildId: "grandchild-1",
+			delegatedToId: "grandchild-1",
 		}
 		const parentHistory: HistoryItem = {
 			id: "parent-1",
@@ -883,26 +914,30 @@ describe("ClineProvider flicker-free cancel", () => {
 			.spyOn(provider, "createTaskWithHistoryItem")
 			.mockResolvedValue(undefined as any)
 
+		// Simulate a stale fail-closed entry from a prior failed cancel attempt;
+		// cancelling a delegated child must clear it so the grandchild's
+		// completion handoff is not blocked.
+		;(provider as any).cancelledDelegationChildIds.add("child-1")
+
 		await provider.cancelTask()
 
-		// Child should be marked interrupted, not have its parent link severed
-		expect(updateTaskHistorySpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				id: "child-1",
-				status: "interrupted",
-			}),
-		)
+		// No history writes at all: neither the child (its "delegated" status is
+		// left intact) nor the parent (it stays delegated awaiting the child).
+		expect(updateTaskHistorySpy).not.toHaveBeenCalled()
 
-		// Parent should remain delegated with awaitingChildId intact
-		expect(updateTaskHistorySpy).not.toHaveBeenCalledWith(expect.objectContaining({ id: "parent-1" }))
+		// Stale fail-closed guard entry is cleared.
+		expect((provider as any).cancelledDelegationChildIds.has("child-1")).toBe(false)
 
-		// Rehydrated child retains parent link
+		// Rehydrated child retains parent link AND its delegated status.
 		expect(createTaskWithHistoryItemSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
 				id: "child-1",
 				parentTaskId: "parent-1",
 				rootTaskId: "root-1",
+				status: "delegated",
+				awaitingChildId: "grandchild-1",
 			}),
+			{ replaceExistingTask: true, focus: false },
 		)
 	})
 

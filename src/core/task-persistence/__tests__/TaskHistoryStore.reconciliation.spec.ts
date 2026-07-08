@@ -12,10 +12,25 @@ vi.mock("../../../utils/storage", () => ({
 	getStorageBasePath: vi.fn().mockImplementation((defaultPath: string) => defaultPath),
 }))
 
+// Backdate written files past the delegation-repair grace window. The recency
+// guard compares Date.now() (integer ms) against stat.mtimeMs (float, sub-ms
+// precision on APFS): a stat in the same millisecond as the write yields a
+// NEGATIVE diff, which passes `diff < graceMs` even with graceMs 0. Backdating
+// keeps fixtures deterministically eligible for reconciliation; tests that need
+// a "freshly written" file (grace-window skip) seed with a current mtime.
+const BACKDATE_MS = 120_000
+
+async function backdateFile(filePath: string): Promise<void> {
+	const past = new Date(Date.now() - BACKDATE_MS)
+	await fs.utimes(filePath, past, past)
+}
+
 vi.mock("../../../utils/safeWriteJson", () => ({
 	safeWriteJson: vi.fn().mockImplementation(async (filePath: string, data: any) => {
 		await fs.mkdir(path.dirname(filePath), { recursive: true })
 		await fs.writeFile(filePath, JSON.stringify(data, null, "\t"), "utf8")
+		const past = new Date(Date.now() - 120_000)
+		await fs.utimes(filePath, past, past)
 	}),
 }))
 
@@ -56,6 +71,10 @@ describe("assertValidTransition", () => {
 
 		it("interrupted → completed", () => {
 			expect(() => assertValidTransition("interrupted", "completed")).not.toThrow()
+		})
+
+		it("interrupted → delegated (cancelled subtask resumed from history can spawn subtasks)", () => {
+			expect(() => assertValidTransition("interrupted", "delegated")).not.toThrow()
 		})
 
 		it("undefined (implicit active) → delegated", () => {
@@ -118,19 +137,25 @@ describe("TaskHistoryStore reconcileDelegationState", () => {
 	let tmpDir: string
 	let store: TaskHistoryStore
 
-	async function seedItems(items: HistoryItem[]): Promise<void> {
+	async function seedItems(items: HistoryItem[], options: { freshMtime?: boolean } = {}): Promise<void> {
 		const tasksDir = path.join(tmpDir, "tasks")
 		await fs.mkdir(tasksDir, { recursive: true })
 		for (const item of items) {
 			const taskDir = path.join(tasksDir, item.id)
 			await fs.mkdir(taskDir, { recursive: true })
-			await fs.writeFile(path.join(taskDir, "history_item.json"), JSON.stringify(item))
+			const filePath = path.join(taskDir, "history_item.json")
+			await fs.writeFile(filePath, JSON.stringify(item))
+			if (!options.freshMtime) {
+				await backdateFile(filePath)
+			}
 		}
 	}
 
 	beforeEach(async () => {
 		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "reconcile-test-"))
-		store = new TaskHistoryStore(tmpDir)
+		// delegationRepairGraceMs: 0 — freshly written fixtures would otherwise be
+		// skipped by the default 60s recency guard against live delegations.
+		store = new TaskHistoryStore(tmpDir, { delegationRepairGraceMs: 0 })
 	})
 
 	afterEach(async () => {
@@ -268,7 +293,7 @@ describe("TaskHistoryStore reconcileDelegationState", () => {
 		const afterFirst = { ...store.get("parent-6") }
 
 		store.dispose()
-		const store2 = new TaskHistoryStore(tmpDir)
+		const store2 = new TaskHistoryStore(tmpDir, { delegationRepairGraceMs: 0 })
 		await store2.initialize()
 		const afterSecond = { ...store2.get("parent-6") }
 		store2.dispose()
@@ -277,6 +302,55 @@ describe("TaskHistoryStore reconcileDelegationState", () => {
 		expect(afterSecond.status).toBe("active")
 		expect(afterSecond.completedByChildId).toBe(afterFirst.completedByChildId)
 		expect(afterSecond.completionResultSummary).toBe(afterFirst.completionResultSummary)
+	})
+
+	it("skips repair for a freshly-written delegated parent within the default grace window", async () => {
+		// With the default delegationRepairGraceMs (60s), a parent whose
+		// history_item.json was written moments ago is indistinguishable from a
+		// live delegation in another provider — reconciliation must leave it alone.
+		const parent = makeItem({ id: "parent-grace", status: "delegated", awaitingChildId: "missing-child-grace" })
+		await seedItems([parent], { freshMtime: true })
+
+		const graceStore = new TaskHistoryStore(tmpDir) // default grace window
+		try {
+			await graceStore.initialize()
+
+			const untouched = graceStore.get("parent-grace")
+			expect(untouched?.status).toBe("delegated")
+			expect(untouched?.awaitingChildId).toBe("missing-child-grace")
+		} finally {
+			graceStore.dispose()
+		}
+	})
+
+	it("initialize() is idempotent: concurrent calls run reconciliation once and later calls do not re-run it", async () => {
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+		try {
+			const parent = makeItem({ id: "parent-idem", status: "delegated", awaitingChildId: "missing-idem" })
+			await seedItems([parent])
+
+			// Concurrent calls: the started-guard makes the second call await the
+			// first run instead of re-running reconciliation.
+			await Promise.all([store.initialize(), store.initialize()])
+
+			expect(store.get("parent-idem")?.status).toBe("active")
+			const repairWarnings = warnSpy.mock.calls.filter(
+				(call) => typeof call[0] === "string" && call[0].includes("parent-idem"),
+			)
+			expect(repairWarnings).toHaveLength(1)
+
+			// Seed a new orphaned delegated parent directly on disk. A subsequent
+			// initialize() must be a no-op (returns the first run's promise) and
+			// must NOT pick it up or repair it.
+			const parent2 = makeItem({ id: "parent-idem-2", status: "delegated", awaitingChildId: "missing-idem-2" })
+			await seedItems([parent2])
+
+			await store.initialize()
+
+			expect(store.get("parent-idem-2")).toBeUndefined()
+		} finally {
+			warnSpy.mockRestore()
+		}
 	})
 
 	it("logs repairs to console.warn", async () => {
@@ -296,7 +370,7 @@ describe("TaskHistoryStore reconcileDelegationState", () => {
 	it("invokes onWrite callback after startup repairs", async () => {
 		const onWrite = vi.fn().mockResolvedValue(undefined)
 		store.dispose()
-		store = new TaskHistoryStore(tmpDir, { onWrite })
+		store = new TaskHistoryStore(tmpDir, { onWrite, delegationRepairGraceMs: 0 })
 
 		const parent = makeItem({ id: "parent-onwrite", status: "delegated", awaitingChildId: "nonexistent-child" })
 		await seedItems([parent])
@@ -322,7 +396,7 @@ describe("TaskHistoryStore migrateFromGlobalState reconciliation", () => {
 
 	beforeEach(async () => {
 		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "zoo-migrate-test-"))
-		store = new TaskHistoryStore(tmpDir)
+		store = new TaskHistoryStore(tmpDir, { delegationRepairGraceMs: 0 })
 		await store.initialize()
 	})
 
@@ -368,19 +442,23 @@ describe("TaskHistoryStore upsert transition guard", () => {
 	let tmpDir: string
 	let store: TaskHistoryStore
 
-	async function seedItems(items: HistoryItem[]): Promise<void> {
+	async function seedItems(items: HistoryItem[], options: { freshMtime?: boolean } = {}): Promise<void> {
 		const tasksDir = path.join(tmpDir, "tasks")
 		await fs.mkdir(tasksDir, { recursive: true })
 		for (const item of items) {
 			const taskDir = path.join(tasksDir, item.id)
 			await fs.mkdir(taskDir, { recursive: true })
-			await fs.writeFile(path.join(taskDir, "history_item.json"), JSON.stringify(item))
+			const filePath = path.join(taskDir, "history_item.json")
+			await fs.writeFile(filePath, JSON.stringify(item))
+			if (!options.freshMtime) {
+				await backdateFile(filePath)
+			}
 		}
 	}
 
 	beforeEach(async () => {
 		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "upsert-guard-test-"))
-		store = new TaskHistoryStore(tmpDir)
+		store = new TaskHistoryStore(tmpDir, { delegationRepairGraceMs: 0 })
 		await store.initialize()
 	})
 
@@ -393,7 +471,7 @@ describe("TaskHistoryStore upsert transition guard", () => {
 		const item = makeItem({ id: "task-guard-1", status: "completed" })
 		await seedItems([item])
 		store.dispose()
-		store = new TaskHistoryStore(tmpDir)
+		store = new TaskHistoryStore(tmpDir, { delegationRepairGraceMs: 0 })
 		await store.initialize()
 
 		// Fire-and-forget late save: tries to write status: "active" over "completed"
@@ -411,7 +489,7 @@ describe("TaskHistoryStore upsert transition guard", () => {
 		const item = makeItem({ id: "task-guard-2", status: "delegated", awaitingChildId: "child-guard-2" })
 		await seedItems([child, item])
 		store.dispose()
-		store = new TaskHistoryStore(tmpDir)
+		store = new TaskHistoryStore(tmpDir, { delegationRepairGraceMs: 0 })
 		await store.initialize()
 
 		// Confirm reconciliation left the delegated status alone
@@ -428,7 +506,7 @@ describe("TaskHistoryStore upsert transition guard", () => {
 		const item = makeItem({ id: "task-guard-3", status: "active" })
 		await seedItems([item])
 		store.dispose()
-		store = new TaskHistoryStore(tmpDir)
+		store = new TaskHistoryStore(tmpDir, { delegationRepairGraceMs: 0 })
 		await store.initialize()
 
 		await expect(store.upsert({ ...item, status: "completed" })).resolves.toBeDefined()
@@ -439,7 +517,7 @@ describe("TaskHistoryStore upsert transition guard", () => {
 		const item = makeItem({ id: "task-guard-interrupted", status: "interrupted" })
 		await seedItems([item])
 		store.dispose()
-		store = new TaskHistoryStore(tmpDir)
+		store = new TaskHistoryStore(tmpDir, { delegationRepairGraceMs: 0 })
 		await store.initialize()
 
 		await expect(store.upsert({ ...item, status: "active" })).rejects.toThrow(
@@ -452,7 +530,7 @@ describe("TaskHistoryStore upsert transition guard", () => {
 		const item = makeItem({ id: "task-guard-interrupted-complete", status: "interrupted" })
 		await seedItems([item])
 		store.dispose()
-		store = new TaskHistoryStore(tmpDir)
+		store = new TaskHistoryStore(tmpDir, { delegationRepairGraceMs: 0 })
 		await store.initialize()
 
 		await expect(store.upsert({ ...item, status: "completed" })).resolves.toBeDefined()
@@ -473,7 +551,7 @@ describe("TaskHistoryStore upsert transition guard", () => {
 		delete (item as any).status
 		await seedItems([item])
 		store.dispose()
-		store = new TaskHistoryStore(tmpDir)
+		store = new TaskHistoryStore(tmpDir, { delegationRepairGraceMs: 0 })
 		await store.initialize()
 
 		await expect(store.upsert({ ...item, status: "active" })).resolves.toBeDefined()
@@ -484,7 +562,7 @@ describe("TaskHistoryStore upsert transition guard", () => {
 		const item = makeItem({ id: "task-guard-4", status: "completed" })
 		await seedItems([item])
 		store.dispose()
-		store = new TaskHistoryStore(tmpDir)
+		store = new TaskHistoryStore(tmpDir, { delegationRepairGraceMs: 0 })
 		await store.initialize()
 
 		// Omitting status entirely — no transition should be validated
@@ -492,6 +570,24 @@ describe("TaskHistoryStore upsert transition guard", () => {
 		await expect(store.upsert(noStatus as HistoryItem)).resolves.toBeDefined()
 		// Status is preserved from the existing cache entry
 		expect(store.get("task-guard-4")?.status).toBe("completed")
+	})
+
+	it("preserveExistingStatus: a stale save keeps the currently persisted status but still merges other fields", async () => {
+		// Simulate the Task.saveClineMessages TOCTOU: a save captured status
+		// "active" before a queued delegated transition applied. With
+		// preserveExistingStatus the write must keep "delegated" (decided inside
+		// the lock) instead of silently reverting it, while non-status fields merge.
+		const item = makeItem({ id: "task-guard-preserve", status: "active" })
+		await store.upsert(item)
+		await store.upsert({ ...item, status: "delegated", awaitingChildId: "child-preserve" })
+		expect(store.get("task-guard-preserve")?.status).toBe("delegated")
+
+		const staleSave = { ...item, status: "active" as const, tokensIn: 42 }
+		await expect(store.upsert(staleSave, { preserveExistingStatus: true })).resolves.toBeDefined()
+
+		const after = store.get("task-guard-preserve")
+		expect(after?.status).toBe("delegated")
+		expect(after?.tokensIn).toBe(42)
 	})
 
 	it("atomicReadAndUpdate enforces the upsertCore transition guard on status changes", async () => {

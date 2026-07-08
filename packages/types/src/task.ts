@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { RooCodeEventName } from "./events.js"
 import type { RooCodeSettings } from "./global-settings.js"
+import type { ProviderSettings } from "./provider-settings.js"
 import type { ClineMessage, QueuedMessage, TokenUsage } from "./message.js"
 import type { ToolUsage, ToolName } from "./tool.js"
 import type { TodoItem } from "./todo.js"
@@ -85,6 +86,18 @@ export interface CreateTaskOptions {
 	/** Whether to start the task loop immediately (default: true).
 	 *  When false, the caller must invoke `task.start()` manually. */
 	startTask?: boolean
+	/**
+	 * Explicit task-scoped mode. When provided, the task uses this mode instead of
+	 * asynchronously adopting the global (visible-conversation) mode — required for
+	 * delegated children so a background delegation never depends on, or races,
+	 * global state.
+	 */
+	taskMode?: string
+	/**
+	 * Explicit task-scoped provider settings. When provided, overrides the global
+	 * (visible-conversation) apiConfiguration — required for delegated children.
+	 */
+	apiConfiguration?: ProviderSettings
 }
 
 export enum TaskStatus {
