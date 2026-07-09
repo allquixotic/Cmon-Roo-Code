@@ -1,6 +1,26 @@
 import { ApiMessage } from "../../core/task-persistence/apiMessages"
 
 import { ApiHandler } from "../index"
+import { detectBase64ImageMimeType } from "../../utils/imageMime"
+
+function normalizeImageBlockMimeType(block: any): any {
+	if (block?.type !== "image" || block.source?.type !== "base64" || typeof block.source.data !== "string") {
+		return block
+	}
+
+	const detectedMimeType = detectBase64ImageMimeType(block.source.data)
+	if (!detectedMimeType || detectedMimeType === block.source.media_type) {
+		return block
+	}
+
+	return {
+		...block,
+		source: {
+			...block.source,
+			media_type: detectedMimeType,
+		},
+	}
+}
 
 /* Removes image blocks from messages if they are not supported by the Api Handler */
 export function maybeRemoveImageBlocks(messages: ApiMessage[], apiHandler: ApiHandler): ApiMessage[] {
@@ -25,6 +45,8 @@ export function maybeRemoveImageBlocks(messages: ApiMessage[], apiHandler: ApiHa
 					}
 					return block
 				})
+			} else {
+				content = content.map(normalizeImageBlockMimeType)
 			}
 		}
 		return { ...message, content }

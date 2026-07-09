@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ConversationRole, Message, ContentBlock } from "@aws-sdk/client-bedrock-runtime"
 import { sanitizeOpenAiCallId } from "../../utils/tool-id"
+import { detectImageMimeType } from "../../utils/imageMime"
 
 interface BedrockMessageContent {
 	type: "text" | "image" | "video" | "tool_use" | "tool_result"
@@ -71,8 +72,9 @@ export function convertToBedrockConverseMessages(anthropicMessages: Anthropic.Me
 					byteArray = messageBlock.source.data
 				}
 
+				const mediaType = detectImageMimeType(byteArray) || messageBlock.source.media_type
 				// Extract format from media_type (e.g., "image/jpeg" -> "jpeg")
-				const format = messageBlock.source.media_type.split("/")[1]
+				const format = mediaType.split("/")[1]
 				if (!["png", "jpeg", "gif", "webp"].includes(format)) {
 					throw new Error(`Unsupported image format: ${format}`)
 				}

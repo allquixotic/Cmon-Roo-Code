@@ -103,6 +103,51 @@ describe("maybeRemoveImageBlocks", () => {
 		expect(apiHandler.getModel).toHaveBeenCalled()
 	})
 
+	it("should normalize image MIME type from base64 bytes when API handler supports images", () => {
+		const apiHandler = createMockApiHandler(true)
+		const jpegData = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]).toString("base64")
+		const messages: ApiMessage[] = [
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: "Check this screenshot:",
+					},
+					{
+						type: "image",
+						source: {
+							type: "base64",
+							media_type: "image/png",
+							data: jpegData,
+						},
+					},
+				],
+			},
+		]
+
+		const result = maybeRemoveImageBlocks(messages, apiHandler)
+
+		expect((result[0].content as any[])[1].source.media_type).toBe("image/jpeg")
+		expect(messages[0]).toEqual({
+			role: "user",
+			content: [
+				{
+					type: "text",
+					text: "Check this screenshot:",
+				},
+				{
+					type: "image",
+					source: {
+						type: "base64",
+						media_type: "image/png",
+						data: jpegData,
+					},
+				},
+			],
+		})
+	})
+
 	it("should convert image blocks to text descriptions when API handler doesn't support images", () => {
 		const apiHandler = createMockApiHandler(false)
 		const messages: ApiMessage[] = [

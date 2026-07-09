@@ -68,6 +68,34 @@ describe("convertToBedrockConverseMessages", () => {
 		}
 	})
 
+	it("uses detected image bytes instead of stale media_type for Bedrock image format", () => {
+		const jpegData = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]).toString("base64")
+		const messages: Anthropic.Messages.MessageParam[] = [
+			{
+				role: "user",
+				content: [
+					{
+						type: "image",
+						source: {
+							type: "base64",
+							data: jpegData,
+							media_type: "image/png" as const,
+						},
+					},
+				],
+			},
+		]
+
+		const result = convertToBedrockConverseMessages(messages)
+		const imageBlock = result[0].content?.[0] as ContentBlock
+
+		if ("image" in imageBlock && imageBlock.image) {
+			expect(imageBlock.image.format).toBe("jpeg")
+		} else {
+			expect.fail("Expected image block not found")
+		}
+	})
+
 	it("converts tool use messages correctly (native tools format; default)", () => {
 		const messages: Anthropic.Messages.MessageParam[] = [
 			{

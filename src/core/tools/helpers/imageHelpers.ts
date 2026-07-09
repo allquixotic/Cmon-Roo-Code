@@ -3,6 +3,8 @@ import * as fs from "fs/promises"
 import { t } from "../../../i18n"
 import prettyBytes from "pretty-bytes"
 
+import { detectImageMimeType } from "../../../utils/imageMime"
+
 /**
  * Default maximum allowed image file size in bytes (5MB)
  */
@@ -77,7 +79,7 @@ export async function readImageAsDataUrlWithBuffer(filePath: string): Promise<{ 
 	const base64 = fileBuffer.toString("base64")
 	const ext = path.extname(filePath).toLowerCase()
 
-	const mimeType = IMAGE_MIME_TYPES[ext] || "image/png"
+	const mimeType = detectImageMimeType(fileBuffer) || IMAGE_MIME_TYPES[ext] || "image/png"
 	const dataUrl = `data:${mimeType};base64,${base64}`
 
 	return { dataUrl, buffer: fileBuffer }
