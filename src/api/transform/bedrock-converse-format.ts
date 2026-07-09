@@ -44,8 +44,11 @@ export function convertToBedrockConverseMessages(anthropicMessages: Anthropic.Me
 			}
 		}
 
+		const anthropicContent =
+			role === "user" ? orderUserContentForBedrock(anthropicMessage.content) : anthropicMessage.content
+
 		// Process complex content types
-		const content = anthropicMessage.content.map((block) => {
+		const content = anthropicContent.map((block) => {
 			const messageBlock = block as BedrockMessageContent & {
 				id?: string
 				tool_use_id?: string
@@ -208,4 +211,18 @@ export function convertToBedrockConverseMessages(anthropicMessages: Anthropic.Me
 			content,
 		}
 	})
+}
+
+function orderUserContentForBedrock(
+	content: Anthropic.Messages.ContentBlockParam[],
+): Anthropic.Messages.ContentBlockParam[] {
+	const toolResults = content.filter((block) => block.type === "tool_result")
+
+	if (toolResults.length === 0) {
+		return content
+	}
+
+	const remainingBlocks = content.filter((block) => block.type !== "tool_result")
+
+	return [...toolResults, ...remainingBlocks]
 }

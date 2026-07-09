@@ -345,6 +345,44 @@ describe("convertToBedrockConverseMessages", () => {
 		expect("text" in userContent).toBe(false)
 	})
 
+	it("moves all user tool results before images and text for Bedrock native tool protocol", () => {
+		const messages: Anthropic.Messages.MessageParam[] = [
+			{
+				role: "assistant",
+				content: [
+					{ type: "tool_use", id: "call-1", name: "read_file", input: { path: "a.png" } },
+					{ type: "tool_use", id: "call-2", name: "read_file", input: { path: "b.png" } },
+					{ type: "tool_use", id: "call-3", name: "read_file", input: { path: "c.png" } },
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{ type: "tool_result", tool_use_id: "call-1", content: "Read a.png" } as any,
+					testImageBlock(),
+					{ type: "tool_result", tool_use_id: "call-2", content: "Read b.png" } as any,
+					testImageBlock(),
+					{ type: "tool_result", tool_use_id: "call-3", content: "Read c.png" } as any,
+					testImageBlock(),
+					{ type: "text", text: "Screenshots attached." },
+				],
+			},
+		]
+
+		const result = convertToBedrockConverseMessages(messages)
+		const userContent = result[1]?.content ?? []
+
+		expect(userContent.map(bedrockBlockKind)).toEqual([
+			"toolResult:call-1",
+			"toolResult:call-2",
+			"toolResult:call-3",
+			"image",
+			"image",
+			"image",
+			"text",
+		])
+	})
+
 	it("handles text content correctly", () => {
 		const messages: Anthropic.Messages.MessageParam[] = [
 			{
@@ -585,3 +623,27 @@ describe("convertToBedrockConverseMessages", () => {
 		})
 	})
 })
+
+function testImageBlock(): Anthropic.Messages.ImageBlockParam {
+	return {
+		type: "image",
+		source: {
+			type: "base64",
+			data: "SGVsbG8=",
+			media_type: "image/png",
+		},
+	}
+}
+
+function bedrockBlockKind(block: ContentBlock): string {
+	if ("toolResult" in block && block.toolResult) {
+		return `toolResult:${block.toolResult.toolUseId}`
+	}
+	if ("image" in block && block.image) {
+		return "image"
+	}
+	if ("text" in block) {
+		return "text"
+	}
+	return "unknown"
+}
